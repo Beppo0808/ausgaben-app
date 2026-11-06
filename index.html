@@ -105,9 +105,47 @@
 
     <!-- Mein Konto (privat) -->
     <section id="view-konto" class="view" aria-label="Mein Konto">
+      <div class="card card-private" id="bankCard">
+        <div class="card-head"><h2>🏦 Kontostand</h2><span class="muted" id="bankStatus">nur lesend · nur auf diesem Gerät</span></div>
+        <div id="bankAccounts"></div>
+        <div class="btn-row" id="bankActions">
+          <button class="btn btn-primary" id="bankRefresh" hidden>🔄 Aktualisieren</button>
+          <button class="btn" id="bankAdd">🔗 Konto verbinden</button>
+        </div>
+        <div id="bankPicker" hidden>
+          <label class="field">Bank suchen
+            <input type="search" id="bankSearch" placeholder="z. B. Stadtsparkasse Düsseldorf" autocomplete="off">
+          </label>
+          <ul class="rows" id="bankList"></ul>
+          <button class="btn btn-ghost" id="bankPickerClose">Abbrechen</button>
+        </div>
+        <details class="howto" id="bankSetup">
+          <summary>⚙️ Einrichtung (einmalig)</summary>
+          <p class="hint">Der Abruf läuft über einen geschützten Baustein in eurem eigenen Supabase-Projekt. Anleitung Schritt für Schritt im README unter „Kontostand direkt abrufen“.</p>
+          <label class="field">Zugangsschlüssel für den Bank-Baustein
+            <input type="text" id="bankToken" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="wird erzeugt oder per Einladungslink übernommen">
+          </label>
+          <div class="btn-row">
+            <button class="btn" id="bankTokenNew">Neuen Schlüssel erzeugen</button>
+            <button class="btn btn-ghost" id="bankTokenCopy">Kopieren</button>
+          </div>
+          <label class="field">Adresse des Bank-Bausteins
+            <input type="url" id="bankUrl" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://xxxx.supabase.co/functions/v1/bank">
+          </label>
+          <label class="field">Rücksprung-Adresse (bei Enable Banking eintragen)
+            <input type="text" id="bankRedirect" readonly>
+          </label>
+          <div class="field">Privaten Schlüssel (.pem) zum Einfügen bei Supabase kopieren</div>
+          <p class="hint">Die Datei wird nur hier auf dem Gerät gelesen – nicht gespeichert, nicht hochgeladen.</p>
+          <label class="btn btn-file">📄 .pem-Datei öffnen<input type="file" id="bankPem"></label>
+          <textarea id="bankPemText" rows="4" readonly hidden></textarea>
+          <button class="btn btn-ghost" id="bankPemCopy" hidden>Schlüssel kopieren</button>
+        </details>
+      </div>
+
       <div class="card card-private">
-        <div class="card-head"><h2>🔒 Mein Konto</h2><span class="muted">nur auf diesem Gerät</span></div>
-        <p class="hint">Deine Kontobewegungen – nur zum Ansehen. Sie werden <b>nie</b> synchronisiert oder geteilt. Einzelne Ausgaben kannst du mit <b>＋ Haushalt</b> ins gemeinsame Haushaltsbuch übernehmen.</p>
+        <div class="card-head"><h2>🔒 Umsätze</h2><span class="muted">nur auf diesem Gerät</span></div>
+        <p class="hint">Nur zum Ansehen – wird <b>nie</b> synchronisiert oder geteilt. Einzelne Ausgaben kannst du mit <b>＋ Haushalt</b> ins gemeinsame Haushaltsbuch übernehmen.</p>
         <div class="field-row">
           <label class="field">Konto
             <select id="kontoAccount"></select>
@@ -117,7 +155,7 @@
           </label>
         </div>
         <div class="btn-row">
-          <label class="btn btn-primary btn-file">Umsätze importieren (CSV)<input type="file" id="kontoFile" accept=".csv,text/csv,text/plain"></label>
+          <label class="btn btn-ghost btn-file">Alternativ: CSV-Datei importieren<input type="file" id="kontoFile" accept=".csv,text/csv,text/plain"></label>
           <button class="btn btn-ghost" id="kontoHelpBtn">So geht's</button>
         </div>
         <div class="howto" id="kontoHelp" hidden>

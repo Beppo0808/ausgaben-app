@@ -10,6 +10,7 @@ inklusive **automatischer Erfassung, sobald mit dem iPhone (Apple Pay) bezahlt w
 - 👫 **Personen**: wer hat bezahlt?
 - 🔒 **Privat bleibt privat**: private Ausgaben und Kontobewegungen bleiben nur auf dem eigenen Gerät
 - 🧾 **Kassenbon scannen**: Foto vom Bon → Laden, Datum, Summe und Artikel mit Preisen werden erkannt (auf dem Gerät)
+- 🏦 **Kontostand direkt von der Bank** (nur lesend, per pushTAN freigegeben) – oder per CSV-Import
 - 🏦 **Mein Konto**: Kontoumsätze per CSV-Export aus dem Online-Banking ansehen (nur lesen), einzelne Ausgaben per Tipp ins Haushaltsbuch übernehmen
 - ☁️ **Synchronisation** zwischen allen iPhones und iPads (über euer eigenes, kostenloses Supabase-Projekt)
 - 💾 **Backup / CSV-Export** (für Excel, Numbers oder Google Sheets)
@@ -161,6 +162,53 @@ jeden Monat – oder typische wie Miete, Stadtwerke, Versicherung) und schlägt 
   (z. B. ADAC 94 €/Jahr → 7,83 €/Monat), damit die Monatsübersicht realistisch ist. Die nächsten Fälligkeiten stehen
   unter 🏠 Fixkosten → „📅 Nächste Quartals- & Jahreszahlungen“.
 
+## 🏦 Kontostand direkt abrufen (ohne CSV)
+Kontostand und Umsätze kommen auf Knopfdruck direkt von der Bank – **nur lesend**, über die offizielle
+EU-Bankschnittstelle (PSD2) mit **Enable Banking** als zugelassenem Vermittler.
+
+**So schützt die App eure Daten**
+- Anmeldung nur auf der **echten Seite eurer Sparkasse** (Anmeldename + PIN), Bestätigung mit **S-pushTAN**.
+  Die PIN sieht weder die App noch Enable Banking.
+- Der geheime Enable-Banking-Schlüssel liegt **nur** als Secret in eurem eigenen Supabase-Projekt – nicht in der App,
+  nicht im Repository. Der Baustein `supabase/functions/bank` reicht nur Lese-Anfragen durch, **speichert und
+  protokolliert nichts** und ist mit eurem eigenen Zugangsschlüssel gesperrt. Zahlungen sind darin gar nicht eingebaut.
+- Kontostand und Umsätze werden **nur auf dem eigenen Gerät** gespeichert und **nie** synchronisiert.
+- Kreditkartenkonten gibt die Sparkasse über diese Schnittstelle nicht heraus (Abrechnung erscheint auf dem Girokonto).
+- Etwa alle 90–180 Tage verlangt die Bank eine erneute Bestätigung per pushTAN – die App erinnert rechtzeitig.
+
+**Kosten:** Supabase (Free) enthält Edge Functions. Enable Banking bietet für die eigenen Konten den
+„eingeschränkten Modus“ an; dass er kostenlos ist, steht nicht ausdrücklich auf deren Seiten – vorher per Mail an
+info@enablebanking.com bestätigen lassen. **Nichts unterschreiben oder bezahlen**, falls etwas anderes verlangt wird.
+
+**Einrichtung (einmalig, ca. 20 Minuten, am besten am iPad):**
+1. **Supabase** ist eingerichtet (siehe oben) und die App damit verbunden.
+2. **In der App:** 🔒 Persönlich → 🏦 Mein Konto → ⚙️ Einrichtung → **„Neuen Schlüssel erzeugen“**
+   (wird kopiert). Die „Rücksprung-Adresse“ dort ebenfalls notieren:
+   `https://beppo0808.github.io/ausgaben-app/`
+3. **Enable Banking:** auf enablebanking.com ein Konto anlegen → Control Panel → **Applications → neue Anwendung**:
+   - Umgebung: **Production**, Name z. B. „Ausgaben privat“
+   - Redirect URL: die Rücksprung-Adresse aus Schritt 2
+   - Schlüssel **im Browser erzeugen lassen** → es wird eine Datei `<Application-ID>.pem` heruntergeladen
+   - Danach **„Activate by linking accounts“**: Deutschland → eure Sparkasse wählen → mit Anmeldename/PIN
+     anmelden und per pushTAN bestätigen. Deine Frau verknüpft im selben Schritt **ihr** Konto mit **ihrem** Login.
+4. **Supabase → Edge Functions → „Deploy a new function“ → „Via Editor“**, Name **`bank`**.
+   Den kompletten Inhalt von [`supabase/functions/bank/index.ts`](supabase/functions/bank/index.ts) einfügen → **Deploy**.
+   In den Einstellungen der Funktion **„Verify JWT“ ausschalten** (der Schutz läuft über euren Zugangsschlüssel).
+5. **Supabase → Edge Functions → Secrets** – vier Einträge anlegen:
+   | Name | Wert |
+   |---|---|
+   | `EB_APP_ID` | Application ID aus Enable Banking (steht auch im Dateinamen der .pem) |
+   | `EB_PRIVATE_KEY` | Inhalt der .pem-Datei – in der App unter Einrichtung „📄 .pem-Datei öffnen“ → wird nur kopiert, nicht gespeichert |
+   | `BANK_ACCESS_TOKEN` | der Schlüssel aus Schritt 2 |
+   | `ALLOWED_ORIGIN` | `https://beppo0808.github.io` |
+   Danach die .pem-Datei aus „Downloads“ **löschen**.
+6. **In der App:** 🔗 **Konto verbinden** → „Düsseldorf“ eintippen → Stadtsparkasse Düsseldorf → anmelden → pushTAN → fertig.
+7. **Deine Frau:** Den Zugangsschlüssel bekommt sie automatisch über den Einladungslink (oder in der Einrichtung
+   einfügen). Dann auf ihrem iPhone 🔗 Konto verbinden → „Hilden“ → Sparkasse HRV → ihre Anmeldung + pushTAN.
+   Ihre Kontodaten sieht nur sie, deine nur du.
+
+> Wichtig: Die Verbindung in **Safari** starten und abschließen (nicht wechseln), sonst schlägt die Sicherheitsprüfung fehl.
+
 ## Mein Konto (Kontoumsätze ansehen)
 1. Im Online-Banking (in Safari) zu **Umsätze** → Zeitraum wählen → **Export als CSV**
 2. In der App **🏦 Mein Konto → Umsätze importieren (CSV)** → Datei aus „Downloads“ wählen → Kontoname eingeben
@@ -200,4 +248,4 @@ Schriften: [Fraunces](https://fonts.google.com/specimen/Fraunces) und [Nunito](h
 (SIL Open Font License), lokal im Ordner `fonts/` – es wird nichts von Google geladen.
 
 ## Dateien
-`index.html` · `style.css` · `app.js` (App-Logik) · `sync.js` (Synchronisation) · `konto.js` (Kontoumsätze) · `receipt.js` (Kassenbon-Scan) · `supabase.sql` (Datenbank-Setup) · `sw.js` (Offline) · `manifest.webmanifest` · Icons
+`index.html` · `style.css` · `app.js` (App-Logik) · `sync.js` (Synchronisation) · `konto.js` (Kontoumsätze) · `receipt.js` (Kassenbon-Scan) · `supabase/functions/bank/index.ts` (geschützter Bank-Baustein) · `supabase.sql` (Datenbank-Setup) · `sw.js` (Offline) · `manifest.webmanifest` · Icons

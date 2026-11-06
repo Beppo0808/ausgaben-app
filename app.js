@@ -608,6 +608,7 @@ async function joinFromInvite(text) {
   try {
     toast('Verbinde …');
     await Sync.join(info, keepLocal);
+    if (info.b) Konto.setBankToken(info.b); // Zugangsschlüssel für den Bank-Baustein (eigene Kontodaten bleiben getrennt)
     render();
     toast('Verbunden ✓ – Daten werden geteilt');
   } catch (e) { toast('⚠️ ' + e.message); render(); }
@@ -633,7 +634,7 @@ function showView(name) {
   $$('.tabbar button').forEach((b) => b.classList.toggle('active', b.dataset.view === name));
   $('#fab').hidden = name === 'settings' || name === 'konto';
   if (name === 'overview') renderOverview(); // Diagramm an sichtbare Breite anpassen
-  if (name === 'konto' && typeof Konto !== 'undefined') Konto.render();
+  if (name === 'konto' && typeof Konto !== 'undefined') { Konto.render(); Konto.autoRefresh(); }
   window.scrollTo({ top: 0 });
   try { sessionStorage.setItem('ausgaben-view', name); } catch (e) { /* egal */ }
 }
@@ -1063,6 +1064,7 @@ if ((startView === 'subs' && isPersonal()) || (startView === 'konto' && !isPerso
 showView(startView);
 render();
 Sync.init();
+Konto.handleCallback();
 
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   navigator.serviceWorker.register('sw.js').catch(() => {});

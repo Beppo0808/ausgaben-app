@@ -540,3 +540,14 @@ dialog::backdrop { background: rgba(90, 65, 40, .35); }
 .mode-banner { line-height: 1.3; }
 /* Beim Hinscrollen (z. B. zu einem Eingabefeld) nichts unter Kopf- oder Tab-Leiste verstecken */
 html { scroll-padding-top: 170px; scroll-padding-bottom: 130px; }
+
+/* Kontostand */
+.bank-conn { padding: 10px 0; border-top: 1px dashed var(--border); }
+.bank-conn:first-child { border-top: 0; }
+.bank-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.bank-acc { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 14px; margin: 6px 0; border-radius: 16px;
+  background: linear-gradient(160deg, color-mix(in srgb, var(--personal) 12%, var(--surface)), var(--surface)); border: 1px solid var(--border); box-shadow: var(--shadow-sm); }
+.bank-name { font-weight: 700; }
+.bank-bal { font-family: var(--font-display); font-weight: 650; font-size: 1.6rem; color: var(--personal-deep); white-space: nowrap; font-variant-numeric: lining-nums tabular-nums; }
+.bank-bal.neg { color: var(--critical); }
+#bankPemText { width: 100%; font: 12px/1.3 ui-monospace, Menlo, monospace; border-radius: 10px; border: 1px solid var(--border); background: var(--surface-2); padding: 8px; color: var(--text); }

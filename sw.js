@@ -1,5 +1,5 @@
 // Offline-Unterstützung: Netzwerk zuerst (für Updates), sonst Cache.
-const CACHE = 'ausgaben-v10';
+const CACHE = 'ausgaben-v11';
 const ASSETS = ['./', 'index.html', 'style.css', 'app.js', 'sync.js', 'konto.js', 'receipt.js', 'manifest.webmanifest', 'icon.svg', 'fonts/fraunces-latin.woff2', 'fonts/nunito-latin.woff2', 'icon-180.png', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', (e) => {

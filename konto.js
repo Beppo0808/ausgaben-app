@@ -396,6 +396,244 @@ const Konto = (() => {
     if (g) linkGroup(g, g.toPartner ? 'transfer' : 'fixed');
   }
 
+  // ---------- Direkter Kontoabruf (Enable Banking über den eigenen Supabase-Baustein) ----------
+  const BANK_KEY = 'ausgaben-bank-v1';
+  const PENDING_KEY = 'ausgaben-bank-pending';
+  let bankBusy = false;
+  let bankList = null;
+
+  function bankCfg() {
+    try { return JSON.parse(localStorage.getItem(BANK_KEY)) || {}; } catch (e) { return {}; }
+  }
+  function saveBankCfg(c) { try { localStorage.setItem(BANK_KEY, JSON.stringify(c)); } catch (e) { /* voll */ } }
+  function syncCfg() { try { return JSON.parse(localStorage.getItem('ausgaben-sync-v1')) || {}; } catch (e) { return {}; } }
+  function functionUrl() {
+    const c = bankCfg();
+    if (c.url) return c.url.replace(/\/+$/, '');
+    const s = syncCfg();
+    return s.url ? s.url.replace(/\/+$/, '') + '/functions/v1/bank' : '';
+  }
+  function redirectUrl() { return location.origin + location.pathname.replace(/index\.html$/, ''); }
+  function bankReady() { return !!(bankCfg().token && functionUrl()); }
+  function connections() { data.bank = data.bank || { connections: [] }; return data.bank.connections; }
+  function randomToken(n = 32) {
+    const b = crypto.getRandomValues(new Uint8Array(n));
+    return btoa(String.fromCharCode(...b)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+
+  async function call(action, payload = {}) {
+    const url = functionUrl();
+    const c = bankCfg();
+    if (!url || !c.token) throw new Error('Bank-Zugang ist noch nicht eingerichtet (siehe „Einrichtung“).');
+    const headers = { 'Content-Type': 'application/json', 'x-bank-token': c.token };
+    const s = syncCfg();
+    if (s.key) headers.apikey = s.key;
+    let res;
+    try { res = await fetch(url, { method: 'POST', headers, body: JSON.stringify({ action, ...payload }) }); }
+    catch (e) { throw new Error('Keine Verbindung zum Bank-Baustein – Internet prüfen'); }
+    let j = {};
+    try { j = await res.json(); } catch (e) { /* leer */ }
+    if (!res.ok) { const err = new Error(j.error || `Fehler ${res.status}`); err.status = res.status; throw err; }
+    return j;
+  }
+
+  async function openPicker() {
+    if (!bankReady()) { $('#bankSetup').open = true; toast('Bitte zuerst die Einrichtung abschließen'); return; }
+    $('#bankPicker').hidden = false;
+    $('#bankList').innerHTML = '<li class="hint">Lade Bankenliste …</li>';
+    try {
+      if (!bankList) bankList = (await call('banks', { country: 'DE' })).banks || [];
+      renderBankList();
+      $('#bankSearch').focus();
+    } catch (e) { $('#bankList').innerHTML = `<li class="hint warn">⚠️ ${esc(e.message)}</li>`; }
+  }
+  function renderBankList() {
+    const q = $('#bankSearch').value.trim().toLowerCase();
+    const words = q.split(/\s+/).filter(Boolean);
+    const hits = (bankList || []).filter((b) => words.every((w) => b.name.toLowerCase().includes(w))).slice(0, 30);
+    $('#bankList').innerHTML = !q ? '<li class="hint">Namen eingeben, z. B. „Düsseldorf“ oder „Hilden“.</li>'
+      : hits.length ? hits.map((b, i) => `<li class="row" data-i="${i}"><span class="emoji">🏦</span><span class="main"><div class="title">${esc(b.name)}</div></span></li>`).join('')
+        : '<li class="hint">Keine Bank gefunden – anderen Teil des Namens versuchen.</li>';
+    $$('#bankList .row').forEach((li) => li.addEventListener('click', () => startConnect(hits[+li.dataset.i])));
+  }
+
+  async function startConnect(bank) {
+    if (!bank) return;
+    const state = randomToken(24);
+    try { localStorage.setItem(PENDING_KEY, JSON.stringify({ state, bank: bank.name, ts: Date.now() })); } catch (e) { /* egal */ }
+    toast('Weiter zur Anmeldung bei ' + bank.name + ' …');
+    try {
+      let r;
+      try { r = await call('start', { bank: bank.name, country: bank.country || 'DE', redirect_url: redirectUrl(), state, days: Math.min(180, bank.maxDays || 90) }); }
+      catch (e) { if (/valid|gültig|consent/i.test(e.message)) r = await call('start', { bank: bank.name, country: bank.country || 'DE', redirect_url: redirectUrl(), state, days: 90 }); else throw e; }
+      const local = location.hostname === 'localhost'; // nur für lokale Tests ohne https
+      if (!r.url || !(/^https:\/\//.test(r.url) || (local && /^http:\/\/localhost[:/]/.test(r.url)))) throw new Error('Keine sichere Anmeldeadresse erhalten');
+      location.href = r.url; // echte Anmeldeseite der Bank (über Enable Banking)
+    } catch (e) { toast('⚠️ ' + e.message); }
+  }
+
+  /** Rückkehr von der Bank-Anmeldung (?code=…&state=…) */
+  async function handleCallback() {
+    const params = new URLSearchParams(location.search);
+    if (!params.has('state') || (!params.has('code') && !params.has('error'))) return false;
+    const code = params.get('code'), state = params.get('state'), error = params.get('error');
+    history.replaceState(null, '', location.pathname + location.hash);
+    let pending = null;
+    try { pending = JSON.parse(localStorage.getItem(PENDING_KEY)); localStorage.removeItem(PENDING_KEY); } catch (e) { /* egal */ }
+    if (typeof setMode === 'function') setMode('personal', true);
+    if (typeof showView === 'function') showView('konto');
+    if (error) { toast('Verbindung abgebrochen' + (params.get('error_description') ? ': ' + params.get('error_description') : '')); return true; }
+    // Sicherheitsprüfung: Die Anmeldung muss auf DIESEM Gerät/Browser gestartet worden sein
+    if (!pending || pending.state !== state || Date.now() - pending.ts > 30 * 60000) {
+      toast('⚠️ Sicherheitsprüfung fehlgeschlagen – bitte die Verbindung in Safari erneut starten');
+      return true;
+    }
+    try {
+      toast('Verbinde mit ' + pending.bank + ' …');
+      const s = await call('session', { code });
+      const conn = { session_id: s.session_id, bank: s.bank || pending.bank, valid_until: s.valid_until, created: new Date().toISOString(), accounts: [] };
+      for (const a of s.accounts || []) {
+        const accId = 'eb-' + a.uid;
+        const short = a.iban ? ' ··' + a.iban.slice(-4) : '';
+        if (!data.accounts.some((x) => x.id === accId)) data.accounts.push({ id: accId, name: `${conn.bank}${short}` });
+        conn.accounts.push({ uid: a.uid, accId, name: a.name, iban: a.iban, currency: a.currency });
+      }
+      connections().push(conn);
+      write();
+      toast(`✓ ${conn.bank} verbunden – ${conn.accounts.length} Konto/Konten`);
+      await refresh(true);
+    } catch (e) { toast('⚠️ Verbindung fehlgeschlagen: ' + e.message); render(); }
+    return true;
+  }
+
+  const BAL_ORDER = ['CLBD', 'ITBD', 'CLAV', 'ITAV', 'XPCD', 'OTHR'];
+  async function refresh(force) {
+    if (bankBusy || !connections().length) return;
+    bankBusy = true;
+    $('#bankStatus').textContent = 'Aktualisiere …';
+    let added = 0, problems = 0;
+    try {
+      for (const conn of connections()) {
+        if (conn.valid_until && new Date(conn.valid_until) < new Date()) { conn.expired = true; continue; }
+        for (const a of conn.accounts) {
+          try {
+            const b = await call('balances', { account: a.uid });
+            const list = (b.balances || []).slice().sort((x, y) => (BAL_ORDER.indexOf(x.type) + 99) % 99 - (BAL_ORDER.indexOf(y.type) + 99) % 99);
+            if (list[0]) { a.balance = list[0].amount; a.balanceCurrency = list[0].currency; a.balanceDate = list[0].date; }
+            const from = new Date(a.lastDate ? new Date(a.lastDate + 'T12:00').getTime() - 10 * 864e5 : Date.now() - 89 * 864e5);
+            let next = null, pages = 0;
+            const existing = new Set(data.tx.map((t) => t.id));
+            const seen = {};
+            do {
+              const r = await call('transactions', { account: a.uid, date_from: from.toISOString().slice(0, 10), continuation_key: next || undefined });
+              for (const t of r.transactions || []) {
+                if (t.status && t.status !== 'BOOK') continue; // nur gebuchte Umsätze (vorgemerkte ändern sich noch)
+                if (!/^\d{4}-\d{2}-\d{2}$/.test(t.date) || !t.amount) continue;
+                const base = t.id || hash(`${t.date}|${t.amount}|${t.name}|${t.purpose}`);
+                seen[base] = (seen[base] || 0) + 1;
+                const id = `eb-${a.uid.slice(0, 8)}-${base}${t.id ? '' : '-' + seen[base]}`;
+                if (existing.has(id)) continue;
+                data.tx.push({ id, account: a.accId, date: t.date, amount: t.amount, name: String(t.name || '').slice(0, 120), purpose: String(t.purpose || '').slice(0, 300) });
+                existing.add(id); added++;
+                if (!a.lastDate || t.date > a.lastDate) a.lastDate = t.date;
+              }
+              next = r.next; pages++;
+            } while (next && pages < 25);
+            a.fetched = new Date().toISOString();
+          } catch (e) {
+            problems++;
+            if (/expired|abgelaufen|consent|revoked|EXPIRED|SESSION/i.test(e.message)) conn.expired = true;
+            else toast('⚠️ ' + e.message);
+          }
+        }
+      }
+      write();
+      window.render();
+      if (!problems || added) toast(added ? `🏦 ${added} neue Umsätze abgerufen ✓` : '🏦 Kontostand aktuell ✓');
+    } finally { bankBusy = false; render(); }
+  }
+
+  /** Beim Öffnen von „Mein Konto“: automatisch aktualisieren, wenn länger als 4 Stunden her */
+  function autoRefresh() {
+    if (!bankReady()) return;
+    const last = Math.max(0, ...connections().flatMap((c) => c.accounts.map((a) => (a.fetched ? new Date(a.fetched).getTime() : 0))));
+    if (connections().length && Date.now() - last > 4 * 3600e3) refresh();
+  }
+
+  async function disconnect(i) {
+    const conn = connections()[i];
+    if (!conn || !confirm(`Verbindung zu ${conn.bank} trennen?\n\nDer Zugriff wird bei der Bank beendet. Bereits abgerufene Umsätze bleiben auf diesem Gerät (löschbar unten über „Umsätze dieses Kontos löschen“).`)) return;
+    try { await call('end', { session_id: conn.session_id }); } catch (e) { /* Zugriff ggf. schon abgelaufen */ }
+    connections().splice(i, 1);
+    write(); render(); toast('Verbindung getrennt');
+  }
+
+  function renderBank() {
+    const cfg = bankCfg();
+    if (document.activeElement !== $('#bankToken')) $('#bankToken').value = cfg.token || '';
+    if (document.activeElement !== $('#bankUrl')) $('#bankUrl').value = cfg.url || functionUrl();
+    $('#bankRedirect').value = redirectUrl();
+    const conns = connections();
+    $('#bankRefresh').hidden = !conns.length;
+    $('#bankSetup').open = !bankReady() && !conns.length ? $('#bankSetup').open : $('#bankSetup').open;
+    if (!bankBusy) {
+      const lastFetch = Math.max(0, ...conns.flatMap((c) => c.accounts.map((a) => (a.fetched ? new Date(a.fetched).getTime() : 0))));
+      $('#bankStatus').textContent = lastFetch ? 'Stand ' + new Date(lastFetch).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : 'nur lesend · nur auf diesem Gerät';
+    }
+    if (!conns.length) {
+      $('#bankAccounts').innerHTML = `<p class="hint">${bankReady() ? 'Tippe auf <b>Konto verbinden</b> und wähle deine Bank. Du meldest dich auf der echten Seite deiner Bank an und bestätigst mit pushTAN.' : 'Noch nicht eingerichtet – siehe <b>Einrichtung</b> unten.'}</p>`;
+      return;
+    }
+    $('#bankAccounts').innerHTML = conns.map((c, ci) => {
+      const until = c.valid_until ? new Date(c.valid_until).toLocaleDateString('de-DE') : '';
+      const days = c.valid_until ? Math.ceil((new Date(c.valid_until) - Date.now()) / 864e5) : 999;
+      const warn = c.expired || days < 0 ? '<span class="rec-warn">⚠️ Zugriff abgelaufen – bitte neu verbinden (pushTAN)</span>'
+        : days <= 14 ? `<span class="rec-warn">Zugriff endet in ${days} Tagen – dann einmal neu verbinden</span>` : '';
+      return `<div class="bank-conn">
+        <div class="bank-head"><b>${esc(c.bank)}</b><button class="tx-mini" data-disc="${ci}">Trennen</button></div>
+        ${c.accounts.map((a) => `<div class="bank-acc">
+          <div><div class="bank-name">${esc(a.name || 'Konto')}</div><div class="muted">${a.iban ? esc(a.iban.slice(0, 4) + ' •••• ' + a.iban.slice(-4)) : ''}</div></div>
+          <div class="bank-bal ${a.balance < 0 ? 'neg' : ''}">${a.balance !== undefined ? fmt(a.balance) : '–'}</div>
+        </div>`).join('')}
+        <div class="muted">${until ? 'Zugriff gültig bis ' + esc(until) : ''}</div>${warn}
+      </div>`;
+    }).join('');
+  }
+
+  function bindBank() {
+    $('#bankAdd').onclick = openPicker;
+    $('#bankPickerClose').onclick = () => { $('#bankPicker').hidden = true; };
+    $('#bankSearch').addEventListener('input', renderBankList);
+    $('#bankRefresh').onclick = () => refresh(true);
+    $('#bankAccounts').addEventListener('click', (e) => { const b = e.target.closest('[data-disc]'); if (b) disconnect(+b.dataset.disc); });
+    $('#bankToken').addEventListener('change', (e) => { const c = bankCfg(); c.token = e.target.value.trim(); saveBankCfg(c); render(); });
+    $('#bankUrl').addEventListener('change', (e) => { const c = bankCfg(); c.url = e.target.value.trim(); saveBankCfg(c); render(); });
+    $('#bankTokenNew').onclick = async () => {
+      if (bankCfg().token && !confirm('Neuen Schlüssel erzeugen? Der alte funktioniert dann nicht mehr – ihr müsst ihn bei Supabase ersetzen und den neuen auf dem anderen Gerät eintragen.')) return;
+      const c = bankCfg(); c.token = randomToken(32); saveBankCfg(c); render();
+      try { await navigator.clipboard.writeText(c.token); toast('Schlüssel erzeugt und kopiert ✓'); } catch (e) { toast('Schlüssel erzeugt – bitte mit „Kopieren“ übernehmen'); }
+    };
+    $('#bankTokenCopy').onclick = async () => {
+      const t = bankCfg().token; if (!t) return;
+      try { await navigator.clipboard.writeText(t); toast('Kopiert ✓'); } catch (e) { $('#bankToken').select(); toast('Bitte manuell kopieren'); }
+    };
+    $('#bankPem').addEventListener('change', async (e) => {
+      const f = e.target.files[0]; e.target.value = '';
+      if (!f) return;
+      const text = (await f.text()).trim();
+      if (!/-----BEGIN (RSA )?PRIVATE KEY-----/.test(text)) { toast('⚠️ Das ist keine private Schlüsseldatei (.pem)'); return; }
+      const ta = $('#bankPemText'); ta.value = text; ta.hidden = false; $('#bankPemCopy').hidden = false;
+      try { await navigator.clipboard.writeText(text); toast('Schlüssel kopiert ✓ – jetzt bei Supabase einfügen'); } catch (err) { toast('Bitte auf „Schlüssel kopieren“ tippen'); }
+    });
+    $('#bankPemCopy').onclick = async () => {
+      const ta = $('#bankPemText');
+      try { await navigator.clipboard.writeText(ta.value); toast('Kopiert ✓'); } catch (e) { ta.select(); document.execCommand && document.execCommand('copy'); toast('Kopiert'); }
+      setTimeout(() => { ta.value = ''; ta.hidden = true; $('#bankPemCopy').hidden = true; }, 1500); // nichts liegen lassen
+    };
+  }
+
+  function setBankToken(t) { if (t && t.length >= 24) { const c = bankCfg(); c.token = t; saveBankCfg(c); } }
+
   // ---------- Anzeige ----------
   function selectedAccount() {
     let id = '';
@@ -405,6 +643,7 @@ const Konto = (() => {
 
   function bind() {
     if (bound) return; bound = true;
+    bindBank();
     $('#kontoFile').addEventListener('change', (e) => { const f = e.target.files[0]; e.target.value = ''; if (f) importFile(f); });
     $('#kontoHelpBtn').onclick = () => { const h = $('#kontoHelp'); h.hidden = !h.hidden; };
     $('#kontoAccount').addEventListener('change', (e) => { try { sessionStorage.setItem('konto-acc', e.target.value); } catch (x) { /* egal */ } render(); });
@@ -414,6 +653,8 @@ const Konto = (() => {
       if (!acc || !confirm(`Alle importierten Umsätze von „${acc.name}“ auf diesem Gerät löschen? (Das Haushaltsbuch bleibt unverändert.)`)) return;
       data.tx = data.tx.filter((t) => t.account !== id);
       Object.keys(data.links).forEach((k) => { if (k.startsWith(id + '|')) delete data.links[k]; });
+      if (data.bank) data.bank.connections.forEach((c) => { c.accounts = c.accounts.filter((a) => a.accId !== id); });
+      if (data.bank) data.bank.connections = data.bank.connections.filter((c) => c.accounts.length);
       data.accounts = data.accounts.filter((a) => a.id !== id);
       write(); try { sessionStorage.removeItem('konto-acc'); } catch (e) { /* egal */ }
       render(); toast('Gelöscht');
@@ -449,6 +690,7 @@ const Konto = (() => {
     $('#kontoOut').textContent = fmt(Math.abs(out));
     const s = $('#kontoSaldo'); s.textContent = fmt(inc + out); s.className = 'kpi-value ' + (inc + out < 0 ? 'neg' : 'pos');
 
+    renderBank();
     renderRecurring(accId);
     const root = $('#kontoList');
     if (!data.tx.length) { root.innerHTML = '<div class="empty-state">Noch keine Umsätze importiert.<br>Tippe auf <b>Umsätze importieren (CSV)</b>.</div>'; return; }
@@ -495,5 +737,5 @@ const Konto = (() => {
     };
   }
 
-  return { render, parseStatement, detect, monthSummary, _data: () => data };
+  return { render, parseStatement, detect, monthSummary, handleCallback, autoRefresh, refresh, setBankToken, bankToken: () => bankCfg().token || '', _data: () => data };
 })();

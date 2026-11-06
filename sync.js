@@ -289,7 +289,8 @@ const Sync = (() => {
 
   function inviteLink() {
     if (!enabled()) return '';
-    const payload = btoa(unescape(encodeURIComponent(JSON.stringify({ u: cfg.url, k: cfg.key, h: cfg.household }))))
+    const extra = typeof Konto !== 'undefined' && Konto.bankToken() ? { b: Konto.bankToken() } : {};
+    const payload = btoa(unescape(encodeURIComponent(JSON.stringify({ u: cfg.url, k: cfg.key, h: cfg.household, ...extra }))))
       .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
     return location.origin + location.pathname + '#verbinden=' + payload;
   }
