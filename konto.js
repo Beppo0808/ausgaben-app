@@ -484,5 +484,16 @@ const Konto = (() => {
     root.innerHTML = html;
   }
 
-  return { render, parseStatement, detect, _data: () => data };
+  /** Summen eines Monats über alle Konten (für die persönliche Übersicht) */
+  function monthSummary(y, m) {
+    const key = monthKey(y, m);
+    const list = data.tx.filter((t) => t.date.startsWith(key));
+    return {
+      count: list.length,
+      in: Math.round(list.filter((t) => t.amount > 0).reduce((a, t) => a + t.amount, 0) * 100) / 100,
+      out: Math.round(list.filter((t) => t.amount < 0).reduce((a, t) => a - t.amount, 0) * 100) / 100,
+    };
+  }
+
+  return { render, parseStatement, detect, monthSummary, _data: () => data };
 })();

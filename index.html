@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Ausgaben</title>
   <meta name="description" content="Haushaltsbuch: Ausgaben, Budget und Abos im Blick – mit automatischer Erfassung bei Zahlung per Handy.">
-  <meta name="theme-color" content="#2a78d6">
+  <meta name="theme-color" content="#f3ebe0" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#1c1612" media="(prefers-color-scheme: dark)">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -13,25 +14,33 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-180.png">
+  <link rel="preload" href="fonts/fraunces-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="fonts/nunito-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body data-mode="shared">
   <header class="topbar">
     <button class="icon-btn" id="prevMonth" aria-label="Vorheriger Monat">‹</button>
     <h1 id="monthLabel">–</h1>
     <button class="icon-btn" id="nextMonth" aria-label="Nächster Monat">›</button>
+    <div class="mode-switch" role="group" aria-label="Ansicht wählen">
+      <span class="thumb" aria-hidden="true"></span>
+      <button type="button" data-mode="shared" aria-pressed="true">👫 Gemeinsam</button>
+      <button type="button" data-mode="personal" aria-pressed="false">🔒 Persönlich</button>
+    </div>
   </header>
 
   <main>
+    <div class="mode-banner" id="modeBanner"></div>
     <!-- Übersicht -->
     <section id="view-overview" class="view active" aria-label="Übersicht">
       <div class="kpis">
-        <div class="kpi"><span class="kpi-label">Haushaltsbudget</span><span class="kpi-value" id="kpiBudget">–</span></div>
-        <div class="kpi"><span class="kpi-label">Ausgaben gemeinsam</span><span class="kpi-value" id="kpiSpent">–</span><span class="kpi-sub" id="kpiSpentSub"></span></div>
-        <div class="kpi kpi-hero"><span class="kpi-label">Übrig vom Budget</span><span class="kpi-value" id="kpiLeft">–</span></div>
+        <div class="kpi"><span class="kpi-label" id="kpiLabel1">Haushaltsbudget</span><span class="kpi-value" id="kpiBudget">–</span></div>
+        <div class="kpi"><span class="kpi-label" id="kpiLabel2">Ausgaben gemeinsam</span><span class="kpi-value" id="kpiSpent">–</span><span class="kpi-sub" id="kpiSpentSub"></span></div>
+        <div class="kpi kpi-hero"><span class="kpi-label" id="kpiLabel3">Übrig vom Budget</span><span class="kpi-value" id="kpiLeft">–</span><span class="kpi-sub" id="kpiLeftSub"></span></div>
       </div>
 
-      <div class="card">
+      <div class="card only-shared">
         <div class="card-head">
           <h2>Gesamtbudget</h2>
           <span class="muted" id="budgetText"></span>
@@ -41,29 +50,30 @@
       </div>
 
       <div class="card">
-        <div class="card-head"><h2>Ausgaben pro Tag</h2><span class="muted" id="dailyAvg"></span></div>
+        <div class="card-head"><h2 id="dailyTitle">Ausgaben pro Tag</h2><span class="muted" id="dailyAvg"></span></div>
         <div class="chart" id="dailyChart"></div>
       </div>
 
-      <div class="card" id="whoCard">
+      <div class="card only-shared" id="whoCard">
         <div class="card-head"><h2>👫 Wer hat bezahlt?</h2><span class="muted">gemeinsame Ausgaben</span></div>
         <ul class="who-bars" id="whoList"></ul>
         <p class="hint" id="whoBalance"></p>
         <p class="hint" id="whoOpen"></p>
       </div>
 
-      <div class="card card-private" id="meCard">
-        <div class="card-head"><h2 id="meTitle">🔒 Nur für dich</h2><span class="muted">nur auf diesem Gerät</span></div>
-        <div class="me-grid">
-          <div><span class="kpi-label">Mein Einkommen</span><span class="kpi-value" id="meIncome">–</span></div>
-          <div><span class="kpi-label">Von mir ausgegeben</span><span class="kpi-value" id="meSpent">–</span><span class="kpi-sub" id="meSpentSub"></span></div>
-          <div><span class="kpi-label">Bleibt mir</span><span class="kpi-value" id="meLeft">–</span></div>
-        </div>
-        <p class="hint" id="meHint">Trage dein Einkommen unter Einstellungen ein – es wird <b>nie</b> geteilt, deine Frau/dein Partner sieht es nicht.</p>
+      <div class="card card-private only-personal" id="meCard">
+        <div class="card-head"><h2>🧺 Mein Beitrag zum Haushalt</h2><span class="muted">diesen Monat</span></div>
+        <ul class="kv" id="meContrib"></ul>
+        <p class="hint" id="meHint">Trage dein Einkommen unter Einstellungen ein – es wird <b>nie</b> geteilt.</p>
+      </div>
+
+      <div class="card card-private only-personal" id="meKontoCard">
+        <div class="card-head"><h2>🏦 Mein Konto</h2><span class="muted">laut Import</span></div>
+        <ul class="kv" id="meKonto"></ul>
       </div>
 
       <div class="card">
-        <div class="card-head"><h2>Kategorien</h2><span class="muted">Ist / Budget</span></div>
+        <div class="card-head"><h2 id="catTitle">Kategorien</h2><span class="muted" id="catSubtitle">Ist / Budget</span></div>
         <ul class="cat-bars" id="catBars"></ul>
       </div>
     </section>
@@ -255,8 +265,8 @@
   <nav class="tabbar" aria-label="Navigation">
     <button data-view="overview" class="active"><span>📊</span>Übersicht</button>
     <button data-view="list"><span>🧾</span>Ausgaben</button>
-    <button data-view="subs"><span>🏠</span>Fixkosten</button>
-    <button data-view="konto"><span>🏦</span>Mein Konto</button>
+    <button data-view="subs" class="only-shared"><span>🏠</span>Fixkosten</button>
+    <button data-view="konto" class="only-personal"><span>🏦</span>Mein Konto</button>
     <button data-view="settings"><span>⚙️</span>Einstellungen</button>
   </nav>
 

@@ -15,6 +15,18 @@ inklusive **automatischer Erfassung, sobald mit dem iPhone (Apple Pay) bezahlt w
 - 💾 **Backup / CSV-Export** (für Excel, Numbers oder Google Sheets)
 - 🌙 Hell/Dunkel, iPad-Ansicht, funktioniert offline
 
+## Zwei Ansichten: 👫 Gemeinsam | 🔒 Persönlich
+Oben in der App wählt jeder per Schalter seine Ansicht (das Gerät merkt sich die Wahl):
+
+| 👫 Gemeinsam (Terrakotta) | 🔒 Persönlich (Salbei-Petrol) |
+|---|---|
+| Haushaltsbudget, gemeinsame Ausgaben (Fixkosten + Alltag) | Mein Einkommen, meine Ausgaben, was mir bleibt |
+| Wer hat bezahlt?, Kategorien, Tagesverlauf | Mein Beitrag zum Haushalt (Einkäufe, Fixkosten, Haushaltsgeld) |
+| Reiter **Fixkosten** | Reiter **Mein Konto** (Kontoumsätze, nur auf dem Gerät) |
+| Ausgabenliste: nur gemeinsame Einträge | Ausgabenliste: meine privaten + von mir bezahlten |
+
+Neue Einträge in der persönlichen Ansicht sind automatisch **privat**.
+
 ## Schritt für Schritt einrichten
 
 Am einfachsten am **iPad** (größerer Bildschirm). Dauert ca. 15 Minuten, nur einmal nötig.
@@ -178,6 +190,11 @@ im Laden bezahlt – die Einträge erscheinen per Synchronisation aber sofort au
 | `person`   | Person (muss in den Einstellungen existieren) | `Ich`    |
 | `karte`    | Karte (wird als Notiz gespeichert)     | `Visa`          |
 | `datum`    | Datum `JJJJ-MM-TT` (Standard: heute)   | `2026-11-06`    |
+
+## Gestaltung
+Warme Leinen-/Cremetöne, Karten wie erhabenes Papier, Knöpfe mit Tiefe und Druck-Effekt, Hell- und Dunkelmodus.
+Schriften: [Fraunces](https://fonts.google.com/specimen/Fraunces) und [Nunito](https://fonts.google.com/specimen/Nunito)
+(SIL Open Font License), lokal im Ordner `fonts/` – es wird nichts von Google geladen.
 
 ## Dateien
 `index.html` · `style.css` · `app.js` (App-Logik) · `sync.js` (Synchronisation) · `konto.js` (Kontoumsätze) · `receipt.js` (Kassenbon-Scan) · `supabase.sql` (Datenbank-Setup) · `sw.js` (Offline) · `manifest.webmanifest` · Icons

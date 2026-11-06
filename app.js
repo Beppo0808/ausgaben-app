@@ -216,46 +216,105 @@ function render() {
   if (typeof Konto !== 'undefined') Konto.render();
 }
 
+// ---------- Ansicht: Gemeinsam | Persönlich ----------
+let mode = 'shared';
+try { mode = localStorage.getItem('ausgaben-mode') === 'personal' ? 'personal' : 'shared'; } catch (e) { /* egal */ }
+const isPersonal = () => mode === 'personal';
+/** Gehört ein Eintrag zu „meinen“ Ausgaben? (privat oder von mir bezahlt) */
+const isMine = (e) => e.private || (e.person && e.person === state.settings.me);
+
+function setMode(m, silent) {
+  mode = m === 'personal' ? 'personal' : 'shared';
+  try { localStorage.setItem('ausgaben-mode', mode); } catch (e) { /* egal */ }
+  document.body.dataset.mode = mode;
+  $$('.mode-switch button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.mode === mode)));
+  const active = $('.view.active');
+  const v = active ? active.id.replace('view-', '') : 'overview';
+  if ((v === 'subs' && isPersonal()) || (v === 'konto' && !isPersonal())) showView('overview');
+  $('#filterPerson').value = '';
+  if (!silent) { render(); if (navigator.vibrate) navigator.vibrate(8); }
+}
+
 function renderOverview() {
   const all = expensesForMonth(viewY, viewM);
+  const isCurrent = viewY === now.getFullYear() && viewM === now.getMonth();
+  const dim = daysInMonth(viewY, viewM);
+  const me = state.settings.me;
+
+  if (isPersonal()) {
+    $('#modeBanner').textContent = `Persönliche Ansicht${me ? ' von ' + me : ''} – nur auf diesem Gerät`;
+    const mineItems = all.filter(isMine);
+    const income = Number(state.settings.income) || 0;
+    const tr = transfersForMonth(viewY, viewM);
+    const given = round2(tr.filter((t) => t.payer === me).reduce((a, t) => a + t.amount, 0));
+    const received = round2(tr.filter((t) => t.to === me).reduce((a, t) => a + t.amount, 0));
+    const spentShared = round2(mineItems.filter((e) => !e.private && !e.virtual).reduce((a, e) => a + e.amount, 0));
+    const spentFixed = round2(mineItems.filter((e) => e.virtual).reduce((a, e) => a + e.amount, 0));
+    const spentPrivate = round2(mineItems.filter((e) => e.private).reduce((a, e) => a + e.amount, 0));
+    const total = round2(spentShared + spentFixed + spentPrivate + given - received);
+
+    $('#kpiLabel1').textContent = 'Mein Einkommen';
+    $('#kpiBudget').textContent = income ? fmt(income) : '–';
+    $('#kpiLabel2').textContent = 'Meine Ausgaben';
+    $('#kpiSpent').textContent = fmt(total);
+    $('#kpiSpentSub').textContent = `Haushalt ${fmt0(spentShared + spentFixed + given - received)} · privat ${fmt0(spentPrivate)}`;
+    $('#kpiLabel3').textContent = 'Bleibt mir';
+    const leftEl = $('#kpiLeft');
+    leftEl.textContent = income ? fmt(income - total) : '–';
+    leftEl.className = 'kpi-value ' + (income && income - total < 0 ? 'neg' : '');
+    $('#kpiLeftSub').textContent = income ? '' : 'Einkommen in den Einstellungen eintragen';
+    $('#meHint').hidden = !!income;
+
+    const kv = (label, val, cls = '') => `<li><span>${label}</span><b class="${cls}">${val}</b></li>`;
+    $('#meContrib').innerHTML = [
+      kv('🛒 Gemeinsame Einkäufe bezahlt', fmt(spentShared)),
+      kv('🏠 Fixkosten von meinem Konto', fmt(spentFixed)),
+      given ? kv('💶 Haushaltsgeld gezahlt', '+ ' + fmt(given)) : '',
+      received ? kv('💶 Haushaltsgeld erhalten', '− ' + fmt(received)) : '',
+      kv('<b>Mein Anteil am Haushalt</b>', fmt(spentShared + spentFixed + given - received)),
+      kv('🔒 Private Ausgaben', fmt(spentPrivate)),
+    ].join('');
+    const ks = typeof Konto !== 'undefined' ? Konto.monthSummary(viewY, viewM) : null;
+    $('#meKontoCard').hidden = !ks || !ks.count;
+    if (ks && ks.count) {
+      $('#meKonto').innerHTML = [kv('⬇️ Eingänge', fmt(ks.in), 'pos'), kv('⬆️ Ausgänge', fmt(ks.out)),
+        kv('<b>Saldo des Monats</b>', fmt(ks.in - ks.out), ks.in - ks.out < 0 ? 'neg' : 'pos'),
+        `<li class="muted">${ks.count} Buchungen · Details unter 🏦 Mein Konto</li>`].join('');
+    }
+    $('#dailyTitle').textContent = 'Meine Ausgaben pro Tag';
+    $('#catTitle').textContent = 'Meine Kategorien';
+    $('#catSubtitle').textContent = 'privat + von mir bezahlt';
+    renderDailyChart(mineItems.filter((e) => !e.virtual), dim, isCurrent ? now.getDate() : dim);
+    renderCatBars(mineItems, true);
+    return;
+  }
+
+  // ----- Gemeinsame Ansicht -----
+  $('#modeBanner').textContent = `Gemeinsame Ansicht – sehen ${state.settings.persons.join(' & ')}`;
   const items = all.filter((e) => !e.private); // Haushalt = alles Gemeinsame
   const spent = round2(items.reduce((a, e) => a + e.amount, 0));
   const fixed = round2(items.filter((e) => e.virtual).reduce((a, e) => a + e.amount, 0));
   const budget = Number(state.settings.budget) || 0;
   const left = budget - spent;
 
+  $('#kpiLabel1').textContent = 'Haushaltsbudget';
   $('#kpiBudget').textContent = budget > 0 ? fmt(budget) : '–';
+  $('#kpiLabel2').textContent = 'Ausgaben gemeinsam';
   $('#kpiSpent').textContent = fmt(spent);
   $('#kpiSpentSub').textContent = `Fixkosten ${fmt0(fixed)} · Alltag ${fmt0(spent - fixed)}`;
+  $('#kpiLabel3').textContent = 'Übrig vom Budget';
   const leftEl = $('#kpiLeft');
   leftEl.textContent = budget > 0 ? fmt(left) : '–';
   leftEl.className = 'kpi-value ' + (left < 0 ? 'neg' : '');
+  $('#kpiLeftSub').textContent = '';
 
-  // Wer hat bezahlt (nur Alltagsausgaben, Fixkosten sind gemeinsam)
   renderWhoPaid(items);
-
-  // Privater Bereich – nur auf diesem Gerät
-  const me = state.settings.me;
-  const income = Number(state.settings.income) || 0;
-  const mine = round2(all.filter((e) => !e.virtual && (e.private || e.person === me)).reduce((a, e) => a + e.amount, 0));
-  const minePrivate = round2(all.filter((e) => e.private).reduce((a, e) => a + e.amount, 0));
-  $('#meTitle').textContent = `🔒 Nur für dich${me ? ' (' + me + ')' : ''}`;
-  $('#meIncome').textContent = income ? fmt(income) : '–';
-  $('#meSpent').textContent = fmt(mine);
-  $('#meSpentSub').textContent = minePrivate ? `davon privat ${fmt0(minePrivate)}` : '';
-  const meLeft = $('#meLeft');
-  meLeft.textContent = income ? fmt(income - mine) : '–';
-  meLeft.className = 'kpi-value ' + (income && income - mine < 0 ? 'neg' : '');
-  $('#meHint').hidden = !!income;
 
   const pct = budget > 0 ? spent / budget : 0;
   const bar = $('#budgetBar');
   bar.classList.toggle('over', pct > 1);
   bar.querySelector('.progress-fill').style.width = Math.min(100, pct * 100) + '%';
   $('#budgetText').textContent = budget > 0 ? `${fmt0(spent)} von ${fmt0(budget)}` : 'kein Budget gesetzt';
-
-  const isCurrent = viewY === now.getFullYear() && viewM === now.getMonth();
-  const dim = daysInMonth(viewY, viewM);
   let hint = '';
   if (budget > 0) {
     if (spent > budget) hint = `⚠️ Budget um ${fmt(spent - budget)} überschritten.`;
@@ -265,7 +324,9 @@ function renderOverview() {
     } else hint = `✓ ${fmt(budget - spent)} unter Budget.`;
   }
   $('#budgetHint').textContent = hint;
-
+  $('#dailyTitle').textContent = 'Ausgaben pro Tag';
+  $('#catTitle').textContent = 'Kategorien';
+  $('#catSubtitle').textContent = 'Ist / Budget';
   renderDailyChart(items.filter((e) => !e.virtual), dim, isCurrent ? now.getDate() : dim);
   renderCatBars(items);
 }
@@ -397,12 +458,12 @@ function niceCeil(v) {
   return 10 * p;
 }
 
-function renderCatBars(items) {
+function renderCatBars(items, noBudget = false) {
   const sums = {};
   items.forEach((e) => { sums[e.category] = (sums[e.category] || 0) + e.amount; });
   const cats = state.categories
     .map((c) => ({ ...c, spent: round2(sums[c.id] || 0) }))
-    .filter((c) => c.spent > 0 || Number(c.budget) > 0)
+    .filter((c) => c.spent > 0 || (!noBudget && Number(c.budget) > 0))
     .sort((a, b) => b.spent - a.spent);
   // Ausgaben mit gelöschten Kategorien
   const known = new Set(state.categories.map((c) => c.id));
@@ -413,7 +474,7 @@ function renderCatBars(items) {
   if (!cats.length) { ul.innerHTML = '<li class="empty-state">Noch keine Kategorien mit Ausgaben.</li>'; return; }
   const maxSpent = Math.max(...cats.map((c) => c.spent), 1);
   ul.innerHTML = cats.map((c) => {
-    const b = Number(c.budget) || 0;
+    const b = noBudget ? 0 : Number(c.budget) || 0;
     const over = b > 0 && c.spent > b;
     const pct = b > 0 ? Math.min(100, (c.spent / b) * 100) : (c.spent / maxSpent) * 100;
     return `<li data-cat="${esc(c.id)}">
@@ -432,11 +493,14 @@ function renderList() {
   const fc = $('#filterCat'), fp = $('#filterPerson');
   const prevC = fc.value, prevP = fp.value;
   fc.innerHTML = '<option value="">Alle Kategorien</option>' + state.categories.map((c) => `<option value="${esc(c.id)}">${esc(c.emoji)} ${esc(c.name)}</option>`).join('');
-  fp.innerHTML = '<option value="">Alle (gemeinsam + privat)</option><option value="__shared">Nur gemeinsame</option><option value="__private">🔒 Nur meine privaten</option>' + state.settings.persons.map((p) => `<option>${esc(p)}</option>`).join('');
+  fp.innerHTML = isPersonal()
+    ? '<option value="">Alle meine</option><option value="__private">🔒 Nur private</option><option value="__shared">Nur gemeinsame (von mir bezahlt)</option>'
+    : '<option value="">Alle Personen</option>' + state.settings.persons.map((p) => `<option>${esc(p)}</option>`).join('');
   fc.value = prevC; fp.value = prevP;
 
   const q = $('#searchInput').value.trim().toLowerCase();
   const items = expensesForMonth(viewY, viewM)
+    .filter((e) => (isPersonal() ? isMine(e) : !e.private))
     .filter((e) => !fc.value || e.category === fc.value)
     .filter((e) => !fp.value || (fp.value === '__private' ? e.private : fp.value === '__shared' ? !e.private : e.person === fp.value))
     .filter((e) => !q || `${e.merchant} ${e.note} ${catById(e.category).name} ${(e.items || []).map((it) => it.name).join(' ')}`.toLowerCase().includes(q))
@@ -611,7 +675,7 @@ function openExpenseDialog(exp) {
   const isCurrent = viewY === now.getFullYear() && viewM === now.getMonth();
   f.date.value = exp ? exp.date : (isCurrent ? todayISO() : `${monthKey(viewY, viewM)}-01`);
   f.note.value = exp ? exp.note || '' : '';
-  f.private.checked = !!(exp && exp.private);
+  f.private.checked = exp ? !!exp.private : isPersonal();
   f.person.innerHTML = state.settings.persons.map((p) => `<option>${esc(p)}</option>`).join('');
   f.person.value = exp ? exp.person : state.settings.me;
   chosenCat = exp ? exp.category : null;
@@ -823,6 +887,7 @@ function toast(msg) {
 
 // ---------- Events ----------
 function bind() {
+  $$('.mode-switch button').forEach((b) => b.addEventListener('click', () => setMode(b.dataset.mode)));
   $('#prevMonth').onclick = () => shiftMonth(-1);
   $('#nextMonth').onclick = () => shiftMonth(1);
   $$('.tabbar button').forEach((b) => b.addEventListener('click', () => showView(b.dataset.view)));
@@ -1003,11 +1068,13 @@ function bind() {
 
 // ---------- Start ----------
 bind();
+setMode(mode, true);
 handleIncomingUrl();
 handleInviteHash();
 window.addEventListener('hashchange', handleInviteHash);
 let startView = 'overview';
 try { startView = sessionStorage.getItem('ausgaben-view') || 'overview'; } catch (e) { /* egal */ }
+if ((startView === 'subs' && isPersonal()) || (startView === 'konto' && !isPersonal())) startView = 'overview';
 showView(startView);
 render();
 Sync.init();
