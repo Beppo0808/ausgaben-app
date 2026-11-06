@@ -685,3 +685,38 @@ body.viewer-open { overflow: hidden; }
 .scan-guide { top: calc(env(safe-area-inset-top) + 122px); bottom: calc(env(safe-area-inset-bottom) + 130px); }
 .scan-right span { text-align: right; }
 .scan-hint { font-size: .95rem; }
+
+/* Bon-Ansicht mit Knopfleiste (wie Gesundheitsakte), warm statt grün */
+.bon-bar { display: block; background: var(--shared-deep); border-bottom: 0; padding: calc(env(safe-area-inset-top) + 12px) 14px 12px; }
+body[data-mode="personal"] .bon-bar { background: var(--personal-deep); }
+.bon-title { font: 650 1.15rem var(--font-display); color: #fbf5ec; margin-bottom: 10px; }
+.bon-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.bon-btn { border: 1px solid rgba(251, 245, 236, .35); border-radius: 12px; padding: 9px 12px; cursor: pointer;
+  font: 800 .95rem var(--font-text); color: #fbf5ec; background: rgba(251, 245, 236, .14); }
+.bon-btn:active { background: rgba(251, 245, 236, .28); }
+.bon-btn.danger { color: #ffd2c4; }
+.bon-scroll { padding-top: 12px; }
+.bon-nav { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px; max-width: 700px; margin: 0 auto 12px; }
+.bon-nav .btn { margin: 0; line-height: 1.15; padding: 8px; }
+.bon-nav .btn:disabled { opacity: .4; }
+.bon-pos { text-align: center; display: flex; flex-direction: column; }
+.bon-pos b { font: 650 1.3rem var(--font-display); }
+.bon-pos span { color: var(--text-2); font-size: .8rem; }
+.bon-paper { max-width: 700px; margin: 0 auto; background: var(--surface); border: 1px solid var(--border); border-radius: 18px; box-shadow: var(--shadow); padding: 16px; text-align: left; }
+.bon-data h3 { font: 650 1.4rem var(--font-display); margin: 0 0 8px; color: var(--accent-deep); }
+.bon-data dl { margin: 0 0 10px; }
+.bon-data dl div { display: grid; grid-template-columns: 130px 1fr; gap: 8px; padding: 5px 0; border-top: 1px dashed var(--border); }
+.bon-data dt { color: var(--text-2); font-weight: 700; }
+.bon-data dd { margin: 0; }
+.bon-data .item-list { max-height: none; margin-bottom: 14px; }
+.bon-paper img { display: block; width: 100%; height: auto; border: 1px solid var(--border); border-radius: 6px; background: #fff; }
+#bonList .row .sub { white-space: normal; }
+@media print {
+  body.print-bon * { visibility: hidden !important; }
+  body.print-bon #bonViewer, body.print-bon #bonViewer .bon-paper, body.print-bon #bonViewer .bon-paper * { visibility: visible !important; }
+  body.print-bon #bonViewer { position: absolute; inset: 0; background: #fff; }
+  body.print-bon .bon-bar, body.print-bon .bon-nav { display: none !important; }
+  body.print-bon .bon-paper { box-shadow: none; border: 0; max-width: none; }
+}
+
+.bon-paper img + .bon-data, .bon-paper .hint + img + .bon-data { margin-top: 16px; }

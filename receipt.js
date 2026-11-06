@@ -112,10 +112,10 @@ const Receipt = (() => {
 
   /** Verkleinertes Farbbild zum Aufbewahren (gut lesbar, klein) */
   function forStorage(src) {
-    const scale = Math.min(1, 1000 / src.width, 5000 / src.height);
+    const scale = Math.min(1, 1300 / src.width, 6000 / src.height); // gut lesbar für Umtausch/Reklamation
     const c = document.createElement('canvas'); c.width = Math.round(src.width * scale); c.height = Math.round(src.height * scale);
     c.getContext('2d').drawImage(src, 0, 0, c.width, c.height);
-    return new Promise((res) => c.toBlob((b) => res({ blob: b, w: c.width, h: c.height }), 'image/jpeg', 0.72));
+    return new Promise((res) => c.toBlob((b) => res({ blob: b, w: c.width, h: c.height }), 'image/jpeg', 0.8));
   }
 
   // ---------- Lokaler Bild-Speicher (IndexedDB) ----------
@@ -432,27 +432,117 @@ const Receipt = (() => {
     return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   }
 
-  // ---------- Bon als Bild ansehen ----------
-  async function view(exp) {
-    if (!exp || !exp.receipt) return;
-    const box = $('#bonViewer'), img = $('#bonImg');
-    $('#bonTitle').textContent = [exp.merchant, exp.branch].filter(Boolean).join(' · ');
-    $('#bonMeta').textContent = [new Date(exp.date + 'T12:00').toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' }), exp.time ? exp.time + ' Uhr' : '', fmt(exp.amount), exp.person].filter(Boolean).join(' · ');
-    box.hidden = false; document.body.classList.add('viewer-open');
-    $('#bonLoading').hidden = false; img.hidden = true;
+  // ---------- Bon-Ansicht (wie Dokumente in der Gesundheitsakte) ----------
+  let vList = [], vIdx = 0, vBlob = null, vUrl = '';
+
+  /** Alle Bons, die in der aktuellen Ansicht sichtbar sind – neueste zuerst */
+  function bonList() {
+    const personal = typeof isPersonal === 'function' && isPersonal();
+    return state.expenses
+      .filter((e) => e.receipt && (personal ? isMine(e) : !e.private))
+      .sort((x, y) => (y.date + (y.time || '')).localeCompare(x.date + (x.time || '')));
+  }
+
+  async function loadBlob(exp) {
     let blob = await idbGet(exp.receipt.id).catch(() => null);
-    if (!blob && typeof Sync !== 'undefined' && Sync.canFiles()) {
+    if (!blob && typeof Sync !== 'undefined' && Sync.canFiles() && !exp.private) {
       try { const bytes = await Sync.fileGet(exp.receipt.id); if (bytes) { blob = new Blob([bytes], { type: 'image/jpeg' }); await idbPut(exp.receipt.id, blob); } } catch (e) { /* offline */ }
     }
-    $('#bonLoading').hidden = true;
-    if (!blob) { $('#bonLoading').hidden = false; $('#bonLoading').textContent = 'Bild ist auf diesem Gerät nicht vorhanden (privater Bon des anderen Geräts oder noch nicht übertragen).'; return; }
-    if (img.src) URL.revokeObjectURL(img.src);
-    img.src = URL.createObjectURL(blob); img.hidden = false;
+    return blob;
   }
+
+  function view(exp) {
+    if (!exp || !exp.receipt) return;
+    vList = bonList();
+    vIdx = Math.max(0, vList.findIndex((e) => e.id === exp.id));
+    if (!vList.length || vList[vIdx].id !== exp.id) { vList = [exp]; vIdx = 0; }
+    $('#bonViewer').hidden = false; document.body.classList.add('viewer-open');
+    showBon();
+  }
+
+  async function showBon() {
+    const exp = vList[vIdx];
+    if (!exp) { closeViewer(); return; }
+    const d = new Date(exp.date + 'T12:00');
+    $('#bonTitle').textContent = `${d.toLocaleDateString('de-DE')}: ${exp.merchant || 'Kassenbon'}`;
+    $('#bonPos').textContent = `${vIdx + 1} / ${vList.length}`;
+    $('#bonPrev').disabled = vIdx <= 0;
+    $('#bonNext').disabled = vIdx >= vList.length - 1;
+    const c = catById(exp.category);
+    const kv = (k, v) => (v ? `<div><dt>${k}</dt><dd>${v}</dd></div>` : '');
+    $('#bonData').innerHTML = `<h3>${esc(exp.merchant || 'Kassenbon')}</h3><dl>
+      ${kv('📍 Filiale', esc(exp.branch || ''))}
+      ${kv('📅 Datum', esc(d.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })) + (exp.time ? ' · ' + esc(exp.time) + ' Uhr' : ''))}
+      ${kv('💶 Summe', fmt(exp.amount))}
+      ${kv('👤 Bezahlt von', esc(exp.person || ''))}
+      ${kv('🏷️ Kategorie', esc(c.emoji + ' ' + c.name))}
+      ${exp.private ? kv('🔒', 'Privat – nur auf diesem Gerät') : ''}</dl>
+      ${(exp.items || []).length ? `<ul class="item-list">${exp.items.map((it) => { const ic = catById(it.cat || exp.category); return `<li><span>${esc(ic.emoji)} ${esc(it.name)}</span><span>${fmt(it.price)}</span></li>`; }).join('')}</ul>` : ''}`;
+    const img = $('#bonImg');
+    img.hidden = true; $('#bonLoading').hidden = false; $('#bonLoading').textContent = 'Lade Bon …';
+    if (vUrl) { URL.revokeObjectURL(vUrl); vUrl = ''; }
+    vBlob = await loadBlob(exp);
+    if (vList[vIdx] !== exp) return; // inzwischen weitergeblättert
+    if (!vBlob) { $('#bonLoading').textContent = 'Das Bild ist auf diesem Gerät nicht vorhanden (privater Bon eines anderen Geräts oder gerade offline). Die Daten oben sind trotzdem gespeichert.'; return; }
+    vUrl = URL.createObjectURL(vBlob);
+    img.src = vUrl; img.hidden = false; $('#bonLoading').hidden = true;
+    $('#bonScroll').scrollTop = 0;
+  }
+
+  const ascii = (t) => String(t || '').replace(/Ä/g, 'Ae').replace(/Ö/g, 'Oe').replace(/Ü/g, 'Ue').replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss');
+  const fileName = (exp) => `Kassenbon_${ascii(exp.merchant || 'Bon').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '')}_${exp.date}${exp.time ? '_' + exp.time.replace(':', '-') : ''}.jpg`;
+
+  async function share() {
+    const exp = vList[vIdx]; if (!exp || !vBlob) { toast('Kein Bild vorhanden'); return; }
+    const file = new File([vBlob], fileName(exp), { type: 'image/jpeg' });
+    const text = `Kassenbon ${exp.merchant || ''}${exp.branch ? ' (' + exp.branch + ')' : ''}, ${new Date(exp.date + 'T12:00').toLocaleDateString('de-DE')}${exp.time ? ' ' + exp.time + ' Uhr' : ''}, ${fmt(exp.amount)}`;
+    try {
+      if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: 'Kassenbon', text }); return; }
+    } catch (e) { if (e.name === 'AbortError') return; }
+    download(); // Rückfall
+  }
+  function download() {
+    const exp = vList[vIdx]; if (!exp || !vBlob) { toast('Kein Bild vorhanden'); return; }
+    const a = document.createElement('a'); a.href = vUrl; a.download = fileName(exp);
+    document.body.appendChild(a); a.click(); a.remove();
+  }
+  function print() {
+    if (!vBlob) { toast('Kein Bild vorhanden'); return; }
+    document.body.classList.add('print-bon');
+    const done = () => { document.body.classList.remove('print-bon'); window.removeEventListener('afterprint', done); };
+    window.addEventListener('afterprint', done);
+    setTimeout(() => { window.print(); setTimeout(done, 1500); }, 50);
+  }
+  async function removeBon() {
+    const exp = vList[vIdx]; if (!exp) return;
+    if (!confirm('Nur das Bon-Bild löschen?\n\nDie Ausgabe mit Laden, Datum, Betrag und Artikeln bleibt erhalten.')) return;
+    const id = exp.receipt.id;
+    await idbDel(id).catch(() => {});
+    if (typeof Sync !== 'undefined') Sync.fileDelete(id).catch(() => {});
+    delete exp.receipt; save(); render();
+    vList.splice(vIdx, 1); if (vIdx >= vList.length) vIdx = vList.length - 1;
+    toast('Bon-Bild gelöscht');
+    if (!vList.length) closeViewer(); else showBon();
+  }
+  function edit() { const exp = vList[vIdx]; closeViewer(); if (exp) editExpense(exp); }
+  function go(d) { const n = vIdx + d; if (n < 0 || n >= vList.length) return; vIdx = n; showBon(); }
+
   function closeViewer() {
     $('#bonViewer').hidden = true; document.body.classList.remove('viewer-open');
-    const img = $('#bonImg'); if (img.src) { URL.revokeObjectURL(img.src); img.removeAttribute('src'); }
-    $('#bonLoading').textContent = 'Lade Bon …';
+    const img = $('#bonImg'); img.removeAttribute('src');
+    if (vUrl) { URL.revokeObjectURL(vUrl); vUrl = ''; }
+    vBlob = null;
+  }
+
+  /** Bons beider Personen vorab aufs Gerät holen – damit sie im Laden auch offline da sind */
+  async function prefetch() {
+    if (typeof Sync === 'undefined' || !Sync.canFiles() || navigator.onLine === false) return;
+    let n = 0;
+    for (const e of state.expenses) {
+      if (!e.receipt || e.private || n >= 25) continue;
+      if (await idbGet(e.receipt.id).catch(() => null)) continue;
+      try { const bytes = await Sync.fileGet(e.receipt.id); if (bytes) { await idbPut(e.receipt.id, new Blob([bytes], { type: 'image/jpeg' })); n++; } } catch (err) { break; }
+    }
   }
 
   function bind() {
@@ -475,10 +565,31 @@ const Receipt = (() => {
   function init() {
     if (typeof Scanner !== 'undefined') Scanner.bind();
     $('#bonClose').onclick = closeViewer;
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#bonViewer').hidden) closeViewer(); });
+    $('#bonEdit').onclick = edit;
+    $('#bonShare').onclick = share;
+    $('#bonPrint').onclick = print;
+    $('#bonDownload').onclick = download;
+    $('#bonDelete').onclick = removeBon;
+    $('#bonPrev').onclick = () => go(-1);
+    $('#bonNext').onclick = () => go(1);
+    document.addEventListener('keydown', (e) => {
+      if ($('#bonViewer').hidden) return;
+      if (e.key === 'Escape') closeViewer();
+      else if (e.key === 'ArrowLeft') go(-1);
+      else if (e.key === 'ArrowRight') go(1);
+    });
+    let sx = null, sy = null;
+    $('#bonScroll').addEventListener('touchstart', (e) => { if (e.touches.length === 1) { sx = e.touches[0].clientX; sy = e.touches[0].clientY; } else sx = null; }, { passive: true });
+    $('#bonScroll').addEventListener('touchend', (e) => {
+      if (sx == null) return;
+      const dx = e.changedTouches[0].clientX - sx, dy = e.changedTouches[0].clientY - sy; sx = null;
+      if (Math.abs(dx) > 70 && Math.abs(dy) < 50) go(dx < 0 ? 1 : -1);
+    });
     setTimeout(uploadPending, 3000);
+    setTimeout(prefetch, 6000);
+    if (typeof Sync !== 'undefined') Sync.onStatus((st) => { if (st.state === 'ok') setTimeout(prefetch, 1500); });
     window.addEventListener('online', uploadPending);
   }
 
-  return { open, startScan, editExpense, parse, view, init, itemCategory, uploadPending, _scanCanvas: (c) => scanCanvas(c) };
+  return { open, startScan, editExpense, parse, view, init, itemCategory, uploadPending, bonList, prefetch, _scanCanvas: (c) => scanCanvas(c) };
 })();

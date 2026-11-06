@@ -365,8 +365,15 @@ const Sync = (() => {
     return new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: all.slice(0, 12) }, aes, all.slice(12)));
   }
 
+  async function fileDelete(id) {
+    if (!canFiles()) return false;
+    const { hid } = await getKeys();
+    await fetch('/api/files', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fn: 'delete', h: hid, id }) });
+    return true;
+  }
+
   return {
-    filePut, fileGet, canFiles,
+    filePut, fileGet, fileDelete, canFiles,
     init, onSave, syncNow, create, join, disconnect, inviteLink, parseInvite, enabled, selfAvailable,
     usesSelf: () => !!(cfg && cfg.url === SELF),
     household: () => (cfg ? cfg.household : ''),

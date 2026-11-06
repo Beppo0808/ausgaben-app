@@ -82,6 +82,7 @@
       <div class="seg" id="listMode">
         <button type="button" data-v="exp" aria-pressed="true">🧾 Einkäufe</button>
         <button type="button" data-v="art" aria-pressed="false">🥛 Artikel &amp; Preise</button>
+        <button type="button" data-v="bons" aria-pressed="false">📄 Bons</button>
       </div>
       <div class="filters">
         <input type="search" id="searchInput" placeholder="Suchen (Laden, Filiale, Artikel, Notiz …)" aria-label="Suchen">
@@ -90,6 +91,7 @@
       </div>
       <div id="expenseList"></div>
       <div id="articleList" hidden></div>
+      <div id="bonList" hidden></div>
     </section>
 
     <!-- Abos -->
@@ -488,10 +490,28 @@
   <!-- Bon-Ansicht -->
   <div class="bon-viewer" id="bonViewer" hidden>
     <div class="bon-bar">
-      <div><div class="bon-title" id="bonTitle"></div><div class="bon-meta" id="bonMeta"></div></div>
-      <button type="button" class="btn" id="bonClose">✕ Schließen</button>
+      <div class="bon-title" id="bonTitle"></div>
+      <div class="bon-actions">
+        <button type="button" class="bon-btn" id="bonEdit">✏️ Bearbeiten</button>
+        <button type="button" class="bon-btn" id="bonShare">📤 Senden</button>
+        <button type="button" class="bon-btn" id="bonPrint">🖨️ Drucken</button>
+        <button type="button" class="bon-btn" id="bonDownload">⬇️ Download</button>
+        <button type="button" class="bon-btn danger" id="bonDelete">🗑️ Löschen</button>
+        <button type="button" class="bon-btn" id="bonClose">✕ Schließen</button>
+      </div>
     </div>
-    <div class="bon-scroll"><p class="hint" id="bonLoading">Lade Bon …</p><img id="bonImg" alt="Kassenbon" hidden></div>
+    <div class="bon-scroll" id="bonScroll">
+      <div class="bon-nav">
+        <button type="button" class="btn" id="bonPrev">◀<br>Vorheriger</button>
+        <div class="bon-pos"><b id="bonPos">1 / 1</b><span>Wischen · Pfeiltasten</span></div>
+        <button type="button" class="btn" id="bonNext">▶<br>Nächster</button>
+      </div>
+      <div class="bon-paper">
+        <p class="hint" id="bonLoading">Lade Bon …</p>
+        <img id="bonImg" alt="Kassenbon" hidden>
+        <div class="bon-data" id="bonData"></div>
+      </div>
+    </div>
   </div>
 
   <!-- Sperrbildschirm (App-Sperre pro Gerät) -->

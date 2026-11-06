@@ -563,6 +563,29 @@ function renderArticles() {
   $$('.art-rows li', root).forEach((li) => li.addEventListener('click', () => openExpenseDialog(state.expenses.find((e) => e.id === li.dataset.exp))));
 }
 
+/** Alle Kassenbons zum schnellen Wiederfinden (z. B. für Umtausch/Reklamation) */
+function renderBons() {
+  const root = $('#bonList');
+  const q = $('#searchInput').value.trim().toLowerCase();
+  const fc = $('#filterCat').value, fp = $('#filterPerson').value;
+  const list = Receipt.bonList()
+    .filter((e) => !fc || e.category === fc || (e.items || []).some((it) => it.cat === fc))
+    .filter((e) => !fp || (fp === '__private' ? e.private : fp === '__shared' ? !e.private : e.person === fp))
+    .filter((e) => !q || `${e.merchant} ${e.branch || ''} ${e.note || ''} ${(e.items || []).map((it) => it.name).join(' ')}`.toLowerCase().includes(q));
+  if (!Receipt.bonList().length) { root.innerHTML = '<div class="empty-state">Noch keine Kassenbons gespeichert.<br>Tippe oben auf <b>📷 Kassenbon scannen</b>.</div>'; return; }
+  if (!list.length) { root.innerHTML = '<div class="empty-state">Kein Bon gefunden.</div>'; return; }
+  root.innerHTML = '<ul class="rows">' + list.map((e) => {
+    const d = new Date(e.date + 'T12:00').toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const hit = q && e.items ? e.items.find((it) => it.name.toLowerCase().includes(q)) : null;
+    return `<li class="row" data-id="${esc(e.id)}"><span class="emoji">📄</span>
+      <span class="main"><div class="title">${esc(e.merchant || 'Kassenbon')}${e.private ? '<span class="badge badge-private">🔒</span>' : ''}</div>
+      <div class="sub">${[esc(d) + (e.time ? ' · ' + esc(e.time) : ''), e.branch ? '📍 ' + esc(e.branch) : '', personTag(e.person), `${(e.items || []).length} Artikel`].filter(Boolean).join(' · ')}</div>
+      ${hit ? `<div class="sub hit">🔎 ${esc(hit.name)} ${fmt(hit.price)}</div>` : ''}</span>
+      <span class="amount">${fmt(e.amount)}</span></li>`;
+  }).join('') + '</ul>';
+  $$('#bonList .row').forEach((row) => row.addEventListener('click', () => Receipt.view(state.expenses.find((x) => x.id === row.dataset.id))));
+}
+
 function renderList() {
   const fc = $('#filterCat'), fp = $('#filterPerson');
   const prevC = fc.value, prevP = fp.value;
@@ -575,7 +598,9 @@ function renderList() {
   $$('#listMode button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.v === listMode)));
   $('#expenseList').hidden = listMode !== 'exp';
   $('#articleList').hidden = listMode !== 'art';
+  $('#bonList').hidden = listMode !== 'bons';
   if (listMode === 'art') { renderArticles(); return; }
+  if (listMode === 'bons') { renderBons(); return; }
   const q = $('#searchInput').value.trim().toLowerCase();
   const items = expensesForMonth(viewY, viewM)
     .filter((e) => (isPersonal() ? isMine(e) : !e.private))

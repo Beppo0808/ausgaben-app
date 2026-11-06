@@ -153,6 +153,10 @@ jede Zahlung zusätzlich per Tipp auf privat/gemeinsam umschalten.
   verteilt den Bon auf diese Kategorien.
 - **🥛 Artikel & Preise** (in „Ausgaben“): z. B. „Milch“ suchen → jeder Kauf mit Datum, Uhrzeit, Laden, Filiale,
   Person und Preis, dazu günstigster und teuerster Preis – über alle Monate.
+- **📄 Bons** (in „Ausgaben“): alle Kassenbons zum Wiederfinden – z. B. für **Umtausch oder Reklamation**.
+  Suche nach Laden, Filiale oder Artikel. Die Bon-Ansicht hat **✏️ Bearbeiten · 📤 Senden** (Mail, WhatsApp, AirDrop,
+  in Dateien sichern) **· 🖨️ Drucken · ⬇️ Download · 🗑️ Löschen** (nur das Bild) **· ✕ Schließen**, Blättern per
+  Knopf, Wischen oder Pfeiltasten. Gemeinsame Bons werden auf beiden Geräten vorgehalten – **auch offline** im Laden.
 - **Bon als Bild:** In jeder Ausgabe → **🧾 Bon als Bild ansehen**. Das Bild wird verkleinert gespeichert; bei
   gemeinsamen Einkäufen **Ende-zu-Ende-verschlüsselt** auf eurem Netlify-Konto (beide sehen es), bei privaten nur
   auf dem eigenen Gerät.
