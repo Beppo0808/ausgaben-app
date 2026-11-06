@@ -410,6 +410,7 @@ const Konto = (() => {
   function functionUrl() {
     const c = bankCfg();
     if (c.url) return c.url.replace(/\/+$/, '');
+    if (document.querySelector('meta[name="sync-backend"]')?.content === 'self') return location.origin + '/api/bank';
     const s = syncCfg();
     return s.url ? s.url.replace(/\/+$/, '') + '/functions/v1/bank' : '';
   }

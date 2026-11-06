@@ -1,0 +1,12 @@
+{
+  "name": "ausgaben-app",
+  "private": true,
+  "type": "module",
+  "description": "Haushaltsbuch – Web-App mit verschlüsseltem Abgleich (Netlify)",
+  "scripts": {
+    "build": "node scripts/build.mjs"
+  },
+  "dependencies": {
+    "@netlify/blobs": "8.1.0"
+  }
+}

@@ -587,12 +587,15 @@ function renderSettings() {
 function renderSync() {
   const on = typeof Sync !== 'undefined' && Sync.enabled();
   $('#syncOff').hidden = on;
+  const self = typeof Sync !== 'undefined' && Sync.selfAvailable();
+  $('#syncSelf').hidden = !self;
+  if (self && !$('#syncSupabase').dataset.init) { $('#syncSupabase').open = false; $('#syncSupabase').querySelector('summary').textContent = 'Fortgeschritten: eigener Supabase-Server'; $('#syncSupabase').dataset.init = '1'; }
   $('#syncOn').hidden = !on;
   const st = on ? Sync.status() : { state: 'off', text: 'Nicht verbunden – Daten nur auf diesem Gerät' };
   const pending = on ? Sync.pending() : 0;
   $('#syncStatusText').textContent = st.text + (pending && st.state !== 'busy' ? ` · ${pending} Änderung(en) ausstehend` : '');
   $('#syncDot').className = 'sync-dot ' + st.state;
-  $('#footerNote').textContent = on ? 'Ausgaben-App · synchronisiert über eure Supabase-Datenbank' : 'Ausgaben-App · Daten nur auf diesem Gerät';
+  $('#footerNote').textContent = on ? (Sync.usesSelf() ? 'Ausgaben-App · verschlüsselt synchronisiert über euer Netlify-Konto' : 'Ausgaben-App · verschlüsselt synchronisiert über eure Supabase-Datenbank') : 'Ausgaben-App · Daten nur auf diesem Gerät';
 }
 
 async function joinFromInvite(text) {
@@ -1003,6 +1006,15 @@ function bind() {
   };
 
   // Synchronisation
+  $('#syncCreateSelfBtn').onclick = async () => {
+    const btn = $('#syncCreateSelfBtn'); btn.disabled = true;
+    try {
+      await Sync.create('self', '');
+      render();
+      toast('Haushalt erstellt ✓ – jetzt Einladungslink an die anderen Geräte schicken');
+    } catch (e) { toast('⚠️ ' + e.message); }
+    finally { btn.disabled = false; }
+  };
   $('#syncCreateBtn').onclick = async () => {
     const url = $('#syncUrl').value, key = $('#syncKey').value;
     if (!url.trim() || !key.trim()) { toast('Bitte URL und Schlüssel eintragen'); return; }

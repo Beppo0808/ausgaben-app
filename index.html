@@ -6,6 +6,7 @@
   <title>Ausgaben</title>
   <meta name="description" content="Haushaltsbuch: Ausgaben, Budget und Abos im Blick – mit automatischer Erfassung bei Zahlung per Handy.">
   <meta name="theme-color" content="#ece3d6">
+  <meta name="sync-backend" content="">
   <meta name="color-scheme" content="light only">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
@@ -223,9 +224,13 @@
         <p class="hint" id="syncStatusText">Nicht verbunden</p>
 
         <div id="syncOff">
-          <p class="hint">Alle Geräte (eure iPhones und iPads) sehen dieselben Daten. Einmalig auf <b>einem</b> Gerät einrichten, dann die anderen per Einladungslink verbinden. Anleitung im README.</p>
-          <details class="howto" open>
-            <summary>Neuen Haushalt einrichten</summary>
+          <p class="hint">Alle Geräte (eure iPhones und iPads) sehen dieselben Daten. Einmalig auf <b>einem</b> Gerät einrichten, dann die anderen per Einladungslink verbinden.</p>
+          <div id="syncSelf" hidden>
+            <button class="btn btn-primary" id="syncCreateSelfBtn">👫 Gemeinsamen Haushalt erstellen</button>
+            <p class="hint">Gespeichert wird verschlüsselt auf eurem eigenen Netlify-Konto – nichts weiter einzurichten.</p>
+          </div>
+          <details class="howto" id="syncSupabase" open>
+            <summary>Eigener Supabase-Server</summary>
             <label class="field">Supabase Project URL
               <input type="url" id="syncUrl" placeholder="https://xxxx.supabase.co" autocomplete="off" autocapitalize="off" spellcheck="false">
             </label>

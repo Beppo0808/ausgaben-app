@@ -33,7 +33,10 @@ const Sync = (() => {
   function writeCfg() {
     try { cfg ? localStorage.setItem(KEY, JSON.stringify(cfg)) : localStorage.removeItem(KEY); } catch (e) { /* voll */ }
   }
-  const enabled = () => !!(cfg && cfg.url && cfg.key && cfg.household);
+  // „self“ = eigener Speicher auf demselben Server wie die App (Netlify, /api/sync) – ohne URL/Schlüssel
+  const SELF = 'self';
+  const selfAvailable = () => document.querySelector('meta[name="sync-backend"]')?.content === SELF;
+  const enabled = () => !!(cfg && cfg.url && cfg.household && (cfg.url === SELF || cfg.key));
 
   function setStatus(s, text) {
     status = { state: s, text };
@@ -77,11 +80,18 @@ const Sync = (() => {
   }
 
   async function rpc(name, body, opts = {}) {
-    const headers = { apikey: cfg.key, 'Content-Type': 'application/json' };
-    if (!cfg.key.startsWith('sb_')) headers.Authorization = 'Bearer ' + cfg.key; // alter „anon“-Schlüssel (JWT)
-    const res = await fetch(cfg.url.replace(/\/+$/, '') + '/rest/v1/rpc/' + name, {
-      method: 'POST', headers, body: JSON.stringify(body), keepalive: !!opts.keepalive,
-    });
+    let res;
+    if (cfg.url === SELF) {
+      res = await fetch('/api/sync', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fn: name, ...body }), keepalive: !!opts.keepalive,
+      });
+    } else {
+      const headers = { apikey: cfg.key, 'Content-Type': 'application/json' };
+      if (!cfg.key.startsWith('sb_')) headers.Authorization = 'Bearer ' + cfg.key; // alter „anon“-Schlüssel (JWT)
+      res = await fetch(cfg.url.replace(/\/+$/, '') + '/rest/v1/rpc/' + name, {
+        method: 'POST', headers, body: JSON.stringify(body), keepalive: !!opts.keepalive,
+      });
+    }
     if (!res.ok) {
       let msg = res.status + ' ' + res.statusText;
       try { const j = await res.json(); msg = j.message || j.msg || j.error || msg; } catch (e) { /* egal */ }
@@ -244,6 +254,7 @@ const Sync = (() => {
   }
 
   function normalizeUrl(u) {
+    if (u === SELF) return SELF;
     u = String(u || '').trim().replace(/\/+$/, '').replace(/\/rest\/v1$/, '');
     if (u && !/^https?:\/\//.test(u)) u = 'https://' + u;
     return u;
@@ -251,7 +262,7 @@ const Sync = (() => {
 
   /** Neuen gemeinsamen Haushalt anlegen – lädt die Daten dieses Geräts hoch */
   async function create(url, key) {
-    cfg = { e2e: 2, url: normalizeUrl(url), key: String(key).trim(), household: randomCode(), lastPull: null, hashes: {}, mtimes: {}, dirty: {} };
+    cfg = { e2e: 2, url: normalizeUrl(url), key: String(key || '').trim(), household: randomCode(), lastPull: null, hashes: {}, mtimes: {}, dirty: {} };
     writeCfg();
     try {
       const { hid } = await getKeys();
@@ -267,7 +278,7 @@ const Sync = (() => {
   /** Bestehendem Haushalt beitreten. keepLocal: Einträge dieses Geräts mitnehmen */
   async function join(info, keepLocal) {
     const prev = cfg;
-    cfg = { e2e: 2, url: normalizeUrl(info.u), key: String(info.k).trim(), household: info.h, lastPull: null, hashes: {}, mtimes: {}, dirty: {} };
+    cfg = { e2e: 2, url: normalizeUrl(info.u), key: String(info.k || '').trim(), household: info.h, lastPull: null, hashes: {}, mtimes: {}, dirty: {} };
     try {
       if (!keepLocal) { state.expenses = []; state.subs = []; state.rules = {}; }
       await pull(); // Daten des Haushalts gewinnen (lokal hat noch keine Zeitstempel)
@@ -290,7 +301,8 @@ const Sync = (() => {
   function inviteLink() {
     if (!enabled()) return '';
     const extra = typeof Konto !== 'undefined' && Konto.bankToken() ? { b: Konto.bankToken() } : {};
-    const payload = btoa(unescape(encodeURIComponent(JSON.stringify({ u: cfg.url, k: cfg.key, h: cfg.household, ...extra }))))
+    const base = cfg.url === SELF ? { u: SELF, h: cfg.household } : { u: cfg.url, k: cfg.key, h: cfg.household };
+    const payload = btoa(unescape(encodeURIComponent(JSON.stringify({ ...base, ...extra }))))
       .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
     return location.origin + location.pathname + '#verbinden=' + payload;
   }
@@ -301,7 +313,7 @@ const Sync = (() => {
     try {
       const b64 = m[1].replace(/-/g, '+').replace(/_/g, '/');
       const info = JSON.parse(decodeURIComponent(escape(atob(b64))));
-      return info && info.u && info.k && info.h && String(info.h).length >= 20 ? info : null;
+      return info && info.u && (info.u === SELF || info.k) && info.h && String(info.h).length >= 20 ? info : null;
     } catch (e) { return null; }
   }
 
@@ -327,7 +339,8 @@ const Sync = (() => {
   }
 
   return {
-    init, onSave, syncNow, create, join, disconnect, inviteLink, parseInvite, enabled,
+    init, onSave, syncNow, create, join, disconnect, inviteLink, parseInvite, enabled, selfAvailable,
+    usesSelf: () => !!(cfg && cfg.url === SELF),
     household: () => (cfg ? cfg.household : ''),
     status: () => status,
     pending: () => (cfg ? Object.keys(cfg.dirty).length : 0),
