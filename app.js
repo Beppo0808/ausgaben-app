@@ -106,6 +106,25 @@ function todayISO() {
 const monthKey = (y, m) => `${y}-${String(m + 1).padStart(2, '0')}`;
 const daysInMonth = (y, m) => new Date(y, m + 1, 0).getDate();
 
+// Personen: feste Farbe je Position in der Personenliste (Name steht immer dabei)
+function personIndex(name) { return state.settings.persons.indexOf(name); }
+function personAvatar(name, size = '') {
+  if (!name) return '';
+  const i = personIndex(name);
+  const cls = i > -1 ? 'p' + (i % 4) : 'px';
+  return `<span class="avatar ${cls} ${size}" aria-hidden="true">${esc(name.trim().charAt(0).toUpperCase())}</span>`;
+}
+function personTag(name) {
+  return name ? `<span class="who">${personAvatar(name, 'sm')}${esc(name)}</span>` : '';
+}
+function timeOf(e) {
+  if (e.virtual || !e.created || (e.source !== 'wallet' && e.source !== 'manual')) return '';
+  const d = new Date(e.created);
+  // nur anzeigen, wenn am selben Tag erfasst (sonst wurde später nachgetragen)
+  const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return iso === e.date ? d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) + ' Uhr' : '';
+}
+
 function catById(id) {
   return state.categories.find((c) => c.id === id) || state.categories.find((c) => c.id === 'sonstiges') || state.categories[0];
 }
@@ -147,7 +166,7 @@ function subsForMonth(y, m) {
     })
     .map((s) => ({
       id: 'sub-' + s.id, subId: s.id, virtual: true, date: `${key}-01`, amount: s.amount,
-      merchant: s.name, category: s.category, person: '', note: s.interval === 'year' ? 'jährlich' : 'monatlich',
+      merchant: s.name, category: s.category, person: s.payer || '', note: s.interval === 'year' ? 'jährlich' : 'monatlich',
     }));
 }
 
@@ -183,10 +202,7 @@ function renderOverview() {
   leftEl.className = 'kpi-value ' + (left < 0 ? 'neg' : '');
 
   // Wer hat bezahlt (nur Alltagsausgaben, Fixkosten sind gemeinsam)
-  const byPerson = {};
-  items.filter((e) => !e.virtual && e.person).forEach((e) => { byPerson[e.person] = (byPerson[e.person] || 0) + e.amount; });
-  $('#paidBy').textContent = Object.keys(byPerson).length
-    ? 'Bezahlt: ' + Object.entries(byPerson).map(([p, v]) => `${p} ${fmt0(v)}`).join(' · ') : '';
+  renderWhoPaid(items);
 
   // Privater Bereich – nur auf diesem Gerät
   const me = state.settings.me;
@@ -222,6 +238,65 @@ function renderOverview() {
 
   renderDailyChart(items.filter((e) => !e.virtual), dim, isCurrent ? now.getDate() : dim);
   renderCatBars(items);
+}
+
+function renderWhoPaid(items) {
+  const persons = state.settings.persons;
+  const stats = {};
+  persons.forEach((p) => { stats[p] = { total: 0, count: 0, fixed: 0 }; });
+  let open = 0; // Fixkosten ohne zugeordnete Person (z. B. Gemeinschaftskonto)
+  items.forEach((e) => {
+    if (!e.person) { open += e.amount; return; }
+    const s = stats[e.person] || (stats[e.person] = { total: 0, count: 0, fixed: 0 });
+    s.total += e.amount;
+    if (e.virtual) s.fixed += e.amount; else s.count++;
+  });
+  const rows = Object.entries(stats).filter(([p, s]) => s.total > 0 || persons.includes(p));
+  const sum = rows.reduce((a, [, s]) => a + s.total, 0);
+  const ul = $('#whoList');
+  if (!sum) {
+    ul.innerHTML = '<li class="hint">Noch keine Zahlungen mit Person in diesem Monat.</li>';
+    $('#whoBalance').textContent = '';
+    $('#whoOpen').textContent = open ? `Ohne Person (z. B. Gemeinschaftskonto): ${fmt(open)}` : '';
+    return;
+  }
+  ul.innerHTML = rows.sort((a, b) => b[1].total - a[1].total).map(([p, s]) => {
+    const pct = (s.total / sum) * 100;
+    const i = personIndex(p);
+    const detail = [`${s.count} ${s.count === 1 ? 'Einkauf' : 'Einkäufe'}`, s.fixed ? `Fixkosten ${fmt0(s.fixed)}` : ''].filter(Boolean).join(' · ');
+    return `<li data-person="${esc(p)}">
+      <div class="who-line">${personAvatar(p)}<span class="who-name">${esc(p)}<span class="muted who-detail">${esc(detail)}</span></span>
+        <span class="amt"><b>${fmt(s.total)}</b> <span class="muted">${Math.round(pct)} %</span></span></div>
+      <div class="progress"><div class="progress-fill ${i > -1 ? 'bg-p' + (i % 4) : ''}" style="width:${pct}%"></div></div>
+    </li>`;
+  }).join('');
+  $$('li[data-person]', ul).forEach((li) => li.addEventListener('click', () => {
+    $('#filterPerson').value = li.dataset.person; showView('list'); renderList();
+  }));
+
+  // Ausgleich bei gleicher Aufteilung
+  const active = rows.filter(([p]) => persons.includes(p));
+  let balance = '';
+  if (active.length >= 2) {
+    const share = sum / active.length;
+    const diffs = active.map(([p, s]) => [p, round2(s.total - share)]);
+    const payers = diffs.filter(([, d]) => d < -0.5).sort((a, b) => a[1] - b[1]);
+    const receivers = diffs.filter(([, d]) => d > 0.5).sort((a, b) => b[1] - a[1]);
+    const moves = [];
+    let ri = 0;
+    for (const [p, d0] of payers) {
+      let d = -d0;
+      while (d > 0.5 && ri < receivers.length) {
+        const take = Math.min(d, receivers[ri][1]);
+        moves.push(`${p} → ${receivers[ri][0]}: ${fmt(take)}`);
+        receivers[ri][1] = round2(receivers[ri][1] - take); d = round2(d - take);
+        if (receivers[ri][1] <= 0.5) ri++;
+      }
+    }
+    balance = moves.length ? `⚖️ Bei halbe-halbe: ${moves.join(' · ')}` : '⚖️ Ausgeglichen – alle haben gleich viel bezahlt.';
+  }
+  $('#whoBalance').textContent = balance;
+  $('#whoOpen').textContent = open ? `Ohne Person (z. B. Gemeinschaftskonto): ${fmt(open)}` : '';
 }
 
 function renderDailyChart(items, dim, elapsedDays) {
@@ -341,7 +416,7 @@ function renderList() {
     html += `<div class="day-group"><div class="day-head"><span>${esc(label)}</span><span>${fmt(sum)}</span></div><ul class="rows">`;
     html += list.map((e) => {
       const c = catById(e.category);
-      const sub = [c.name, e.person, e.note].filter(Boolean).map(esc).join(' · ');
+      const sub = [personTag(e.person), esc(timeOf(e)), esc(c.name), esc(e.note)].filter(Boolean).join(' · ');
       const badge = (e.private ? '<span class="badge badge-private">🔒 privat</span>' : '') + (e.source === 'wallet' ? '<span class="badge">📲 Handy</span>' : '');
       return `<li class="row ${e.virtual ? 'virtual' : ''}" data-id="${esc(e.id)}">
         <span class="emoji">${esc(c.emoji)}</span>
@@ -366,7 +441,7 @@ function renderSubs() {
   ul.innerHTML = [...state.subs].sort((a, b) => b.amount - a.amount).map((s) => {
     const c = catById(s.category);
     return `<li class="row" data-id="${esc(s.id)}"><span class="emoji">${esc(c.emoji)}</span>
-      <span class="main"><div class="title">${esc(s.name)}</div><div class="sub">${s.interval === 'year' ? 'jährlich' : 'monatlich'} · ${esc(c.name)}</div></span>
+      <span class="main"><div class="title">${esc(s.name)}</div><div class="sub">${[s.interval === 'year' ? 'jährlich' : 'monatlich', esc(c.name), s.payer ? personTag(s.payer) : 'gemeinsam'].join(' · ')}</div></span>
       <span class="amount">${fmt(s.amount)}</span></li>`;
   }).join('');
   $$('.row', ul).forEach((row) => row.addEventListener('click', () => openSubDialog(state.subs.find((s) => s.id === row.dataset.id))));
@@ -515,6 +590,8 @@ function openSubDialog(sub) {
   f.category.innerHTML = state.categories.map((c) => `<option value="${esc(c.id)}">${esc(c.emoji)} ${esc(c.name)}</option>`).join('');
   f.category.value = sub ? sub.category : (state.categories.some((c) => c.id === 'abos') ? 'abos' : state.categories[0].id);
   f.start.value = sub ? sub.start : monthKey(viewY, viewM);
+  f.payer.innerHTML = '<option value="">Gemeinsam / Gemeinschaftskonto</option>' + state.settings.persons.map((p) => `<option>${esc(p)}</option>`).join('');
+  f.payer.value = sub && sub.payer ? sub.payer : '';
   $('#deleteSubBtn').hidden = !sub;
   $('#subDialog').showModal();
 }
@@ -690,7 +767,7 @@ function bind() {
     const f = e.target;
     const amount = parseAmount(f.amount.value);
     if (!(amount > 0)) { toast('Bitte einen gültigen Betrag eingeben'); return; }
-    const data = { name: f.name.value.trim(), amount, interval: f.interval.value, category: f.category.value, start: f.start.value };
+    const data = { name: f.name.value.trim(), amount, interval: f.interval.value, category: f.category.value, start: f.start.value, payer: f.payer.value };
     if (editingSubId) Object.assign(state.subs.find((s) => s.id === editingSubId), data);
     else state.subs.push({ id: uid(), ...data });
     save(); render(); $('#subDialog').close();

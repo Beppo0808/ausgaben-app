@@ -247,9 +247,10 @@ dialog h2 { margin-bottom: 14px; font-size: 1.15rem; }
 /* iPad / großer Bildschirm: Übersicht zweispaltig */
 @media (min-width: 900px) {
   main { max-width: 1100px; }
-  #view-overview.active { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto auto auto 1fr; gap: 0 14px; align-items: start; }
+  #view-overview.active { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto auto auto auto 1fr; gap: 0 14px; align-items: start; }
+  #view-overview #whoCard { grid-column: 2; grid-row: 2; }
   #view-overview .kpis { grid-column: 1 / -1; grid-template-columns: repeat(3, 1fr); }
-  #view-overview .card:last-child { grid-column: 2; grid-row: 2 / span 3; }
+  #view-overview .card:last-child { grid-column: 2; grid-row: 3 / span 3; }
   #view-list, #view-subs, #view-settings { max-width: 760px; margin: 0 auto; }
 }
 
@@ -269,3 +270,23 @@ dialog h2 { margin-bottom: 14px; font-size: 1.15rem; }
 .tx-add.done { background: transparent; color: var(--good); cursor: default; }
 .tx-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
 .row.tx { cursor: default; }
+
+/* Personen – feste Farben (Name steht immer daneben) */
+:root { --p0: #2a78d6; --p1: #d95926; --p2: #6250d6; --p3: #008300; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --p0: #3987e5; --p1: #d95926; --p2: #9085e9; --p3: #008300; } }
+:root[data-theme="dark"] { --p0: #3987e5; --p1: #d95926; --p2: #9085e9; --p3: #008300; }
+.avatar { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 28px; height: 28px; border-radius: 50%;
+  color: #fff; font-weight: 700; font-size: .85rem; background: var(--muted); }
+.avatar.sm { width: 18px; height: 18px; font-size: .65rem; margin-right: 4px; vertical-align: -3px; }
+.avatar.p0, .bg-p0 { background: var(--p0); } .avatar.p1, .bg-p1 { background: var(--p1); }
+.avatar.p2, .bg-p2 { background: var(--p2); } .avatar.p3, .bg-p3 { background: var(--p3); }
+.who { white-space: nowrap; color: var(--text-2); font-weight: 600; }
+.who-bars { list-style: none; margin: 0; padding: 0; }
+.who-bars li { padding: 8px 0; border-top: 1px solid var(--border); cursor: pointer; }
+.who-bars li:first-child { border-top: 0; }
+.who-bars li.hint { cursor: default; border: 0; }
+.who-line { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.who-name { flex: 1; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.who-name .muted { font-weight: 400; }
+.who-line .amt { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.who-detail { display: block; font-size: .78rem; white-space: normal; }

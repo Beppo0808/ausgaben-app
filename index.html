@@ -28,7 +28,7 @@
       <div class="kpis">
         <div class="kpi"><span class="kpi-label">Haushaltsbudget</span><span class="kpi-value" id="kpiBudget">–</span></div>
         <div class="kpi"><span class="kpi-label">Ausgaben gemeinsam</span><span class="kpi-value" id="kpiSpent">–</span><span class="kpi-sub" id="kpiSpentSub"></span></div>
-        <div class="kpi kpi-hero"><span class="kpi-label">Übrig vom Budget</span><span class="kpi-value" id="kpiLeft">–</span><span class="kpi-sub" id="paidBy"></span></div>
+        <div class="kpi kpi-hero"><span class="kpi-label">Übrig vom Budget</span><span class="kpi-value" id="kpiLeft">–</span></div>
       </div>
 
       <div class="card">
@@ -43,6 +43,13 @@
       <div class="card">
         <div class="card-head"><h2>Ausgaben pro Tag</h2><span class="muted" id="dailyAvg"></span></div>
         <div class="chart" id="dailyChart"></div>
+      </div>
+
+      <div class="card" id="whoCard">
+        <div class="card-head"><h2>👫 Wer hat bezahlt?</h2><span class="muted">gemeinsame Ausgaben</span></div>
+        <ul class="who-bars" id="whoList"></ul>
+        <p class="hint" id="whoBalance"></p>
+        <p class="hint" id="whoOpen"></p>
       </div>
 
       <div class="card card-private" id="meCard">
@@ -271,6 +278,7 @@
         <label class="field">Kategorie <select name="category"></select></label>
         <label class="field">Seit <input type="month" name="start" required></label>
       </div>
+      <label class="field">Bezahlt von <select name="payer"></select></label>
       <div class="dialog-actions">
         <button type="button" class="btn btn-danger" id="deleteSubBtn">Löschen</button>
         <span class="spacer"></span>
