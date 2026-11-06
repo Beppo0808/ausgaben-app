@@ -78,7 +78,7 @@
 
     <!-- Ausgaben -->
     <section id="view-list" class="view" aria-label="Ausgaben">
-      <button class="btn btn-scan" id="scanBtnList">🧾 Kassenbon erfassen</button>
+      <button class="btn btn-scan" id="scanBtnList">📷 Kassenbon scannen</button>
       <div class="seg" id="listMode">
         <button type="button" data-v="exp" aria-pressed="true">🧾 Einkäufe</button>
         <button type="button" data-v="art" aria-pressed="false">🥛 Artikel &amp; Preise</button>
@@ -468,6 +468,23 @@
     </div>
   </dialog>
 
+  <!-- In-App-Scanner -->
+  <div class="scanner" id="scanner" hidden>
+    <video id="scanVideo" playsinline muted autoplay></video>
+    <div class="scan-guide" id="scanGuide"></div>
+    <div class="scan-flash" id="scanFlash"></div>
+    <div class="scan-top">
+      <button type="button" class="scan-btn" id="scanCancel">✕ Abbrechen</button>
+      <button type="button" class="scan-btn" id="scanFile">📄 Datei / Foto</button>
+    </div>
+    <div class="scan-hint" id="scanHint"></div>
+    <div class="scan-bottom">
+      <div class="scan-thumbs" id="scanThumbs"></div>
+      <button type="button" class="scan-shutter" id="scanShutter" aria-label="Jetzt aufnehmen"></button>
+      <div class="scan-right"><span id="scanParts"></span><button type="button" class="scan-btn scan-done" id="scanDone" hidden>✓ Fertig</button></div>
+    </div>
+  </div>
+
   <!-- Bon-Ansicht -->
   <div class="bon-viewer" id="bonViewer" hidden>
     <div class="bon-bar">
@@ -520,6 +537,7 @@
   <script src="lock.js"></script>
   <script src="sync.js"></script>
   <script src="konto.js"></script>
+  <script src="scanner.js"></script>
   <script src="receipt.js"></script>
   <script src="app.js"></script>
 </body>

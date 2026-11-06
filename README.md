@@ -139,9 +139,12 @@ jede Zahlung zusätzlich per Tipp auf privat/gemeinsam umschalten.
 > den privaten Teil am besten auch in Safari.
 
 ## Kassenbon erfassen 🧾
-1. **Ausgaben → 🧾 Kassenbon erfassen**
-2. Am schärfsten: App **Dateien** → „…“ → **Dokumente scannen** → als PDF sichern → hier **📄 Gescanntes Dokument / PDF**.
-   Alternativ **📷 Foto** aufnehmen oder auswählen.
+1. **Ausgaben → 📷 Kassenbon scannen** – die **Kamera öffnet sofort in der App** (eigener Scanner).
+2. Bon in den Rahmen halten: Ist das Bild ruhig und scharf, **löst die App automatisch aus** (oder Auslöser tippen).
+   Der Bon wird automatisch ausgeschnitten und **wie ein Scan aufbereitet** (weißer Hintergrund, klare Schrift).
+   Lange Bons: weiter nach unten schieben → nächstes Stück wird aufgenommen und angehängt. Dann **✓ Fertig**.
+   (Apples eigener Dokumentenscanner lässt sich aus einer Web-App nicht aufrufen – daher der eingebaute Scanner.
+   Alternativ im Scanner **📄 Datei / Foto**, z. B. ein PDF aus „Dateien → Dokumente scannen“.)
 3. Die App liest **Laden, Filiale (Adresse/Filialnummer), Datum, Uhrzeit, Summe** und **jeden Artikel mit Preis** –
    auch **Menge × Stückpreis** („2 x 0,49“) und **Gewicht** („1,234 kg x 1,24 EUR/kg“). Prüfen, ggf. korrigieren, **Speichern**.
 

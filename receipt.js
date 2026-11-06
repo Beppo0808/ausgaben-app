@@ -88,8 +88,14 @@ const Receipt = (() => {
     } finally { URL.revokeObjectURL(url); }
   }
 
-  /** Graustufen + Kontrast für die Texterkennung */
-  function forOcr(src) {
+  /** Graustufen + Kontrast für die Texterkennung (Scanner-Bilder sind schon aufbereitet → nur Größe anpassen) */
+  function forOcr(src, prepared) {
+    if (prepared) {
+      const sc = Math.max(1, Math.min(2.2, 1300 / src.width));
+      const c = document.createElement('canvas'); c.width = Math.round(src.width * sc); c.height = Math.round(src.height * sc);
+      const x = c.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(src, 0, 0, c.width, c.height);
+      return c;
+    }
     const scale = Math.min(1, 1800 / Math.max(src.width, src.height));
     const c = document.createElement('canvas'); c.width = Math.round(src.width * scale); c.height = Math.round(src.height * scale);
     const ctx = c.getContext('2d', { willReadFrequently: true });
@@ -331,13 +337,30 @@ const Receipt = (() => {
   async function scan(file) {
     $('#rcPick').hidden = true;
     setProgress(0.05, /pdf/i.test(file.type || file.name) ? 'Öffne PDF …' : 'Bereite Bild vor …');
-    try {
-      const color = await toCanvas(file);
+    try { await scanCanvas(await toCanvas(file)); }
+    catch (e) { console.warn(e); setProgress(1, '⚠️ ' + e.message); $('#rcPick').hidden = false; }
+  }
+
+  /** Direkt aus dem In-App-Scanner: Kamera → Bild → Auswertung */
+  function startScan() {
+    if (typeof Scanner === 'undefined' || !Scanner.supported()) { open(); return; }
+    Scanner.open((canvas, mode) => {
+      if (mode === 'fallback' || !canvas) { if (mode === 'fallback') open(); return; }
+      editing = null; current = null; bind();
+      $('#rcTitle').textContent = '🧾 Kassenbon erfassen';
+      $('#rcPick').hidden = true; $('#rcForm').hidden = true; resetPreview(); setProgress(0.05, 'Bereite Scan auf …');
+      $('#receiptDialog').showModal();
+      scanCanvas(canvas, true).catch((e) => { setProgress(1, '⚠️ ' + e.message); $('#rcPick').hidden = false; });
+    });
+  }
+
+  async function scanCanvas(color, prepared) {
+    {
       current = await forStorage(color);
       const pv = $('#rcPreview'); pv.src = URL.createObjectURL(current.blob); pv.hidden = false;
       const w = await getWorker(setProgress);
       setProgress(0.35, 'Lese Bon …');
-      const { data } = await w.recognize(forOcr(color));
+      const { data } = await w.recognize(forOcr(color, prepared));
       const r = parse(data.text || '');
       setProgress(1, '');
       if (editing) {
@@ -354,10 +377,6 @@ const Receipt = (() => {
       $('#rcForm').hidden = false;
       $('#rcStatus').textContent = (r.items.length ? `${r.items.length} Artikel erkannt – bitte kurz prüfen.` : 'Keine Artikel sicher erkannt – bitte prüfen und ggf. ergänzen.')
         + (match ? ` Passt zur Zahlung von ${match.person || '–'} (${match.merchant || 'Ausgabe'}, ${fmt(match.amount)}).` : '');
-    } catch (e) {
-      console.warn(e);
-      setProgress(1, '⚠️ ' + e.message);
-      $('#rcPick').hidden = false;
     }
   }
 
@@ -454,11 +473,12 @@ const Receipt = (() => {
   }
 
   function init() {
+    if (typeof Scanner !== 'undefined') Scanner.bind();
     $('#bonClose').onclick = closeViewer;
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#bonViewer').hidden) closeViewer(); });
     setTimeout(uploadPending, 3000);
     window.addEventListener('online', uploadPending);
   }
 
-  return { open, editExpense, parse, view, init, itemCategory, uploadPending };
+  return { open, startScan, editExpense, parse, view, init, itemCategory, uploadPending, _scanCanvas: (c) => scanCanvas(c) };
 })();

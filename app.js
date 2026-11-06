@@ -1027,8 +1027,8 @@ function bind() {
   });
   $('#cancelExpenseBtn').onclick = () => $('#expenseDialog').close();
   // Kassenbon
-  $('#scanBtnList').onclick = () => Receipt.open();
-  $('#scanBtnDialog').onclick = () => { $('#expenseDialog').close(); Receipt.open(); };
+  $('#scanBtnList').onclick = () => Receipt.startScan();
+  $('#scanBtnDialog').onclick = () => { $('#expenseDialog').close(); Receipt.startScan(); };
   const editItems = () => {
     const e = state.expenses.find((x) => x.id === editingId);
     if (!e) return;
