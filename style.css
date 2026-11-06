@@ -600,3 +600,17 @@ body.locked main, body.locked .tabbar, body.locked .fab, body.locked .topbar { v
 .lock-pad { gap: 12px; }
 .lock-pad button { width: 70px; height: 70px; font-size: 1.7rem; }
 @media (max-height: 700px) { .lock-pad button { width: 62px; height: 62px; } .lock-avatar { width: 60px; height: 60px; } }
+
+/* Menüleiste fest am unteren Rand (nicht schwebend), nichts scheint darunter durch */
+.tabbar {
+  left: 0; right: 0; bottom: 0; max-width: none; margin: 0;
+  border-radius: 22px 22px 0 0; border-width: 1px 0 0 0;
+  padding: 6px 8px calc(env(safe-area-inset-bottom) + 6px);
+  background: var(--surface);
+  backdrop-filter: none; -webkit-backdrop-filter: none;
+  box-shadow: 0 -1px 0 var(--hi) inset, 0 -8px 20px -12px rgba(90, 60, 35, .35);
+}
+.tabbar button { max-width: 160px; }
+.tabbar { display: flex; justify-content: space-around; }
+.fab { bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 16px); }
+body { padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 96px); }

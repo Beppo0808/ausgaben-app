@@ -400,7 +400,7 @@ function renderDailyChart(items, dim, elapsedDays) {
   const plotW = W - padL, plotH = H - padB - padT;
   const slot = plotW / dim, bw = Math.max(2, slot - 2);
   let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Ausgaben pro Tag">`;
-  [0.5, 1].forEach((f) => {
+  if (total) [0.5, 1].forEach((f) => { // ohne Ausgaben keine Achsenwerte
     const y = padT + plotH - plotH * f;
     svg += `<line class="grid" x1="${padL}" x2="${W}" y1="${y}" y2="${y}"/><text x="${padL - 6}" y="${y + 3}" text-anchor="end">${esc(fmt0(niceMax * f))}</text>`;
   });
