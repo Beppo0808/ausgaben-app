@@ -10,6 +10,7 @@
 // (kein Überschreiben → keine Konflikte zwischen gleichzeitig speichernden Geräten). Ältere Einträge werden
 // gelegentlich zu einem Schnappschuss zusammengefasst. Die Geräte lösen Konflikte selbst (neuere Änderung gewinnt).
 import { getStore } from '@netlify/blobs';
+import { randomBytes } from 'node:crypto';
 
 const KINDS = new Set(['expense', 'sub', 'category', 'settings', 'rule']);
 const HID = /^[0-9a-f]{64}$/;
@@ -35,7 +36,7 @@ async function push(hid, items) {
   }
   if (!clean.length) return json(0);
   const now = Date.now();
-  const rand = crypto.getRandomValues(new Uint32Array(1))[0].toString(36);
+  const rand = randomBytes(5).toString('hex');
   await store().setJSON(`${hid}/log/${stamp(now)}-${rand}`, clean);
   return json(clean.length);
 }
