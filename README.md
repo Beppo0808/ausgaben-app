@@ -77,6 +77,22 @@ iOS hat in der App **Kurzbefehle** eine Automation **„Transaktion“**: Sie st
 Beim nächsten Bezahlen öffnet sich die App kurz, zeigt **„Erfasst ✓“**, und die Ausgabe ist sofort auf allen Geräten.
 Mit einem Tipp lässt sich die Kategorie korrigieren – die App merkt sich das für diesen Händler.
 
+## Datenschutz – wer kann was sehen?
+
+| Was | Wo | Wer kann es sehen |
+|---|---|---|
+| Programmcode (dieses Repository) | GitHub, öffentlich | jeder – enthält **keine** persönlichen Daten |
+| Webseite `…github.io/ausgaben-app` | GitHub Pages, öffentlich | jeder – zeigt aber nur eine **leere** App, eure Daten liegen dort nicht |
+| Eure gemeinsamen Ausgaben | auf euren Geräten + **verschlüsselt** in eurem Supabase-Projekt | nur Geräte mit eurem Einladungslink |
+| Einkommen, private Ausgaben, Kontoumsätze | nur auf dem eigenen Gerät | nur ihr selbst |
+
+- **Ende-zu-Ende-Verschlüsselung (AES-256):** Alles wird schon auf dem iPhone/iPad verschlüsselt, bevor es in die
+  Cloud geht. Supabase (und jeder, der sich Zugang zum Supabase-Konto verschafft) sieht nur unlesbare Daten –
+  nicht einmal Händlernamen, Beträge oder eure Namen.
+- Der **Schlüssel steckt nur im Einladungslink** und auf euren Geräten. Ihn nur untereinander teilen (AirDrop/iMessage).
+  Wer den Link nicht hat, kommt nicht an die Daten.
+- Empfehlung: Für GitHub und Supabase die **Zwei-Faktor-Anmeldung** einschalten.
+
 ## Was wird geteilt – und was nicht?
 
 | Geteilt mit allen Geräten im Haushalt | Bleibt nur auf deinem Gerät 🔒 |

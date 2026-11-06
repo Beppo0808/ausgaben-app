@@ -1,8 +1,11 @@
 -- Ausgaben-App: Synchronisation über Supabase
 -- Einmalig im Supabase-Dashboard unter "SQL Editor" einfügen und auf "Run" klicken.
 --
--- Sicherheit: Die Tabelle ist für die App NICHT direkt lesbar. Zugriff gibt es nur über
--- die beiden Funktionen unten, und nur mit dem geheimen Haushalts-Code (wie ein Passwort).
+-- Sicherheit:
+--  * Alle Inhalte werden schon auf euren Geräten Ende-zu-Ende-verschlüsselt (AES-256).
+--    Hier landen nur unlesbare Daten – auch Supabase selbst kann sie nicht lesen.
+--  * Die Tabelle ist über die API NICHT direkt zugänglich, nur über die beiden Funktionen
+--    unten und nur mit der (aus dem geheimen Haushalts-Code abgeleiteten) Haushalts-Kennung.
 
 create table if not exists public.sync_items (
   household  text        not null,
@@ -42,7 +45,7 @@ begin
   select p_household,
          i->>'kind',
          i->>'id',
-         case when coalesce((i->>'deleted')::boolean, false) then null else i->'data' end,
+         i->'data',  -- verschlüsselt (Ende-zu-Ende), für den Server unlesbar
          (i->>'mtime')::bigint,
          coalesce((i->>'deleted')::boolean, false),
          clock_timestamp()

@@ -5,6 +5,12 @@
  * erkannt, was sich geändert hat (Hash-Vergleich); nur das wird hochgeladen.
  * Bei Konflikten gewinnt die neuere Änderung. Gelöschtes wird als „gelöscht“ markiert.
  *
+ * Ende-zu-Ende-verschlüsselt: Aus dem geheimen Haushalts-Code (nur in euren Geräten und im
+ * Einladungslink) werden lokal abgeleitet:
+ *   - die Haushalts-Kennung für den Server (SHA-256, der Code selbst verlässt nie das Gerät)
+ *   - ein AES-256-GCM-Schlüssel. Inhalte UND Kennungen der Einträge werden verschlüsselt bzw.
+ *     gehasht hochgeladen. Supabase sieht nur unlesbare Daten.
+ *
  * Wird vor app.js geladen; nutzt dessen globale `state`, `save`, `render`, `toast`.
  */
 'use strict';
@@ -13,6 +19,8 @@ const Sync = (() => {
   const KEY = 'ausgaben-sync-v1';
   const PAGE = 1000;
   let cfg = readCfg();
+  if (cfg && cfg.e2e !== 2) cfg = null; // alte, unverschlüsselte Verbindung nicht weiterverwenden
+  let keys = null; // { code, hid, aes }
   let pushTimer = null;
   let running = null;
   let again = false;
@@ -84,18 +92,58 @@ const Sync = (() => {
 
   function splitKey(k) { const i = k.indexOf(':'); return [k.slice(0, i), k.slice(i + 1)]; }
 
+  // ---------- Verschlüsselung ----------
+  const enc8 = new TextEncoder();
+  const hex = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
+  const b64 = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf)));
+  const unb64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+  const sha = async (s) => hex(await crypto.subtle.digest('SHA-256', enc8.encode(s)));
+
+  async function getKeys(code = cfg.household) {
+    if (keys && keys.code === code) return keys;
+    if (!crypto.subtle) throw new Error('Verschlüsselung nicht verfügbar (nur über https möglich)');
+    const base = await crypto.subtle.importKey('raw', enc8.encode(code), 'HKDF', false, ['deriveKey']);
+    const aes = await crypto.subtle.deriveKey(
+      { name: 'HKDF', hash: 'SHA-256', salt: enc8.encode('ausgaben-app/e2e/v1'), info: enc8.encode('daten') },
+      base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+    keys = { code, aes, hid: await sha('ausgaben-app/haushalt/v1|' + code) };
+    return keys;
+  }
+  /** Nicht umkehrbare Kennung eines Eintrags für den Server */
+  async function remoteId(kind, id) {
+    return (await sha(`${cfg.household}|${kind}|${id}`)).slice(0, 40);
+  }
+  async function encrypt(obj) {
+    const { aes } = await getKeys();
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, aes, enc8.encode(JSON.stringify(obj)));
+    const all = new Uint8Array(iv.length + ct.byteLength);
+    all.set(iv); all.set(new Uint8Array(ct), iv.length);
+    return { e: b64(all) };
+  }
+  async function decrypt(data) {
+    if (!data || typeof data.e !== 'string') return null;
+    const { aes } = await getKeys();
+    const all = unb64(data.e);
+    const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: all.slice(0, 12) }, aes, all.slice(12));
+    return JSON.parse(new TextDecoder().decode(pt));
+  }
+
   async function push(opts) {
     const keys = Object.keys(cfg.dirty);
     if (!keys.length) return;
     const m = items();
     for (let i = 0; i < keys.length; i += 500) {
-      const batch = keys.slice(i, i + 500).map((k) => {
+      const slice = keys.slice(i, i + 500);
+      const batch = await Promise.all(slice.map(async (k) => {
         const [kind, id] = splitKey(k);
         const del = !(k in m);
-        return { kind, id, data: del ? null : m[k], deleted: del, mtime: cfg.mtimes[k] || Date.now() };
-      });
-      await rpc('sync_push', { p_household: cfg.household, p_items: batch }, opts);
-      batch.forEach((b) => { const k = b.kind + ':' + b.id; if (cfg.mtimes[k] === b.mtime) delete cfg.dirty[k]; });
+        // Auch bei Löschungen die (verschlüsselte) lokale Kennung mitschicken, damit andere Geräte wissen, was weg ist
+        return { kind, id: await remoteId(kind, id), data: await encrypt({ i: id, d: del ? null : m[k] }), deleted: del, mtime: cfg.mtimes[k] || Date.now(), _k: k };
+      }));
+      const { hid } = await getKeys();
+      await rpc('sync_push', { p_household: hid, p_items: batch.map(({ _k, ...b }) => b) }, opts);
+      batch.forEach((b) => { if (cfg.mtimes[b._k] === b.mtime) delete cfg.dirty[b._k]; });
       writeCfg();
     }
   }
@@ -133,9 +181,16 @@ const Sync = (() => {
     let cursor = cfg.lastPull || '1970-01-01T00:00:00Z';
     const applied = new Set();
     let rows;
+    const { hid } = await getKeys();
     do {
-      rows = await rpc('sync_pull', { p_household: cfg.household, p_since: cursor });
-      rows.forEach((r) => { if (applyRow(r)) applied.add(r.kind + ':' + r.id); });
+      rows = await rpc('sync_pull', { p_household: hid, p_since: cursor });
+      for (const r of rows) {
+        let payload;
+        try { payload = await decrypt(r.data); } catch (e) { payload = null; }
+        if (!payload || typeof payload.i !== 'string') continue; // nicht lesbar (falscher Schlüssel o. Ä.)
+        const row = { kind: r.kind, id: payload.i, data: payload.d, mtime: r.mtime, deleted: r.deleted };
+        if (applyRow(row)) applied.add(row.kind + ':' + row.id);
+      }
       if (rows.length) cursor = rows[rows.length - 1].updated_at;
     } while (rows.length >= PAGE);
     // 30 s Überlappung, falls gleichzeitige Uploads minimal versetzt gespeichert werden
@@ -196,10 +251,11 @@ const Sync = (() => {
 
   /** Neuen gemeinsamen Haushalt anlegen – lädt die Daten dieses Geräts hoch */
   async function create(url, key) {
-    cfg = { url: normalizeUrl(url), key: String(key).trim(), household: randomCode(), lastPull: null, hashes: {}, mtimes: {}, dirty: {} };
+    cfg = { e2e: 2, url: normalizeUrl(url), key: String(key).trim(), household: randomCode(), lastPull: null, hashes: {}, mtimes: {}, dirty: {} };
     writeCfg();
     try {
-      await rpc('sync_pull', { p_household: cfg.household, p_since: '1970-01-01T00:00:00Z' }); // Verbindung testen
+      const { hid } = await getKeys();
+      await rpc('sync_pull', { p_household: hid, p_since: '1970-01-01T00:00:00Z' }); // Verbindung testen
     } catch (e) {
       cfg = null; writeCfg();
       throw new Error('Verbindung fehlgeschlagen (' + e.message + '). URL, Schlüssel und SQL-Setup prüfen.');
@@ -211,7 +267,7 @@ const Sync = (() => {
   /** Bestehendem Haushalt beitreten. keepLocal: Einträge dieses Geräts mitnehmen */
   async function join(info, keepLocal) {
     const prev = cfg;
-    cfg = { url: normalizeUrl(info.u), key: String(info.k).trim(), household: info.h, lastPull: null, hashes: {}, mtimes: {}, dirty: {} };
+    cfg = { e2e: 2, url: normalizeUrl(info.u), key: String(info.k).trim(), household: info.h, lastPull: null, hashes: {}, mtimes: {}, dirty: {} };
     try {
       if (!keepLocal) { state.expenses = []; state.subs = []; state.rules = {}; }
       await pull(); // Daten des Haushalts gewinnen (lokal hat noch keine Zeitstempel)
@@ -253,6 +309,7 @@ const Sync = (() => {
     window.addEventListener('storage', (e) => {
       if (e.key !== KEY) return;
       cfg = readCfg();
+      if (cfg && cfg.e2e !== 2) cfg = null;
       if (!cfg) setStatus('off', 'Nicht verbunden');
     });
     if (enabled()) {
