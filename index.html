@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Ausgaben</title>
   <meta name="description" content="Haushaltsbuch: Ausgaben, Budget und Abos im Blick – mit automatischer Erfassung bei Zahlung per Handy.">
-  <meta name="theme-color" content="#f3ebe0" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#1c1612" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#ece3d6">
+  <meta name="color-scheme" content="light only">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -35,18 +35,9 @@
     <!-- Übersicht -->
     <section id="view-overview" class="view active" aria-label="Übersicht">
       <div class="kpis">
-        <div class="kpi"><span class="kpi-label" id="kpiLabel1">Haushaltsbudget</span><span class="kpi-value" id="kpiBudget">–</span></div>
-        <div class="kpi"><span class="kpi-label" id="kpiLabel2">Ausgaben gemeinsam</span><span class="kpi-value" id="kpiSpent">–</span><span class="kpi-sub" id="kpiSpentSub"></span></div>
-        <div class="kpi kpi-hero"><span class="kpi-label" id="kpiLabel3">Übrig vom Budget</span><span class="kpi-value" id="kpiLeft">–</span><span class="kpi-sub" id="kpiLeftSub"></span></div>
-      </div>
-
-      <div class="card only-shared">
-        <div class="card-head">
-          <h2>Gesamtbudget</h2>
-          <span class="muted" id="budgetText"></span>
-        </div>
-        <div class="progress" id="budgetBar"><div class="progress-fill"></div></div>
-        <p class="hint" id="budgetHint"></p>
+        <div class="kpi kpi-hero"><span class="kpi-label" id="kpiLabel1">Ausgaben gesamt</span><span class="kpi-value" id="kpiTotal">–</span><span class="kpi-sub" id="kpiTotalSub"></span></div>
+        <div class="kpi"><span class="kpi-label" id="kpiLabel2">Fixkosten</span><span class="kpi-value" id="kpiA">–</span><span class="kpi-sub" id="kpiASub"></span></div>
+        <div class="kpi"><span class="kpi-label" id="kpiLabel3">Alltag</span><span class="kpi-value" id="kpiB">–</span><span class="kpi-sub" id="kpiBSub"></span></div>
       </div>
 
       <div class="card">
@@ -64,16 +55,11 @@
       <div class="card card-private only-personal" id="meCard">
         <div class="card-head"><h2>🧺 Mein Beitrag zum Haushalt</h2><span class="muted">diesen Monat</span></div>
         <ul class="kv" id="meContrib"></ul>
-        <p class="hint" id="meHint">Trage dein Einkommen unter Einstellungen ein – es wird <b>nie</b> geteilt.</p>
       </div>
 
-      <div class="card card-private only-personal" id="meKontoCard">
-        <div class="card-head"><h2>🏦 Mein Konto</h2><span class="muted">laut Import</span></div>
-        <ul class="kv" id="meKonto"></ul>
-      </div>
 
       <div class="card">
-        <div class="card-head"><h2 id="catTitle">Kategorien</h2><span class="muted" id="catSubtitle">Ist / Budget</span></div>
+        <div class="card-head"><h2 id="catTitle">Kategorien</h2><span class="muted" id="catSubtitle">diesen Monat</span></div>
         <ul class="cat-bars" id="catBars"></ul>
       </div>
     </section>
@@ -162,13 +148,19 @@
     <!-- Einstellungen -->
     <section id="view-settings" class="view" aria-label="Einstellungen">
       <div class="card">
-        <h2>Budget</h2>
-        <label class="field">Gemeinsames Haushaltsbudget pro Monat (€) – inkl. Fixkosten, für alle sichtbar
-          <input type="text" inputmode="decimal" id="setBudget">
-        </label>
-        <label class="field">🔒 Mein Einkommen pro Monat (€) – <b>privat</b>, nur auf diesem Gerät
-          <input type="text" inputmode="decimal" id="setIncome" placeholder="optional">
-        </label>
+        <h2>👓 Darstellung</h2>
+        <p class="hint">Gilt nur für dieses Gerät.</p>
+        <div class="field">Helligkeit</div>
+        <div class="seg" id="segTheme">
+          <button type="button" data-v="light">☀️ Hell</button>
+          <button type="button" data-v="dim">🌤️ Gedämpft</button>
+        </div>
+        <div class="field">Schriftgröße</div>
+        <div class="seg" id="segSize">
+          <button type="button" data-v="normal">A</button>
+          <button type="button" data-v="large" style="font-size:1.1rem">A</button>
+          <button type="button" data-v="xlarge" style="font-size:1.25rem">A</button>
+        </div>
       </div>
 
       <div class="card">

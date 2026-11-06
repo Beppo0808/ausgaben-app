@@ -3,24 +3,24 @@
 Eine kleine Web-App (PWA) fürs Handy, um gemeinsam die Ausgaben im Blick zu behalten –
 inklusive **automatischer Erfassung, sobald mit dem iPhone (Apple Pay) bezahlt wird**.
 
-- 📊 **Übersicht**: Einnahmen, Ausgaben, was übrig ist, Ausgaben pro Tag, Budget je Kategorie
+- 📊 **Reine Ausgabenübersicht**: Ausgaben gesamt, Fixkosten, Alltag, Vergleich zum Vormonat, Ausgaben pro Tag und je Kategorie – ohne Budgets
 - 🧾 **Ausgaben**: schnell erfassen, suchen, nach Kategorie/Person filtern, bearbeiten
 - 🔁 **Abos & Fixkosten**: Miete, Handy, Netflix … werden jeden Monat automatisch mitgezählt
 - 🏷️ **Automatische Kategorien**: REWE → Lebensmittel, Aral → Tanken … und die App lernt aus jeder Korrektur
 - 👫 **Personen**: wer hat bezahlt?
-- 🔒 **Privat bleibt privat**: eigenes Einkommen, private Ausgaben und Kontobewegungen bleiben nur auf dem eigenen Gerät
+- 🔒 **Privat bleibt privat**: private Ausgaben und Kontobewegungen bleiben nur auf dem eigenen Gerät
 - 🧾 **Kassenbon scannen**: Foto vom Bon → Laden, Datum, Summe und Artikel mit Preisen werden erkannt (auf dem Gerät)
 - 🏦 **Mein Konto**: Kontoumsätze per CSV-Export aus dem Online-Banking ansehen (nur lesen), einzelne Ausgaben per Tipp ins Haushaltsbuch übernehmen
 - ☁️ **Synchronisation** zwischen allen iPhones und iPads (über euer eigenes, kostenloses Supabase-Projekt)
 - 💾 **Backup / CSV-Export** (für Excel, Numbers oder Google Sheets)
-- 🌙 Hell/Dunkel, iPad-Ansicht, funktioniert offline
+- 👓 Augenschonend: warme helle Farben ohne Schwarz und ohne grelles Weiß, Helligkeit „Hell/Gedämpft“, Schriftgröße in 3 Stufen, iPad-Ansicht, funktioniert offline
 
 ## Zwei Ansichten: 👫 Gemeinsam | 🔒 Persönlich
 Oben in der App wählt jeder per Schalter seine Ansicht (das Gerät merkt sich die Wahl):
 
 | 👫 Gemeinsam (Terrakotta) | 🔒 Persönlich (Salbei-Petrol) |
 |---|---|
-| Haushaltsbudget, gemeinsame Ausgaben (Fixkosten + Alltag) | Mein Einkommen, meine Ausgaben, was mir bleibt |
+| Ausgaben gesamt, Fixkosten, Alltag | Meine Ausgaben gesamt, mein Anteil am Haushalt, privat |
 | Wer hat bezahlt?, Kategorien, Tagesverlauf | Mein Beitrag zum Haushalt (Einkäufe, Fixkosten, Haushaltsgeld) |
 | Reiter **Fixkosten** | Reiter **Mein Konto** (Kontoumsätze, nur auf dem Gerät) |
 | Ausgabenliste: nur gemeinsame Einträge | Ausgabenliste: meine privaten + von mir bezahlten |
@@ -60,7 +60,7 @@ Am einfachsten am **iPad** (größerer Bildschirm). Dauert ca. 15 Minuten, nur e
 ### Schritt 3 – Ersten Haushalt anlegen (auf einem Gerät)
 1. Die App-Adresse aus Schritt 1 in **Safari** öffnen
 2. **Einstellungen → Personen**: eure Namen eintragen, z. B. `Anna, Tom`; bei „Dieses Gerät gehört“ den eigenen Namen wählen
-3. Einnahmen, Gesamtbudget und Budgets je Kategorie anpassen
+3. Unter **👓 Darstellung** Helligkeit und Schriftgröße nach Wunsch einstellen
 4. **☁️ Gemeinsam nutzen**: Project URL und Key einfügen → **Haushalt erstellen** → Punkt wird grün „Synchronisiert“
 5. **Einladungslink kopieren** → per AirDrop/iMessage an die anderen Geräte schicken
 
@@ -97,7 +97,7 @@ Mit einem Tipp lässt sich die Kategorie korrigieren – die App merkt sich das 
 | Programmcode (dieses Repository) | GitHub, öffentlich | jeder – enthält **keine** persönlichen Daten |
 | Webseite `…github.io/ausgaben-app` | GitHub Pages, öffentlich | jeder – zeigt aber nur eine **leere** App, eure Daten liegen dort nicht |
 | Eure gemeinsamen Ausgaben | auf euren Geräten + **verschlüsselt** in eurem Supabase-Projekt | nur Geräte mit eurem Einladungslink |
-| Einkommen, private Ausgaben, Kontoumsätze | nur auf dem eigenen Gerät | nur ihr selbst |
+| Private Ausgaben, Kontoumsätze | nur auf dem eigenen Gerät | nur ihr selbst |
 
 - **Ende-zu-Ende-Verschlüsselung (AES-256):** Alles wird schon auf dem iPhone/iPad verschlüsselt, bevor es in die
   Cloud geht. Supabase (und jeder, der sich Zugang zum Supabase-Konto verschafft) sieht nur unlesbare Daten –
@@ -110,9 +110,9 @@ Mit einem Tipp lässt sich die Kategorie korrigieren – die App merkt sich das 
 
 | Geteilt mit allen Geräten im Haushalt | Bleibt nur auf deinem Gerät 🔒 |
 |---|---|
-| Gemeinsame Ausgaben, Abos & Fixkosten | Dein Einkommen |
-| Haushaltsbudget, Kategorien, Personen | Ausgaben mit Haken „Privat“ |
-| Händler-Regeln (Auto-Kategorie) | Alles unter „Mein Konto“ (Kontoumsätze) |
+| Gemeinsame Ausgaben, Abos & Fixkosten | Alles unter „Mein Konto“ |
+| Kategorien, Personen | Ausgaben mit Haken „Privat“ |
+| Händler-Regeln (Auto-Kategorie) | |
 
 **Private Zahlungen automatisch erkennen:** Legt im Kurzbefehl für eure *private* Karte eine eigene
 Transaktions-Automation an und hängt an den Link `&privat=1` an. Zahlungen mit der Haushalts-/Gemeinschaftskarte
@@ -192,7 +192,10 @@ im Laden bezahlt – die Einträge erscheinen per Synchronisation aber sofort au
 | `datum`    | Datum `JJJJ-MM-TT` (Standard: heute)   | `2026-11-06`    |
 
 ## Gestaltung
-Warme Leinen-/Cremetöne, Karten wie erhabenes Papier, Knöpfe mit Tiefe und Druck-Effekt, Hell- und Dunkelmodus.
+Warme Leinen-/Cremetöne, Karten wie erhabenes Papier, Knöpfe mit Tiefe und Druck-Effekt.
+**Augenschonend (z. B. bei grauem Star):** kein Schwarz, kein reines Weiß, kein Dunkelmodus; Schrift in Dunkelbraun mit
+nachgerechnetem Kontrast (~11:1, Nebentexte ≥ 7:1). Unter Einstellungen → 👓 Darstellung: Helligkeit „Hell“ oder
+„Gedämpft“ (weniger Blendung) und Schriftgröße Normal / Groß / Sehr groß – jeweils pro Gerät.
 Schriften: [Fraunces](https://fonts.google.com/specimen/Fraunces) und [Nunito](https://fonts.google.com/specimen/Nunito)
 (SIL Open Font License), lokal im Ordner `fonts/` – es wird nichts von Google geladen.
 
