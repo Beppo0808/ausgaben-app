@@ -86,6 +86,18 @@
         <p class="hint">Miete, Strom, Versicherungen, Verträge … werden automatisch in jedem Monat mitgezählt – mit dem Namen, den ihr vergebt, und wer sie bezahlt.</p>
         <ul class="rows" id="subsList"></ul>
         <button class="btn" id="addSubBtn">+ Fixkosten hinzufügen</button>
+        <details class="howto">
+          <summary>Tipp: Abos über PayPal / Apple vollständig finden</summary>
+          <ul>
+            <li><b>Apple:</b> iPhone-Einstellungen → oben euer Name → <b>Abonnements</b>. Dort stehen alle Apple-Abos (auch waipu.tv, Disney+ usw., wenn über Apple abgeschlossen).</li>
+            <li><b>PayPal:</b> PayPal-App → Profil/Einstellungen → <b>Automatische Zahlungen</b>.</li>
+            <li>Im Konto steht bei Apple meist nur „APPLE.COM/BILL“. Die App trennt solche Abbuchungen nach Betrag – ihr gebt ihnen dann den richtigen Namen.</li>
+          </ul>
+        </details>
+      </div>
+      <div class="card" id="dueBox" hidden>
+        <div class="card-head"><h2>📅 Nächste Quartals- & Jahreszahlungen</h2></div>
+        <ul class="due-list" id="dueList"></ul>
       </div>
       <div class="card">
         <div class="card-head"><h2>💶 Haushaltsgeld zwischen euch</h2><span class="muted" id="transferTotal"></span></div>
@@ -311,6 +323,13 @@
         <label class="field">Seit <input type="month" name="start" required></label>
         <label class="field">Bis (optional) <input type="month" name="end"></label>
       </div>
+      <label class="field">Bezahlt über
+        <select name="via">
+          <option value="">–</option><option>Girokonto</option><option>PayPal</option><option>Apple</option>
+          <option>Google</option><option>Amazon</option><option>Kreditkarte</option><option>Bar</option>
+        </select>
+      </label>
+      <label class="check" id="subSpreadRow"><input type="checkbox" name="spread"> Auf die Monate umlegen (z. B. 120 € im Jahr = 10 € pro Monat in der Übersicht)</label>
       <div class="dialog-actions">
         <button type="button" class="btn btn-danger" id="deleteSubBtn">Löschen</button>
         <span class="spacer"></span>

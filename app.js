@@ -167,6 +167,17 @@ function subActive(s, key) {
 }
 function perMonth(s) { return s.interval === 'year' ? s.amount / 12 : s.interval === 'quarter' ? s.amount / 3 : s.amount; }
 const isTransfer = (s) => s.type === 'transfer';
+/** Nächster Monat (JJJJ-MM), in dem ein Eintrag fällig ist – ab dem aktuellen Monat */
+function nextDue(s) {
+  const d = new Date(now.getFullYear(), now.getMonth(), 1);
+  for (let i = 0; i < 24; i++) {
+    const k = monthKey(d.getFullYear(), d.getMonth());
+    if (subActive(s, k)) return k;
+    d.setMonth(d.getMonth() + 1);
+  }
+  return '';
+}
+const fmtYM = (ym) => (ym ? new Date(+ym.slice(0, 4), +ym.slice(5, 7) - 1, 1).toLocaleDateString('de-DE', { month: 'short', year: 'numeric' }) : '');
 
 /** Haushaltsgeld-Überweisungen zwischen euch in einem Monat (zählen NICHT als Ausgabe) */
 function transfersForMonth(y, m) {
@@ -177,9 +188,13 @@ function transfersForMonth(y, m) {
 /** Abos/Fixkosten, die in einem Monat anfallen, als „virtuelle“ Ausgaben */
 function subsForMonth(y, m) {
   const key = monthKey(y, m);
+  const spreadActive = (s) => s.spread && s.interval !== 'month' && s.start && s.start <= key && (!s.end || s.end >= key);
   return state.subs
-    .filter((s) => !isTransfer(s) && subActive(s, key))
-    .map((s) => ({
+    .filter((s) => !isTransfer(s) && (spreadActive(s) || (!s.spread && subActive(s, key))))
+    .map((s) => spreadActive(s) ? ({
+      id: 'sub-' + s.id, subId: s.id, virtual: true, date: `${key}-01`, amount: round2(perMonth(s)),
+      merchant: s.name, category: s.category, person: s.payer || '', note: `umgelegt (${fmt(s.amount)} ${INTERVALS[s.interval]})`,
+    }) : ({
       id: 'sub-' + s.id, subId: s.id, virtual: true, date: `${key}-01`, amount: s.amount,
       merchant: s.name, category: s.category, person: s.payer || '', note: INTERVALS[s.interval] || 'monatlich',
     }));
@@ -471,10 +486,20 @@ function renderSubs() {
   $('#subsTotal').textContent = fixed.length ? `≈ ${fmt(monthly)} / Monat` : '';
   ul.innerHTML = fixed.length ? [...fixed].sort((a, b) => ended(a) - ended(b) || b.amount - a.amount).map((s) => {
     const c = catById(s.category);
+    const rare = s.interval === 'quarter' || s.interval === 'year';
+    const due = rare && !ended(s) ? nextDue(s) : '';
+    const info = [esc(INTERVALS[s.interval] || 'monatlich'), esc(c.name), s.payer ? personTag(s.payer) : 'gemeinsam',
+      s.via && s.via !== 'Girokonto' ? 'über ' + esc(s.via) : '', due ? `nächste Zahlung ${esc(fmtYM(due))}` : '',
+      rare && s.spread ? `umgelegt ${esc(fmt(perMonth(s)))}/Monat` : '', esc(until(s))].filter(Boolean).join(' · ');
     return `<li class="row ${ended(s) ? 'ended' : ''}" data-id="${esc(s.id)}"><span class="emoji">${esc(c.emoji)}</span>
-      <span class="main"><div class="title">${esc(s.name)}</div><div class="sub">${[esc(INTERVALS[s.interval] || 'monatlich'), esc(c.name), s.payer ? personTag(s.payer) : 'gemeinsam', esc(until(s))].filter(Boolean).join(' · ')}</div></span>
-      <span class="amount">${fmt(s.amount)}</span></li>`;
+      <span class="main"><div class="title">${esc(s.name)}</div><div class="sub">${info}</div></span>
+      <span class="amount">${fmt(s.amount)}${rare ? `<div class="muted per">${s.interval === 'year' ? 'pro Jahr' : 'pro Quartal'}</div>` : ''}</span></li>`;
   }).join('') : '<li class="empty-state">Noch keine Fixkosten. Miete, Strom, Handyvertrag, Netflix …<br>Tipp: In „Mein Konto“ werden regelmäßige Abbuchungen automatisch erkannt.</li>';
+
+  const upcoming = fixed.filter((s) => (s.interval === 'quarter' || s.interval === 'year') && !ended(s))
+    .map((s) => ({ s, due: nextDue(s) })).filter((x) => x.due).sort((a, b) => a.due.localeCompare(b.due)).slice(0, 6);
+  $('#dueBox').hidden = !upcoming.length;
+  $('#dueList').innerHTML = upcoming.map(({ s, due }) => `<li><span>${esc(fmtYM(due))}</span><span>${esc(s.name)}</span><b>${fmt(s.amount)}</b></li>`).join('');
 
   const tr = state.subs.filter(isTransfer);
   const tl = $('#transferList');
@@ -633,6 +658,7 @@ function syncSubType() {
   const t = f.type.value === 'transfer';
   $$('.only-fixed', f).forEach((el) => { el.hidden = t; });
   $$('.only-transfer', f).forEach((el) => { el.hidden = !t; });
+  $('#subSpreadRow').hidden = t || f.interval.value === 'month';
   $('#subPayerLabel').firstChild.textContent = t ? 'Von ' : 'Bezahlt von ';
   if (t && !f.name.value) f.name.placeholder = 'z. B. Haushaltsgeld';
 }
@@ -651,6 +677,8 @@ function openSubDialog(sub, preset = null, onSaved = null) {
   f.category.value = v.category && state.categories.some((c) => c.id === v.category) ? v.category : (state.categories.some((c) => c.id === 'abos') ? 'abos' : state.categories[0].id);
   f.start.value = v.start || monthKey(viewY, viewM);
   f.end.value = v.end || '';
+  f.via.value = v.via || '';
+  f.spread.checked = v.spread !== undefined ? !!v.spread : false;
   f.payer.innerHTML = '<option value="">Gemeinsam / Gemeinschaftskonto</option>' + persons.map((p) => `<option>${esc(p)}</option>`).join('');
   f.payer.value = v.payer !== undefined ? v.payer : '';
   f.to.innerHTML = persons.map((p) => `<option>${esc(p)}</option>`).join('');
@@ -845,7 +873,8 @@ function bind() {
     const type = f.type.value === 'transfer' ? 'transfer' : 'fixed';
     if (f.end.value && f.end.value < f.start.value) { toast('„Bis“ liegt vor „Seit“'); return; }
     const data = { type, name: f.name.value.trim() || (type === 'transfer' ? 'Haushaltsgeld' : ''), amount, interval: f.interval.value,
-      category: f.category.value, start: f.start.value, end: f.end.value || '', payer: f.payer.value, to: type === 'transfer' ? f.to.value : '' };
+      category: f.category.value, start: f.start.value, end: f.end.value || '', payer: f.payer.value, to: type === 'transfer' ? f.to.value : '',
+      via: f.via.value, spread: type !== 'transfer' && f.interval.value !== 'month' && f.spread.checked };
     if (!data.name) { toast('Bitte einen Namen eingeben, z. B. Miete'); return; }
     if (type === 'transfer' && (!data.payer || data.payer === data.to)) { toast('Bitte „Von“ und „An“ (zwei verschiedene Personen) wählen'); return; }
     let id = editingSubId;
@@ -855,6 +884,11 @@ function bind() {
     if (subSavedCb) { const cb = subSavedCb; subSavedCb = null; cb(id); }
   });
   $('#subForm').type.addEventListener('change', syncSubType);
+  $('#subForm').interval.addEventListener('change', () => {
+    const f = $('#subForm');
+    if (f.interval.value !== 'month' && !editingSubId) f.spread.checked = true; // Vorschlag: Rücklage bilden
+    syncSubType();
+  });
   $('#addTransferBtn').onclick = () => openSubDialog(null, { type: 'transfer', payer: state.settings.me, name: 'Haushaltsgeld' });
   $('#cancelSubBtn').onclick = () => $('#subDialog').close();
   $('#deleteSubBtn').onclick = () => {

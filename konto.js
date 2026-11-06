@@ -208,9 +208,11 @@ const Konto = (() => {
     [/kfz|autoversicherung|kraftfahrt/i, 'Kfz-Versicherung', 'mobilitaet'],
     [/versicherung|allianz|\bhuk\b|ergo|\baxa\b|generali|devk|signal iduna|r\+v|debeka|haftpflicht|hausrat|gothaer|zurich|barmenia/i, 'Versicherung', 'sonstiges'],
     [/kita|kindergarten|\bhort\b|tagesmutter|schulgeld|mensa/i, 'Kita / Schule', 'sonstiges'],
-    [/netflix|spotify|disney|dazn|\bsky\b|prime video|amazon prime|youtube premium|apple\.com|icloud|audible/i, 'Streaming / Abo', 'abos'],
+    [/netflix|spotify|disney|dazn|\bsky\b|prime video|amazon prime|youtube premium|audible|waipu|joyn|rtl ?\+|magenta ?tv|zattoo|paramount|\bwow\b|crunchyroll|deezer|tidal/i, 'Streaming / Abo', 'abos'],
     [/fitness|mcfit|urban sports|clever fit|john reed|sportverein|\bverein\b/i, 'Fitness / Verein', 'freizeit'],
     [/kredit|darlehen|finanzierung|tilgung|ratenzahlung/i, 'Kredit / Rate', 'wohnen'],
+    [/\badac\b|mitglied|mitgliedsbeitrag|jahresbeitrag|gewerkschaft|\bverband\b/i, 'Mitgliedschaft', 'sonstiges'],
+    [/\bgez\b|steuer|kfz-steuer|hundesteuer|grundsteuer|finanzamt|bundeskasse/i, 'Steuern / Abgaben', 'wohnen'],
   ];
   const STOP = /\b(gmbh|ag|se|kg|ohg|co|eg|ev|e\.v|mbh|und|sagt|danke|ihr|einkauf|filiale|lastschrift|sepa|dauerauftrag|gutschrift|ueberweisung|überweisung|kartenzahlung|online|de|www|com)\b/g;
 
@@ -218,10 +220,37 @@ const Konto = (() => {
     return String(s || '').toLowerCase().replace(/[0-9]/g, ' ').replace(/[^a-zäöüß&+ ]/g, ' ')
       .replace(STOP, ' ').replace(/\s+/g, ' ').trim().split(' ').slice(0, 3).join(' ');
   }
-  function groupKey(t) {
-    const b = baseName(t.name) || baseName(t.purpose);
-    return b ? `${t.account}|${b}` : null;
+  // Zahlungsdienste, die viele verschiedene Abos bündeln
+  const AGGREGATORS = [
+    ['PayPal', /paypal/i], ['Apple', /apple\.com|apple services|itunes|apple distribution/i],
+    ['Google', /google (play|payment|\*)|google ireland/i], ['Amazon', /amazon (digital|prime|eu|payments)|amzn|amazon\.de/i],
+    ['Klarna', /klarna/i],
+  ];
+  /** Bei PayPal steht der eigentliche Händler oft im Verwendungszweck */
+  function innerMerchant(t) {
+    const p = `${t.purpose} `;
+    const m = p.match(/(?:ihr einkauf bei|einkauf bei|zahlung an|purchase at)\s+([^,/]+?)(?:\s*,|\s{2,}|\s*$)/i)
+      || p.match(/PP\.\d+\.PP\s*\.\s*([^,/]+?)(?:\s*,|\s{2,}|\s*$)/i);
+    const v = m ? m[1].trim() : '';
+    return v && !/paypal/i.test(v) ? v.slice(0, 40) : '';
   }
+  function aggregatorOf(t) {
+    const text = `${t.name} ${t.purpose}`;
+    const a = AGGREGATORS.find(([, re]) => re.test(text));
+    return a ? a[0] : '';
+  }
+  /** Gruppiert gleiche Abbuchungen. Bei PayPal/Apple & Co. nach Händler bzw. Betrag getrennt */
+  function groupInfo(t) {
+    const agg = aggregatorOf(t);
+    if (agg) {
+      const inner = innerMerchant(t);
+      if (inner) return { key: `${t.account}|${agg}|${baseName(inner) || inner.toLowerCase()}`, agg, inner };
+      return { key: `${t.account}|${agg}|${Math.abs(t.amount).toFixed(2)}`, agg, inner: '' };
+    }
+    const b = baseName(t.name) || baseName(t.purpose);
+    return b ? { key: `${t.account}|${b}`, agg: '', inner: '' } : null;
+  }
+  function groupKey(t) { const g = groupInfo(t); return g ? g.key : null; }
   const monthIdx = (ym) => +ym.slice(0, 4) * 12 + (+ym.slice(5, 7) - 1);
   const ymOf = (i) => `${Math.floor(i / 12)}-${String((i % 12) + 1).padStart(2, '0')}`;
 
@@ -257,11 +286,12 @@ const Konto = (() => {
       const max = Math.max(...amts), min = Math.min(...amts);
       const stable = (max - min) / max <= 0.15;
       const text = `${latest.name} ${latest.purpose}`;
-      const hint = HINTS.find(([re]) => re.test(text));
+      const gi = groupInfo(latest);
+      const hint = HINTS.find(([re]) => re.test(gi.agg ? gi.inner : text));
       const others = state.settings.persons.filter((p) => p !== state.settings.me);
       const toPartner = others.find((p) => p.length >= 3 && new RegExp('\\b' + p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i').test(text));
       const linked = !!data.links[key];
-      const recurring = (months.length >= 2 && stable) || (hint && Math.abs(latest.amount) >= 5) || toPartner;
+      const recurring = (months.length >= 2 && stable) || (hint && Math.abs(latest.amount) >= 2) || toPartner;
       if (!recurring && !linked && !includeAll) continue;
       if (data.dismissed[key] && !linked && !includeAll) continue;
       let interval = /jahres|jährlich|jaehrlich|p\.a\./i.test(text) ? 'year' : /quartal|vierteljähr|vierteljaehr/i.test(text) ? 'quarter' : 'month';
@@ -274,9 +304,10 @@ const Konto = (() => {
       out.push({
         key, list, latest, months, interval, toPartner,
         amount: Math.abs(latest.amount),
-        name: hint ? hint[1] : (latest.name || latest.purpose || '').slice(0, 40),
-        category: hint ? hint[2] : guessCategory(text),
-        counterparty: latest.name || latest.purpose.slice(0, 40),
+        name: gi.agg ? (gi.inner || `${gi.agg}-Abo ${fmt(Math.abs(latest.amount))}`) : hint ? hint[1] : (latest.name || latest.purpose || '').slice(0, 40),
+        category: hint ? hint[2] : gi.agg ? 'abos' : guessCategory(text),
+        counterparty: gi.agg ? `über ${gi.agg}${gi.inner ? ' → ' + gi.inner : ' (Händler steht nicht in der Buchung – bitte benennen)'}` : (latest.name || latest.purpose.slice(0, 40)),
+        via: gi.agg || 'Girokonto',
       });
     }
     return out.sort((a, b) => (!!data.links[b.key] - !!data.links[a.key]) || b.amount - a.amount);
@@ -287,7 +318,7 @@ const Konto = (() => {
     if (type === 'transfer') {
       return { type: 'transfer', name: 'Haushaltsgeld', amount: g.amount, interval: g.interval, payer: state.settings.me, to: g.toPartner || otherPerson(), start };
     }
-    return { type: 'fixed', name: g.name, amount: g.amount, interval: g.interval, category: g.category, payer: state.settings.me, start };
+    return { type: 'fixed', name: g.name, amount: g.amount, interval: g.interval, category: g.category, payer: state.settings.me, start, via: g.via, spread: g.interval !== 'month' };
   }
 
   function linkGroup(g, type) {

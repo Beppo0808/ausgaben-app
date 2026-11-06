@@ -140,6 +140,14 @@ jeden Monat – oder typische wie Miete, Stadtwerke, Versicherung) und schlägt 
 - Ändert sich der Betrag (z. B. neuer Strom-Abschlag), zeigt die App das an; „Betrag übernehmen“ gilt ab dem neuen
   Monat, vergangene Monate behalten den alten Betrag.
 - Nicht erkannt? Bei jeder Abbuchung gibt es **🔁 regelmäßig** zum manuellen Markieren.
+- **PayPal, Apple, Google, Amazon:** Solche Abbuchungen bündeln viele Abos. Bei PayPal liest die App den Händler aus dem
+  Verwendungszweck („Ihr Einkauf bei waipu.tv“), bei Apple steht meist nur „APPLE.COM/BILL“ – dann trennt die App nach
+  Betrag („Apple-Abo 12,99 €“) und ihr gebt den richtigen Namen (z. B. waipu.tv). Wechselnde Einkäufe (eBay usw.)
+  werden nicht vorgeschlagen. Vollständige Listen: iPhone-Einstellungen → euer Name → **Abonnements** und
+  PayPal → **Automatische Zahlungen**.
+- **Monatlich, vierteljährlich, jährlich:** Quartals- und Jahreskosten können **auf die Monate umgelegt** werden
+  (z. B. ADAC 94 €/Jahr → 7,83 €/Monat), damit die Monatsübersicht realistisch ist. Die nächsten Fälligkeiten stehen
+  unter 🏠 Fixkosten → „📅 Nächste Quartals- & Jahreszahlungen“.
 
 ## Mein Konto (Kontoumsätze ansehen)
 1. Im Online-Banking (in Safari) zu **Umsätze** → Zeitraum wählen → **Export als CSV**

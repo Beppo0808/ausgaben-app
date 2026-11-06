@@ -325,3 +325,11 @@ dialog { max-height: calc(100dvh - 24px); overflow: auto; }
 .tx-tag { font-size: .75rem; color: var(--good); white-space: nowrap; }
 .tx-mini { border: 0; background: transparent; color: var(--muted); font-size: .75rem; cursor: pointer; padding: 2px 0; }
 #subsList .sub, #transferList .sub { white-space: normal; }
+
+.amount .per { font-size: .7rem; font-weight: 400; text-align: right; }
+.due-list { list-style: none; margin: 0; padding: 0; }
+.due-list li { display: grid; grid-template-columns: 90px 1fr auto; gap: 10px; padding: 7px 0; border-top: 1px solid var(--border); font-size: .92rem; }
+.due-list li:first-child { border-top: 0; }
+.due-list li span:first-child { color: var(--text-2); }
+.howto ul { padding-left: 18px; }
+.howto li { margin-bottom: 6px; }
