@@ -10,6 +10,7 @@
 // (kein Überschreiben → keine Konflikte zwischen gleichzeitig speichernden Geräten). Ältere Einträge werden
 // gelegentlich zu einem Schnappschuss zusammengefasst. Die Geräte lösen Konflikte selbst (neuere Änderung gewinnt).
 import { getStore } from '@netlify/blobs';
+import { denyIfNoAccess } from '../lib/gate-node.mjs';
 import { randomBytes } from 'node:crypto';
 
 const KINDS = new Set(['expense', 'sub', 'category', 'settings', 'rule']);
@@ -81,6 +82,7 @@ async function pull(hid, since) {
 
 export default async (req) => {
   if (req.method !== 'POST') return json({ error: 'Nur POST erlaubt' }, 405);
+  const deny = await denyIfNoAccess(req); if (deny) return deny;
   const len = Number(req.headers.get('content-length') || 0);
   if (len > MAX_BODY) return json({ error: 'Zu groß' }, 413);
   let body;

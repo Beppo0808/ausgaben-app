@@ -6,6 +6,7 @@
 //  - Ablage unter <Haushalts-Kennung>/<zufällige ID>. Ohne beides findet niemand etwas.
 //  - Private Bons werden gar nicht hochgeladen. Es wird nichts protokolliert.
 import { getStore } from '@netlify/blobs';
+import { denyIfNoAccess } from '../lib/gate-node.mjs';
 
 const HID = /^[0-9a-f]{64}$/;
 const FID = /^[0-9a-f]{32}$/;
@@ -17,6 +18,7 @@ const json = (data, status = 200) => new Response(JSON.stringify(data), {
 
 export default async (req) => {
   if (req.method !== 'POST') return json({ error: 'Nur POST erlaubt' }, 405);
+  const deny = await denyIfNoAccess(req); if (deny) return deny;
   if (Number(req.headers.get('content-length') || 0) > MAX + 2000) return json({ error: 'Bild zu groß' }, 413);
   let body;
   try { body = await req.json(); } catch { return json({ error: 'Ungültige Anfrage' }, 400); }

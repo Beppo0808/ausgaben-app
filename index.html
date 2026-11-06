@@ -215,6 +215,30 @@
         <p class="hint">Steht bei euren Einkäufen („wer hat bezahlt“). Ändern geht jederzeit – bisherige Einträge werden mit umbenannt.</p>
       </div>
 
+      <div class="card" id="gateCard" hidden>
+        <h2>👥 Zugänge &amp; Einladungen</h2>
+        <p class="hint" id="gateWho"></p>
+        <div id="gateOwner" hidden>
+          <p class="hint">Nur eingeladene Personen können die App überhaupt öffnen. Der Einladungslink verbindet gleichzeitig mit eurem gemeinsamen Haushalt.</p>
+          <div class="name-row">
+            <input type="text" id="gateName" maxlength="30" placeholder="Name, z. B. Anna">
+            <button class="btn btn-primary" id="gateInviteBtn">Einladen</button>
+          </div>
+          <p class="hint">Der Link gilt 7 Tage und funktioniert auf mehreren Geräten der Person (iPhone, iPad, Home-Bildschirm).</p>
+          <div id="gateLinkBox" hidden>
+            <input type="text" id="gateLink" readonly>
+            <div class="btn-row"><button class="btn btn-primary" id="gateShareBtn">📤 Link senden</button><button class="btn btn-ghost" id="gateCopyBtn">Kopieren</button></div>
+          </div>
+          <ul class="rows" id="gatePeople"></ul>
+          <details class="howto">
+            <summary>Inhaber-Passwort (falls dein Zugang verloren geht)</summary>
+            <p class="hint">Damit kommst du über „Anmeldung für den Inhaber“ jederzeit wieder rein – z. B. auf einem neuen Gerät. Mindestens 10 Zeichen, am besten im Passwort-Manager speichern.</p>
+            <div class="name-row"><input type="password" id="gatePw" autocomplete="new-password" placeholder="Neues Inhaber-Passwort"><button class="btn" id="gatePwBtn">Speichern</button></div>
+          </details>
+        </div>
+        <button class="btn btn-ghost" id="gateLogoutBtn">Auf diesem Gerät abmelden</button>
+      </div>
+
       <div class="card card-private">
         <h2>🔐 App-Sperre für dieses Gerät</h2>
         <p class="hint">Eigene PIN und Face ID – gilt nur für dieses Gerät. Jede Person schützt ihr eigenes iPhone/iPad, ein gemeinsames Passwort gibt es nicht.</p>

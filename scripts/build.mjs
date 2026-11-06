@@ -2,7 +2,7 @@
 // und schaltet den eigenen, verschlüsselten Abgleich über /api/sync ein.
 import fs from 'node:fs';
 const files = ['index.html', 'style.css', 'app.js', 'sync.js', 'konto.js', 'receipt.js', 'scanner.js', 'lock.js', 'sw.js', 'manifest.webmanifest',
-  'icon.svg', 'icon-180.png', 'icon-192.png', 'icon-512.png', 'fonts/fraunces-latin.woff2', 'fonts/nunito-latin.woff2'];
+  'icon.svg', 'gate.js', 'gate.css', 'icon-180.png', 'icon-192.png', 'icon-512.png', 'fonts/fraunces-latin.woff2', 'fonts/nunito-latin.woff2'];
 fs.rmSync('dist', { recursive: true, force: true });
 fs.mkdirSync('dist/fonts', { recursive: true });
 for (const f of files) fs.copyFileSync(f, `dist/${f}`);

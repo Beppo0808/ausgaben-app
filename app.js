@@ -705,6 +705,34 @@ function renderSettings() {
   renderSync();
 }
 
+// ---------- Zugänge & Einladungen (Server-Sperre wie bei der Gesundheitsakte) ----------
+let gateMe = null;
+async function gateCall(action, body) {
+  const r = await fetch('/api/gate/' + action, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || 'Fehler ' + r.status);
+  return j;
+}
+async function loadGate() {
+  try { gateMe = await gateCall('me'); } catch (e) { gateMe = null; }
+  renderGate();
+}
+async function renderGate() {
+  $('#gateCard').hidden = !gateMe;
+  if (!gateMe) return;
+  $('#gateWho').textContent = `Angemeldet als ${gateMe.name} (${gateMe.role === 'owner' ? 'Inhaber' : 'eingeladen'}) – auf diesem Gerät gespeichert.`;
+  $('#gateOwner').hidden = gateMe.role !== 'owner';
+  if (gateMe.role !== 'owner') return;
+  try {
+    const { people } = await gateCall('people');
+    const d = (iso) => (iso ? new Date(iso).toLocaleDateString('de-DE') : '–');
+    $('#gatePeople').innerHTML = people.map((p) => `<li class="row ${p.revoked ? 'ended' : ''}"><span class="emoji">${p.role === 'owner' ? '👑' : '👤'}</span>
+      <span class="main"><div class="title">${esc(p.name)}${p.me ? ' <span class="badge">das bist du</span>' : ''}${p.revoked ? ' <span class="badge badge-private">gesperrt</span>' : ''}</div>
+      <div class="sub">${p.devices ? `${p.devices}× angemeldet · zuletzt ${esc(d(p.lastSeen))}` : `eingeladen am ${esc(d(p.created))} · noch nicht geöffnet`}</div></span>
+      ${p.me ? '' : `<button class="tx-add" data-gate="${esc(p.id)}" data-rev="${p.revoked ? '0' : '1'}">${p.revoked ? 'Freigeben' : 'Sperren'}</button>`}</li>`).join('');
+  } catch (e) { $('#gatePeople').innerHTML = `<li class="hint warn">${esc(e.message)}</li>`; }
+}
+
 function renderLock() {
   const on = Lock.enabled();
   $('#lockState').textContent = on ? `✓ Gesperrt mit PIN${Lock.hasBio() ? ' und Face ID' : ''}. Sperrt automatisch nach 5 Minuten im Hintergrund.` : 'Noch nicht eingerichtet – jeder, der das Gerät in der Hand hat, könnte die App öffnen.';
@@ -1019,6 +1047,40 @@ function toast(msg) {
 // ---------- Events ----------
 function bind() {
   $$('.mode-switch button').forEach((b) => b.addEventListener('click', () => setMode(b.dataset.mode)));
+  // Zugänge & Einladungen
+  $('#gateInviteBtn').onclick = async () => {
+    const name = $('#gateName').value.trim();
+    if (!name) { toast('Bitte den Namen der Person eintragen'); return; }
+    try {
+      const { url } = await gateCall('invite', { name, days: 7 });
+      const sync = Sync.enabled() ? Sync.inviteLink() : '';
+      const full = url + (sync.includes('#') ? sync.slice(sync.indexOf('#')) : '');
+      $('#gateLink').value = full; $('#gateLinkBox').hidden = false; $('#gateName').value = '';
+      renderGate(); toast('Einladung erstellt ✓');
+    } catch (e) { toast('⚠️ ' + e.message); }
+  };
+  $('#gateShareBtn').onclick = async () => {
+    const link = $('#gateLink').value;
+    try { if (navigator.share) { await navigator.share({ title: 'Einladung Haushaltsbuch', text: 'Hier ist deine Einladung für unser Haushaltsbuch:', url: link }); return; } }
+    catch (e) { if (e.name === 'AbortError') return; }
+    try { await navigator.clipboard.writeText(link); toast('Link kopiert ✓'); } catch (e) { $('#gateLink').select(); }
+  };
+  $('#gateCopyBtn').onclick = async () => { try { await navigator.clipboard.writeText($('#gateLink').value); toast('Kopiert ✓'); } catch (e) { $('#gateLink').select(); } };
+  $('#gatePeople').addEventListener('click', async (e) => {
+    const b = e.target.closest('button[data-gate]'); if (!b) return;
+    const revoke = b.dataset.rev === '1';
+    if (revoke && !confirm('Diesen Zugang sperren? Die Person kommt dann auf keinem Gerät mehr an eure gemeinsamen Daten.')) return;
+    try { await gateCall('revoke', { id: b.dataset.gate, revoked: revoke }); renderGate(); toast(revoke ? 'Gesperrt' : 'Freigegeben'); } catch (err) { toast('⚠️ ' + err.message); }
+  });
+  $('#gatePwBtn').onclick = async () => {
+    try { await gateCall('password', { password: $('#gatePw').value }); $('#gatePw').value = ''; toast('Inhaber-Passwort gespeichert ✓'); }
+    catch (e) { toast('⚠️ ' + e.message); }
+  };
+  $('#gateLogoutBtn').onclick = async () => {
+    if (!confirm('Auf diesem Gerät abmelden? Danach braucht es wieder einen Einladungslink (oder dein Inhaber-Passwort).')) return;
+    await fetch('/api/gate/logout', { method: 'POST' }).catch(() => {});
+    location.reload();
+  };
   // Namen
   $('#nameMe').addEventListener('change', (e) => setMyName(e.target.value));
   $('#namePartner').addEventListener('change', (e) => setPartnerName(e.target.value));
@@ -1234,6 +1296,7 @@ if ((startView === 'subs' && isPersonal()) || (startView === 'konto' && !isPerso
 showView(startView);
 render();
 Sync.init();
+loadGate();
 Konto.handleCallback();
 
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {

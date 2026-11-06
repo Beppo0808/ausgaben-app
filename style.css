@@ -720,3 +720,7 @@ body[data-mode="personal"] .bon-bar { background: var(--personal-deep); }
 }
 
 .bon-paper img + .bon-data, .bon-paper .hint + img + .bon-data { margin-top: 16px; }
+#gateCard .name-row { display: flex; gap: 8px; margin: 10px 0; }
+#gateCard input { flex: 1; min-width: 0; width: 100%; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface-2); box-shadow: var(--groove); font: inherit; color: var(--text); }
+#gateCard .name-row .btn { margin: 0; flex: none; }
+#gateLinkBox input { margin-bottom: 6px; }

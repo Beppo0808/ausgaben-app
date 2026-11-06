@@ -8,5 +8,10 @@ import { handler } from '../../supabase/functions/bank/index.ts';
 // Ältere Node-Laufzeiten haben kein globales „crypto“ – nachrüsten (für die Signatur der Bank-Anfragen)
 if (!globalThis.crypto) globalThis.crypto = webcrypto;
 
-export default (req) => handler(req);
+import { denyIfNoAccess } from '../lib/gate-node.mjs';
+
+export default async (req) => {
+  if (req.method !== 'OPTIONS') { const deny = await denyIfNoAccess(req); if (deny) return deny; }
+  return handler(req);
+};
 export const config = { path: '/api/bank' };
