@@ -338,7 +338,35 @@ const Sync = (() => {
     window.addEventListener('online', () => syncNow());
   }
 
+  // ---------- Dateien (Kassenbon-Bilder), Ende-zu-Ende-verschlüsselt ----------
+  function bytesToB64(u8) {
+    let s = '';
+    for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
+    return btoa(s);
+  }
+  const canFiles = () => enabled() && cfg.url === SELF;
+  async function filePut(id, bytes) {
+    if (!canFiles()) return false;
+    const { aes, hid } = await getKeys();
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, aes, bytes));
+    const all = new Uint8Array(12 + ct.length); all.set(iv); all.set(ct, 12);
+    const res = await fetch('/api/files', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fn: 'put', h: hid, id, data: bytesToB64(all) }) });
+    if (!res.ok) throw new Error('Bon-Bild konnte nicht hochgeladen werden (' + res.status + ')');
+    return true;
+  }
+  async function fileGet(id) {
+    if (!canFiles()) return null;
+    const { aes, hid } = await getKeys();
+    const res = await fetch('/api/files', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fn: 'get', h: hid, id }) });
+    if (!res.ok) return null;
+    const { data } = await res.json();
+    const all = unb64(data);
+    return new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: all.slice(0, 12) }, aes, all.slice(12)));
+  }
+
   return {
+    filePut, fileGet, canFiles,
     init, onSave, syncNow, create, join, disconnect, inviteLink, parseInvite, enabled, selfAvailable,
     usesSelf: () => !!(cfg && cfg.url === SELF),
     household: () => (cfg ? cfg.household : ''),

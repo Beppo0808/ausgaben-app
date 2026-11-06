@@ -9,7 +9,7 @@ inklusive **automatischer Erfassung, sobald mit dem iPhone (Apple Pay) bezahlt w
 - 🏷️ **Automatische Kategorien**: REWE → Lebensmittel, Aral → Tanken … und die App lernt aus jeder Korrektur
 - 👫 **Personen**: wer hat bezahlt?
 - 🔒 **Privat bleibt privat**: private Ausgaben und Kontobewegungen bleiben nur auf dem eigenen Gerät
-- 🧾 **Kassenbon scannen**: Foto vom Bon → Laden, Datum, Summe und Artikel mit Preisen werden erkannt (auf dem Gerät)
+- 🧾 **Kassenbon erfassen** (Foto oder gescanntes PDF): Laden, Filiale, Datum, Uhrzeit, Artikel mit Preis und Kategorie, Bon als Bild – plus Preisverlauf je Artikel
 - 🏦 **Kontostand direkt von der Bank** (nur lesend, per pushTAN freigegeben) – oder per CSV-Import
 - 🏦 **Mein Konto**: Kontoumsätze per CSV-Export aus dem Online-Banking ansehen (nur lesen), einzelne Ausgaben per Tipp ins Haushaltsbuch übernehmen
 - ☁️ **Synchronisation** zwischen allen iPhones und iPads (über euer eigenes, kostenloses Supabase-Projekt)
@@ -138,17 +138,23 @@ jede Zahlung zusätzlich per Tipp auf privat/gemeinsam umschalten.
 > Hinweis: Kurzbefehle öffnen Safari. Private Einträge liegen daher im Speicher von Safari – nutzt die App für
 > den privaten Teil am besten auch in Safari.
 
-## Kassenbon scannen 🧾
-1. **Ausgaben → 🧾 Kassenbon scannen** (oder im „+“-Dialog oben rechts)
-2. Bon glatt hinlegen, gut beleuchten, Foto aufnehmen oder aus den Fotos wählen
-3. Die App liest **Laden, Datum, Summe und alle Artikel mit Preis** aus – prüfen, ggf. korrigieren, **Speichern**
+## Kassenbon erfassen 🧾
+1. **Ausgaben → 🧾 Kassenbon erfassen**
+2. Am schärfsten: App **Dateien** → „…“ → **Dokumente scannen** → als PDF sichern → hier **📄 Gescanntes Dokument / PDF**.
+   Alternativ **📷 Foto** aufnehmen oder auswählen.
+3. Die App liest **Laden, Filiale (Adresse/Filialnummer), Datum, Uhrzeit, Summe** und **jeden Artikel mit Preis** –
+   auch **Menge × Stückpreis** („2 x 0,49“) und **Gewicht** („1,234 kg x 1,24 EUR/kg“). Prüfen, ggf. korrigieren, **Speichern**.
 
-- Die Texterkennung läuft **direkt auf dem Gerät** (Tesseract.js). Das Foto wird weder hochgeladen noch gespeichert –
-  nur Laden, Datum, Summe und Artikel. Beim allerersten Scan wird die Texterkennung einmalig geladen (ca. 5 MB).
-- Wurde die Zahlung schon per Handy erfasst (gleicher Betrag, gleicher Tag), schlägt die App vor, die Artikel
-  **dort** zu hinterlegen – so gibt es keine doppelte Buchung, und Person/Uhrzeit bleiben erhalten.
-- Die Suche in „Ausgaben“ findet auch Artikel, z. B. „Kaffee“ → *Kaffee Crema 1kg 12,99 € bei ALDI*.
-- Artikel lassen sich jederzeit über die Ausgabe → **🧾 Artikel bearbeiten** ändern oder nachträglich hinzufügen.
+- **Kategorie je Artikel:** Milch → Lebensmittel, Spülmittel/Toilettenpapier → Drogerie, Pfand → Sonstiges usw.
+  Jede Kategorie ist im Prüf-Fenster änderbar; die App merkt sich das für den Artikel. Die Monatsauswertung
+  verteilt den Bon auf diese Kategorien.
+- **🥛 Artikel & Preise** (in „Ausgaben“): z. B. „Milch“ suchen → jeder Kauf mit Datum, Uhrzeit, Laden, Filiale,
+  Person und Preis, dazu günstigster und teuerster Preis – über alle Monate.
+- **Bon als Bild:** In jeder Ausgabe → **🧾 Bon als Bild ansehen**. Das Bild wird verkleinert gespeichert; bei
+  gemeinsamen Einkäufen **Ende-zu-Ende-verschlüsselt** auf eurem Netlify-Konto (beide sehen es), bei privaten nur
+  auf dem eigenen Gerät.
+- Wurde die Zahlung schon per Handy erfasst, wird der Bon **dort** angehängt (keine doppelte Buchung).
+- Texterkennung (Tesseract.js) und PDF-Anzeige (pdf.js) laufen **auf dem Gerät**; beim ersten Mal werden sie einmalig geladen.
 
 ## Fixkosten & Haushaltsgeld 🏠💶
 **Fixkosten** (Miete, Strom, Versicherungen, Verträge …) legt ihr unter **🏠 Fixkosten** an – mit Name, Betrag,

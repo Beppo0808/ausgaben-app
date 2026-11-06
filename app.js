@@ -118,6 +118,7 @@ function personTag(name) {
   return name ? `<span class="who">${personAvatar(name, 'sm')}${esc(name)}</span>` : '';
 }
 function timeOf(e) {
+  if (e.time) return e.time + ' Uhr';
   if (e.virtual || !e.created || (e.source !== 'wallet' && e.source !== 'manual')) return '';
   const d = new Date(e.created);
   // nur anzeigen, wenn am selben Tag erfasst (sonst wurde später nachgetragen)
@@ -483,7 +484,13 @@ function niceCeil(v) {
 
 function renderCatBars(items, noBudget = false) {
   const sums = {};
-  items.forEach((e) => { sums[e.category] = (sums[e.category] || 0) + e.amount; });
+  items.forEach((e) => {
+    const its = (e.items || []).filter((it) => Number.isFinite(it.price));
+    if (!its.length) { sums[e.category] = (sums[e.category] || 0) + e.amount; return; }
+    let rest = e.amount;
+    its.forEach((it) => { const c = it.cat || e.category; sums[c] = (sums[c] || 0) + it.price; rest -= it.price; });
+    if (Math.abs(rest) > 0.004) sums[e.category] = (sums[e.category] || 0) + rest; // Abweichung (z. B. Rabatt) beim Laden-Typ
+  });
   const cats = state.categories
     .map((c) => ({ ...c, spent: round2(sums[c.id] || 0) }))
     .filter((c) => c.spent > 0 || (!noBudget && Number(c.budget) > 0))
@@ -512,6 +519,50 @@ function renderCatBars(items, noBudget = false) {
   }));
 }
 
+let listMode = 'exp';
+const normItem = (n) => String(n || '').toLowerCase().replace(/[^a-zäöüß0-9%., ]/g, ' ').replace(/\s+/g, ' ').trim();
+
+/** Alle gekauften Artikel (alle Monate) – wann, wo, zu welchem Preis */
+function renderArticles() {
+  const root = $('#articleList');
+  const q = $('#searchInput').value.trim().toLowerCase();
+  const fc = $('#filterCat').value, fp = $('#filterPerson').value;
+  const rows = [];
+  state.expenses
+    .filter((e) => (isPersonal() ? isMine(e) : !e.private))
+    .filter((e) => !fp || (fp === '__private' ? e.private : fp === '__shared' ? !e.private : e.person === fp))
+    .forEach((e) => (e.items || []).forEach((it) => {
+      if (!it.name || !Number.isFinite(it.price) || it.price <= 0) return;
+      const cat = it.cat || e.category;
+      if (fc && cat !== fc) return;
+      rows.push({ ...it, cat, norm: normItem(it.name), date: e.date, time: e.time || '', store: e.merchant || '', branch: e.branch || '', person: e.person || '', expId: e.id,
+        each: it.qty && it.unit ? it.unit : it.price });
+    }));
+  const hits = q ? rows.filter((r) => `${r.name} ${r.store} ${r.branch}`.toLowerCase().includes(q)) : rows;
+  if (!rows.length) { root.innerHTML = '<div class="empty-state">Noch keine Artikel erfasst.<br>Tippe oben auf <b>🧾 Kassenbon erfassen</b>.</div>'; return; }
+  if (!hits.length) { root.innerHTML = '<div class="empty-state">Kein Artikel gefunden.</div>'; return; }
+  const groups = new Map();
+  hits.forEach((r) => { if (!groups.has(r.norm)) groups.set(r.norm, []); groups.get(r.norm).push(r); });
+  const list = [...groups.values()].map((g) => g.sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time)))
+    .sort((a, b) => (b[0].date + b[0].time).localeCompare(a[0].date + a[0].time)).slice(0, 200);
+  const d = (r) => new Date(r.date + 'T12:00').toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' });
+  root.innerHTML = list.map((g, i) => {
+    const last = g[0], each = g.map((r) => r.each);
+    const min = Math.min(...each), max = Math.max(...each);
+    const cheap = g.find((r) => r.each === min);
+    const c = catById(last.cat);
+    const range = g.length > 1 && max - min > 0.004 ? ` · günstigst ${fmt(min)} (${esc(cheap.store)}${cheap.branch ? ', ' + esc(cheap.branch.split(',')[0]) : ''}) · teuerst ${fmt(max)}` : '';
+    return `<details class="art" ${q && list.length <= 3 ? 'open' : ''}>
+      <summary><span class="emoji">${esc(c.emoji)}</span><span class="main"><div class="title">${esc(last.name)}</div>
+        <div class="sub">${g.length}× gekauft · zuletzt ${esc(d(last))} bei ${esc(last.store)}${range}</div></span><span class="amount">${fmt(last.each)}</span></summary>
+      <ul class="art-rows">${g.map((r) => `<li data-exp="${esc(r.expId)}"><span>${esc(d(r))}${r.time ? ' ' + esc(r.time) : ''}</span>
+        <span>${esc(r.store)}${r.branch ? `<br><small>📍 ${esc(r.branch)}</small>` : ''}${r.person ? `<br><small>${esc(r.person)}</small>` : ''}</span>
+        <span class="amt">${r.qty ? `<small>${String(r.qty).replace('.', ',')} ${esc(r.unitLabel || '×')} ${fmt(r.unit)}</small><br>` : ''}${fmt(r.price)}</span></li>`).join('')}</ul>
+    </details>`;
+  }).join('');
+  $$('.art-rows li', root).forEach((li) => li.addEventListener('click', () => openExpenseDialog(state.expenses.find((e) => e.id === li.dataset.exp))));
+}
+
 function renderList() {
   const fc = $('#filterCat'), fp = $('#filterPerson');
   const prevC = fc.value, prevP = fp.value;
@@ -521,12 +572,16 @@ function renderList() {
     : '<option value="">Alle Personen</option>' + state.settings.persons.map((p) => `<option>${esc(p)}</option>`).join('');
   fc.value = prevC; fp.value = prevP;
 
+  $$('#listMode button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.v === listMode)));
+  $('#expenseList').hidden = listMode !== 'exp';
+  $('#articleList').hidden = listMode !== 'art';
+  if (listMode === 'art') { renderArticles(); return; }
   const q = $('#searchInput').value.trim().toLowerCase();
   const items = expensesForMonth(viewY, viewM)
     .filter((e) => (isPersonal() ? isMine(e) : !e.private))
     .filter((e) => !fc.value || e.category === fc.value)
     .filter((e) => !fp.value || (fp.value === '__private' ? e.private : fp.value === '__shared' ? !e.private : e.person === fp.value))
-    .filter((e) => !q || `${e.merchant} ${e.note} ${catById(e.category).name} ${(e.items || []).map((it) => it.name).join(' ')}`.toLowerCase().includes(q))
+    .filter((e) => !q || `${e.merchant} ${e.branch || ''} ${e.note} ${catById(e.category).name} ${(e.items || []).map((it) => it.name).join(' ')}`.toLowerCase().includes(q))
     .sort((a, b) => (b.date + (b.created || '')).localeCompare(a.date + (a.created || '')));
 
   const root = $('#expenseList');
@@ -543,7 +598,7 @@ function renderList() {
     html += `<div class="day-group"><div class="day-head"><span>${esc(label)}</span><span>${fmt(sum)}</span></div><ul class="rows">`;
     html += list.map((e) => {
       const c = catById(e.category);
-      const sub = [personTag(e.person), esc(timeOf(e)), esc(c.name), esc(e.note)].filter(Boolean).join(' · ');
+      const sub = [personTag(e.person), esc(timeOf(e)), e.branch ? '📍 ' + esc(e.branch) : '', esc(c.name), esc(e.note)].filter(Boolean).join(' · ');
       const itemHits = q && e.items ? e.items.filter((it) => it.name.toLowerCase().includes(q)).slice(0, 3) : [];
       const hitLine = itemHits.length ? `<div class="sub hit">🔎 ${itemHits.map((it) => `${esc(it.name)} ${fmt(it.price)}`).join(' · ')}</div>` : '';
       const badge = (e.private ? '<span class="badge badge-private">🔒 privat</span>' : '') + (e.source === 'wallet' ? '<span class="badge">📲 Handy</span>' : '') + (e.items && e.items.length ? `<span class="badge">🧾 ${e.items.length}</span>` : '');
@@ -729,7 +784,13 @@ function openExpenseDialog(exp) {
   const its = exp && exp.items ? exp.items : [];
   $('#expItems').hidden = !its.length;
   $('#expItemsAdd').hidden = !exp || !!its.length;
-  $('#expItemsList').innerHTML = its.map((it) => `<li><span>${esc(it.name)}</span><span>${fmt(it.price)}</span></li>`).join('');
+  $('#expItemsList').innerHTML = its.map((it) => {
+    const c = catById(it.cat || exp.category);
+    const qty = it.qty ? ` <span class="muted">${String(it.qty).replace('.', ',')} ${it.unitLabel ? esc(it.unitLabel) + ' ×' : '×'} ${fmt(it.unit)}${it.unitLabel ? '/' + esc(it.unitLabel) : ''}</span>` : '';
+    return `<li><span>${esc(c.emoji)} ${esc(it.name)}${qty}</span><span>${fmt(it.price)}</span></li>`;
+  }).join('');
+  $('#expBonInfo').textContent = exp ? [exp.branch ? '📍 ' + exp.branch : '', exp.time ? '🕑 ' + exp.time + ' Uhr' : ''].filter(Boolean).join(' · ') : '';
+  $('#expBonBtn').hidden = !(exp && exp.receipt);
   const merchants = [...new Set(state.expenses.map((e) => e.merchant).filter(Boolean))].slice(-200);
   $('#merchantList').innerHTML = merchants.map((m) => `<option value="${esc(m)}">`).join('');
   dlg.showModal();
@@ -974,6 +1035,9 @@ function bind() {
     $('#expenseDialog').close(); Receipt.editExpense(e);
   };
   $('#expItemsEdit').onclick = editItems;
+  $('#expBonBtn').onclick = () => { const e = state.expenses.find((x) => x.id === editingId); if (e) { $('#expenseDialog').close(); Receipt.view(e); } };
+  // Ausgaben: Einkäufe | Artikel & Preise
+  $$('#listMode button').forEach((b) => b.addEventListener('click', () => { listMode = b.dataset.v; renderList(); }));
   $('#expItemsAdd').onclick = editItems;
   $('#deleteExpenseBtn').onclick = () => {
     if (!editingId || !confirm('Diese Ausgabe löschen?')) return;
@@ -1134,6 +1198,7 @@ function bind() {
 // ---------- Start ----------
 bind();
 Lock.init();
+Receipt.init();
 setMode(mode, true);
 handleIncomingUrl();
 handleInviteHash();

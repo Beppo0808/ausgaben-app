@@ -78,13 +78,18 @@
 
     <!-- Ausgaben -->
     <section id="view-list" class="view" aria-label="Ausgaben">
-      <button class="btn btn-scan" id="scanBtnList">🧾 Kassenbon scannen</button>
+      <button class="btn btn-scan" id="scanBtnList">🧾 Kassenbon erfassen</button>
+      <div class="seg" id="listMode">
+        <button type="button" data-v="exp" aria-pressed="true">🧾 Einkäufe</button>
+        <button type="button" data-v="art" aria-pressed="false">🥛 Artikel &amp; Preise</button>
+      </div>
       <div class="filters">
-        <input type="search" id="searchInput" placeholder="Suchen (Laden, Artikel, Notiz …)" aria-label="Suchen">
+        <input type="search" id="searchInput" placeholder="Suchen (Laden, Filiale, Artikel, Notiz …)" aria-label="Suchen">
         <select id="filterCat" aria-label="Kategorie filtern"></select>
         <select id="filterPerson" aria-label="Person filtern"></select>
       </div>
       <div id="expenseList"></div>
+      <div id="articleList" hidden></div>
     </section>
 
     <!-- Abos -->
@@ -364,8 +369,10 @@
       <label class="check"><input type="checkbox" name="private"> 🔒 Privat – nur auf meinem Gerät, wird nicht geteilt</label>
       <div id="expItems" hidden>
         <div class="card-head"><h2 class="small-h">🧾 Artikel</h2><button type="button" class="btn btn-ghost btn-sm" id="expItemsEdit">Bearbeiten</button></div>
+        <p class="hint" id="expBonInfo"></p>
         <ul class="item-list" id="expItemsList"></ul>
       </div>
+      <button type="button" class="btn btn-sm" id="expBonBtn" hidden>🧾 Bon als Bild ansehen</button>
       <button type="button" class="btn btn-ghost btn-sm" id="expItemsAdd" hidden>🧾 Artikel vom Bon hinzufügen</button>
       <div class="dialog-actions">
         <button type="button" class="btn btn-danger" id="deleteExpenseBtn">Löschen</button>
@@ -423,26 +430,32 @@
     <div class="receipt">
       <h2 id="rcTitle">🧾 Kassenbon scannen</h2>
       <div id="rcPick">
-        <p class="hint">Bon glatt hinlegen, gut beleuchten und so fotografieren, dass er das Bild ausfüllt. Die Texterkennung läuft <b>auf diesem Gerät</b> – das Foto wird nicht hochgeladen und nicht gespeichert.</p>
-        <div class="btn-row">
-          <label class="btn btn-primary btn-file">📷 Foto aufnehmen / auswählen<input type="file" id="rcFile" accept="image/*"></label>
-          <button type="button" class="btn btn-ghost" id="rcManual">Ohne Foto eintippen</button>
+        <p class="hint">Am schärfsten: in der App <b>Dateien</b> → oben rechts <b>„…“ → Dokumente scannen</b> → als PDF sichern und hier auswählen. Oder direkt ein Foto machen. Die Texterkennung läuft <b>auf diesem Gerät</b>.</p>
+        <div class="btn-row rc-choices">
+          <label class="btn btn-primary btn-file">📄 Gescanntes Dokument / PDF<input type="file" id="rcPdf" accept="application/pdf,.pdf,image/*"></label>
+          <label class="btn btn-file">📷 Foto aufnehmen / auswählen<input type="file" id="rcFile" accept="image/*"></label>
+          <button type="button" class="btn btn-ghost" id="rcManual">Ohne Bon eintippen</button>
         </div>
+        <p class="hint">Das Bon-Bild wird verkleinert aufbewahrt, damit ihr es später ansehen könnt – bei gemeinsamen Einkäufen verschlüsselt für euch beide, bei privaten nur auf diesem Gerät.</p>
       </div>
       <img id="rcPreview" alt="Kassenbon" hidden>
       <div class="progress" id="rcProgress" hidden><div class="progress-fill"></div></div>
       <p class="hint" id="rcStatus"></p>
       <div id="rcForm" hidden>
         <div class="field-row">
-          <label class="field">Laden <input type="text" id="rcStore" placeholder="z. B. ALDI"></label>
+          <label class="field">Laden <input type="text" id="rcStore" placeholder="z. B. ALDI SÜD"></label>
+          <label class="field">Filiale <input type="text" id="rcBranch" placeholder="z. B. Hauptstr. 5, Hilden"></label>
+        </div>
+        <div class="field-row">
           <label class="field">Datum <input type="date" id="rcDate"></label>
+          <label class="field">Uhrzeit <input type="time" id="rcTime"></label>
         </div>
         <div class="field-row">
           <label class="field">Bon-Summe (€) <input type="text" inputmode="decimal" id="rcTotal"></label>
           <label class="field">Bezahlt von <select id="rcPerson"></select></label>
         </div>
         <label class="check"><input type="checkbox" id="rcPrivate"> 🔒 Privat – nur auf meinem Gerät</label>
-        <div class="field">Artikel</div>
+        <div class="field">Artikel <span class="muted">– Kategorie je Artikel änderbar, wird gemerkt</span></div>
         <ul class="items-edit" id="rcItems"></ul>
         <button type="button" class="btn btn-ghost btn-sm" id="rcAddItem">+ Artikel</button>
         <p class="hint" id="rcCheck"></p>
@@ -454,6 +467,15 @@
       </div>
     </div>
   </dialog>
+
+  <!-- Bon-Ansicht -->
+  <div class="bon-viewer" id="bonViewer" hidden>
+    <div class="bon-bar">
+      <div><div class="bon-title" id="bonTitle"></div><div class="bon-meta" id="bonMeta"></div></div>
+      <button type="button" class="btn" id="bonClose">✕ Schließen</button>
+    </div>
+    <div class="bon-scroll"><p class="hint" id="bonLoading">Lade Bon …</p><img id="bonImg" alt="Kassenbon" hidden></div>
+  </div>
 
   <!-- Sperrbildschirm (App-Sperre pro Gerät) -->
   <div class="lock" id="lockScreen" hidden>
