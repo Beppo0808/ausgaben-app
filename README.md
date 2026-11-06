@@ -16,6 +16,21 @@ inklusive **automatischer Erfassung, sobald mit dem iPhone (Apple Pay) bezahlt w
 - 💾 **Backup / CSV-Export** (für Excel, Numbers oder Google Sheets)
 - 👓 Augenschonend: warme helle Farben ohne Schwarz und ohne grelles Weiß, Helligkeit „Hell/Gedämpft“, Schriftgröße in 3 Stufen, iPad-Ansicht, funktioniert offline
 
+## 🔐 App-Sperre: eigene PIN + Face ID pro Gerät
+Jede Person schützt **ihr eigenes Gerät** (Einstellungen → 🔐 App-Sperre): eigene PIN (4–8 Ziffern) und optional
+**Face ID / Touch ID**. Es gibt **kein gemeinsames Passwort** – niemand kennt die PIN des anderen.
+- Die PIN wird nicht gespeichert, nur ein gesalzener PBKDF2-Hash; Face ID läuft über die Gerätesperre des iPhones.
+- Sperrt beim Öffnen und nach 5 Minuten im Hintergrund; nach 5 Fehlversuchen steigende Wartezeit.
+- Zahlungen per Kurzbefehl werden auch im gesperrten Zustand erfasst – angezeigt wird nur dieser eine Eintrag.
+- PIN vergessen → Gerät zurücksetzen; gemeinsame Daten kommen per Einladungslink zurück.
+
+## Betrieb auf Netlify
+Die App läuft auf **Netlify** (`netlify.toml`, Build: `node scripts/build.mjs` → `dist/`):
+- `netlify/functions/sync.mjs` – Speicher für den Abgleich (Netlify Blobs). Nimmt **nur verschlüsselte** Daten an.
+  Damit entfällt Supabase; in der App genügt „👫 Gemeinsamen Haushalt erstellen“.
+- `netlify/functions/bank.mjs` – optionaler Kontoabruf (Secrets als Umgebungsvariablen in Netlify).
+- Strenge Sicherheits-Header (Content-Security-Policy, kein Einbetten, kein Referrer).
+
 ## Zwei Ansichten: 👫 Gemeinsam | 🔒 Persönlich
 Oben in der App wählt jeder per Schalter seine Ansicht (das Gerät merkt sich die Wahl):
 

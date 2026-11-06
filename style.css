@@ -551,3 +551,52 @@ html { scroll-padding-top: 170px; scroll-padding-bottom: 130px; }
 .bank-bal { font-family: var(--font-display); font-weight: 650; font-size: 1.6rem; color: var(--personal-deep); white-space: nowrap; font-variant-numeric: lining-nums tabular-nums; }
 .bank-bal.neg { color: var(--critical); }
 #bankPemText { width: 100%; font: 12px/1.3 ui-monospace, Menlo, monospace; border-radius: 10px; border: 1px solid var(--border); background: var(--surface-2); padding: 8px; color: var(--text); }
+
+/* ---------- Sperrbildschirm ---------- */
+.lock {
+  position: fixed; inset: 0; z-index: 100; overflow-y: auto;
+  background: var(--paper), linear-gradient(170deg, color-mix(in srgb, var(--personal) 22%, var(--bg)), var(--bg) 60%);
+  display: flex; align-items: center; justify-content: center; padding: calc(env(safe-area-inset-top) + 20px) 16px calc(env(safe-area-inset-bottom) + 20px);
+}
+body.locked { overflow: hidden; }
+body.locked main, body.locked .tabbar, body.locked .fab, body.locked .topbar { visibility: hidden; }
+.lock-inner { width: 100%; max-width: 360px; text-align: center; }
+.lock-avatar {
+  width: 92px; height: 92px; margin: 0 auto 12px; border-radius: 50%; display: grid; place-items: center;
+  font: 650 2.4rem var(--font-display); color: var(--on-accent);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--personal) 80%, #fff), var(--personal));
+  box-shadow: 0 0 0 5px var(--surface), var(--shadow);
+}
+.lock-name { font: 650 1.4rem var(--font-display); color: var(--text); }
+.lock-title { color: var(--text-2); font-weight: 700; margin: 4px 0 14px; }
+.lock-bio { width: 100%; margin: 0 0 14px; color: var(--personal-deep); }
+.lock-dots { display: flex; justify-content: center; gap: 14px; height: 22px; margin: 6px 0; }
+.lock-dots span { width: 16px; height: 16px; border-radius: 50%; background: var(--surface-3); box-shadow: var(--groove); transition: background .15s; }
+.lock-dots span.on { background: var(--personal); box-shadow: none; }
+.lock-dots.shake { animation: shake .35s; }
+@keyframes shake { 20%, 60% { transform: translateX(-8px); } 40%, 80% { transform: translateX(8px); } }
+.lock-msg { min-height: 1.5em; color: var(--text-2); margin: 6px 0 10px; }
+.lock-msg.warn { color: var(--critical); font-weight: 700; }
+.lock-pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; justify-items: center; margin: 8px auto; max-width: 300px; }
+.lock-pad button {
+  width: 78px; height: 78px; border-radius: 50%; border: 1px solid var(--border); cursor: pointer;
+  font: 650 1.9rem var(--font-display); color: var(--text);
+  background: linear-gradient(180deg, var(--surface), var(--surface-2));
+  box-shadow: 0 1px 0 var(--hi) inset, 0 4px 0 var(--surface-3), 0 8px 16px -8px rgba(90, 60, 35, .4);
+  transition: transform .06s, box-shadow .06s;
+}
+.lock-pad button:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--surface-3), var(--shadow-press); }
+.lock-pad button[data-k="del"] { color: var(--critical); font-size: 1.5rem; }
+.lock-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: 10px; }
+.lock-prompt { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.sheet { z-index: 120; }
+.toast { z-index: 130; }
+/* Sperrbildschirm kompakter, nichts abschneiden */
+.lock { align-items: flex-start; }
+.lock-inner { margin: auto; padding: 8px 0; }
+.lock-avatar { width: 76px; height: 76px; font-size: 2rem; margin-bottom: 8px; }
+.lock-title { margin-bottom: 10px; }
+.lock-bio { margin-bottom: 8px; }
+.lock-pad { gap: 12px; }
+.lock-pad button { width: 70px; height: 70px; font-size: 1.7rem; }
+@media (max-height: 700px) { .lock-pad button { width: 62px; height: 62px; } .lock-avatar { width: 60px; height: 60px; } }

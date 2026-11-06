@@ -35,6 +35,10 @@
     <div class="mode-banner" id="modeBanner"></div>
     <!-- Übersicht -->
     <section id="view-overview" class="view active" aria-label="Übersicht">
+      <div class="card card-private lock-prompt" id="lockPrompt" hidden>
+        <div><b>🔐 Dieses Gerät schützen</b><div class="hint">Mit eigener PIN und Face ID – wie bei der Gesundheitsakte.</div></div>
+        <button class="btn btn-primary" id="lockPromptBtn">Einrichten</button>
+      </div>
       <div class="kpis">
         <div class="kpi kpi-hero"><span class="kpi-label" id="kpiLabel1">Ausgaben gesamt</span><span class="kpi-value" id="kpiTotal">–</span><span class="kpi-sub" id="kpiTotalSub"></span></div>
         <div class="kpi"><span class="kpi-label" id="kpiLabel2">Fixkosten</span><span class="kpi-value" id="kpiA">–</span><span class="kpi-sub" id="kpiASub"></span></div>
@@ -186,6 +190,18 @@
 
     <!-- Einstellungen -->
     <section id="view-settings" class="view" aria-label="Einstellungen">
+      <div class="card card-private">
+        <h2>🔐 App-Sperre für dieses Gerät</h2>
+        <p class="hint">Eigene PIN und Face ID – gilt nur für dieses Gerät. Jede Person schützt ihr eigenes iPhone/iPad, ein gemeinsames Passwort gibt es nicht.</p>
+        <p class="hint" id="lockState"></p>
+        <div class="btn-row">
+          <button class="btn btn-primary" id="lockSetupBtn">PIN festlegen</button>
+          <button class="btn" id="lockBioBtn" hidden>Face ID einschalten</button>
+          <button class="btn btn-ghost" id="lockNowBtn" hidden>Jetzt sperren</button>
+          <button class="btn btn-danger" id="lockOffBtn" hidden>Sperre ausschalten</button>
+        </div>
+      </div>
+
       <div class="card">
         <h2>👓 Darstellung</h2>
         <p class="hint">Gilt nur für dieses Gerät.</p>
@@ -421,6 +437,29 @@
     </div>
   </dialog>
 
+  <!-- Sperrbildschirm (App-Sperre pro Gerät) -->
+  <div class="lock" id="lockScreen" hidden>
+    <div class="lock-inner">
+      <div class="lock-avatar" id="lockAvatar">H</div>
+      <div class="lock-name" id="lockName">Haushaltsbuch</div>
+      <div class="lock-title" id="lockTitle">Bitte entsperren</div>
+      <button type="button" class="btn lock-bio" id="lockBio" hidden>🔐 Mit Face ID / Touch ID öffnen</button>
+      <div class="lock-dots" id="lockDots"></div>
+      <p class="lock-msg" id="lockMsg"></p>
+      <div class="lock-pad" id="lockPad">
+        <button type="button" data-k="1">1</button><button type="button" data-k="2">2</button><button type="button" data-k="3">3</button>
+        <button type="button" data-k="4">4</button><button type="button" data-k="5">5</button><button type="button" data-k="6">6</button>
+        <button type="button" data-k="7">7</button><button type="button" data-k="8">8</button><button type="button" data-k="9">9</button>
+        <span></span><button type="button" data-k="0">0</button><button type="button" data-k="del" aria-label="Löschen">⌫</button>
+      </div>
+      <div class="lock-actions">
+        <button type="button" class="btn btn-primary" id="lockOk" hidden>Weiter</button>
+        <button type="button" class="btn btn-ghost" id="lockCancel" hidden>Abbrechen</button>
+        <button type="button" class="btn btn-ghost" id="lockForgot" hidden>PIN vergessen?</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Erfasst-Hinweis (nach Handy-Zahlung) -->
   <div class="sheet" id="capturedSheet" hidden>
     <div class="sheet-head">
@@ -438,6 +477,7 @@
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <div class="tooltip" id="tooltip" hidden></div>
 
+  <script src="lock.js"></script>
   <script src="sync.js"></script>
   <script src="konto.js"></script>
   <script src="receipt.js"></script>

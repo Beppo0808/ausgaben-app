@@ -581,7 +581,21 @@ function renderSettings() {
   }
 
   $('#shortcutUrl').value = shortcutUrl();
+  renderLock();
   renderSync();
+}
+
+function renderLock() {
+  const on = Lock.enabled();
+  $('#lockState').textContent = on ? `✓ Gesperrt mit PIN${Lock.hasBio() ? ' und Face ID' : ''}. Sperrt automatisch nach 5 Minuten im Hintergrund.` : 'Noch nicht eingerichtet – jeder, der das Gerät in der Hand hat, könnte die App öffnen.';
+  $('#lockSetupBtn').textContent = on ? 'PIN ändern' : 'PIN festlegen';
+  $('#lockNowBtn').hidden = !on;
+  $('#lockOffBtn').hidden = !on;
+  $('#lockPrompt').hidden = on || sessionStorage.getItem('lock-later') === '1';
+  Lock.bioSupported().then((ok) => {
+    $('#lockBioBtn').hidden = !on || !ok;
+    $('#lockBioBtn').textContent = Lock.hasBio() ? 'Face ID ausschalten' : 'Face ID einschalten';
+  });
 }
 
 function renderSync() {
@@ -878,6 +892,12 @@ function toast(msg) {
 // ---------- Events ----------
 function bind() {
   $$('.mode-switch button').forEach((b) => b.addEventListener('click', () => setMode(b.dataset.mode)));
+  // App-Sperre
+  $('#lockSetupBtn').onclick = () => Lock.startSetup();
+  $('#lockPromptBtn').onclick = () => Lock.startSetup();
+  $('#lockNowBtn').onclick = () => Lock.lockNow();
+  $('#lockBioBtn').onclick = async () => { if (Lock.hasBio()) { Lock.disableBio(); toast('Face ID ausgeschaltet'); } else await Lock.enableBio(); renderLock(); };
+  $('#lockOffBtn').onclick = () => { if (confirm('App-Sperre auf diesem Gerät ausschalten?')) { Lock.disable(); renderLock(); toast('Sperre ausgeschaltet'); } };
   $('#prevMonth').onclick = () => shiftMonth(-1);
   $('#nextMonth').onclick = () => shiftMonth(1);
   $$('.tabbar button').forEach((b) => b.addEventListener('click', () => showView(b.dataset.view)));
@@ -1066,6 +1086,7 @@ function bind() {
 
 // ---------- Start ----------
 bind();
+Lock.init();
 setMode(mode, true);
 handleIncomingUrl();
 handleInviteHash();
