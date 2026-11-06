@@ -16,9 +16,12 @@ const Konto = (() => {
   function read() {
     try {
       const d = JSON.parse(localStorage.getItem(KEY));
-      if (d && Array.isArray(d.accounts) && Array.isArray(d.tx)) return d;
+      if (d && Array.isArray(d.accounts) && Array.isArray(d.tx)) {
+        d.links = d.links || {}; d.dismissed = d.dismissed || {};
+        return d;
+      }
     } catch (e) { /* leer */ }
-    return { accounts: [], tx: [] };
+    return { accounts: [], tx: [], links: {}, dismissed: {} };
   }
   function write() {
     try { localStorage.setItem(KEY, JSON.stringify(data)); }
@@ -192,6 +195,176 @@ const Konto = (() => {
     toast(`${fmt(exp.amount)} ins Haushaltsbuch übernommen ✓`);
   }
 
+  // ---------- Regelmäßige Zahlungen erkennen ----------
+  // Vorschläge für Namen/Kategorie (nur Vorschlag – alles ist im Dialog änderbar)
+  const HINTS = [
+    [/kaltmiete|warmmiete|\bmiete\b|mietzahlung|wohnungsbau|hausverwaltung|vermiet|wohnungsgenossenschaft|vonovia|deutsche wohnen|leg immobilien|gewobag|saga/i, 'Miete', 'wohnen'],
+    [/nebenkosten|hausgeld|betriebskosten/i, 'Nebenkosten', 'wohnen'],
+    [/\bstrom\b|stadtwerke|vattenfall|e\.?on|enbw|yello|lichtblick|naturstrom|eprimo|tibber|ostrom|polarstern|energie/i, 'Strom', 'wohnen'],
+    [/\bgas\b|erdgas|fernwärme|fernwaerme/i, 'Gas / Heizung', 'wohnen'],
+    [/wasser|abwasser/i, 'Wasser', 'wohnen'],
+    [/rundfunk|beitragsservice|ard zdf/i, 'Rundfunkbeitrag', 'wohnen'],
+    [/telekom|vodafone|\bo2\b|telefonica|1&1|congstar|pyur|unitymedia|\bdsl\b|glasfaser|mobilfunk|freenet|winsim|drillisch/i, 'Internet & Handy', 'abos'],
+    [/kfz|autoversicherung|kraftfahrt/i, 'Kfz-Versicherung', 'mobilitaet'],
+    [/versicherung|allianz|\bhuk\b|ergo|\baxa\b|generali|devk|signal iduna|r\+v|debeka|haftpflicht|hausrat|gothaer|zurich|barmenia/i, 'Versicherung', 'sonstiges'],
+    [/kita|kindergarten|\bhort\b|tagesmutter|schulgeld|mensa/i, 'Kita / Schule', 'sonstiges'],
+    [/netflix|spotify|disney|dazn|\bsky\b|prime video|amazon prime|youtube premium|apple\.com|icloud|audible/i, 'Streaming / Abo', 'abos'],
+    [/fitness|mcfit|urban sports|clever fit|john reed|sportverein|\bverein\b/i, 'Fitness / Verein', 'freizeit'],
+    [/kredit|darlehen|finanzierung|tilgung|ratenzahlung/i, 'Kredit / Rate', 'wohnen'],
+  ];
+  const STOP = /\b(gmbh|ag|se|kg|ohg|co|eg|ev|e\.v|mbh|und|sagt|danke|ihr|einkauf|filiale|lastschrift|sepa|dauerauftrag|gutschrift|ueberweisung|überweisung|kartenzahlung|online|de|www|com)\b/g;
+
+  function baseName(s) {
+    return String(s || '').toLowerCase().replace(/[0-9]/g, ' ').replace(/[^a-zäöüß&+ ]/g, ' ')
+      .replace(STOP, ' ').replace(/\s+/g, ' ').trim().split(' ').slice(0, 3).join(' ');
+  }
+  function groupKey(t) {
+    const b = baseName(t.name) || baseName(t.purpose);
+    return b ? `${t.account}|${b}` : null;
+  }
+  const monthIdx = (ym) => +ym.slice(0, 4) * 12 + (+ym.slice(5, 7) - 1);
+  const ymOf = (i) => `${Math.floor(i / 12)}-${String((i % 12) + 1).padStart(2, '0')}`;
+
+  function linkedSub(key) {
+    const id = data.links[key];
+    if (!id) return null;
+    const s = state.subs.find((x) => x.id === id);
+    if (!s) { delete data.links[key]; write(); }
+    return s || null;
+  }
+
+  function otherPerson() {
+    const me = state.settings.me;
+    return state.settings.persons.find((p) => p !== me) || '';
+  }
+
+  /** Gruppen regelmäßiger Abbuchungen */
+  function detect(accId, includeAll = false) {
+    const groups = new Map();
+    for (const t of data.tx) {
+      if (t.amount >= 0 || (accId && t.account !== accId)) continue;
+      const k = groupKey(t);
+      if (!k) continue;
+      if (!groups.has(k)) groups.set(k, []);
+      groups.get(k).push(t);
+    }
+    const out = [];
+    for (const [key, list] of groups) {
+      list.sort((a, b) => a.date.localeCompare(b.date));
+      const latest = list[list.length - 1];
+      const months = [...new Set(list.map((t) => t.date.slice(0, 7)))];
+      const amts = list.map((t) => Math.abs(t.amount));
+      const max = Math.max(...amts), min = Math.min(...amts);
+      const stable = (max - min) / max <= 0.15;
+      const text = `${latest.name} ${latest.purpose}`;
+      const hint = HINTS.find(([re]) => re.test(text));
+      const others = state.settings.persons.filter((p) => p !== state.settings.me);
+      const toPartner = others.find((p) => p.length >= 3 && new RegExp('\\b' + p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i').test(text));
+      const linked = !!data.links[key];
+      const recurring = (months.length >= 2 && stable) || (hint && Math.abs(latest.amount) >= 5) || toPartner;
+      if (!recurring && !linked && !includeAll) continue;
+      if (data.dismissed[key] && !linked && !includeAll) continue;
+      let interval = /jahres|jährlich|jaehrlich|p\.a\./i.test(text) ? 'year' : /quartal|vierteljähr|vierteljaehr/i.test(text) ? 'quarter' : 'month';
+      if (months.length >= 2) {
+        const idx = months.map(monthIdx);
+        const gaps = idx.slice(1).map((v, i) => v - idx[i]).sort((a, b) => a - b);
+        const g = gaps[Math.floor(gaps.length / 2)];
+        interval = g <= 1.5 ? 'month' : g <= 4.5 ? 'quarter' : 'year';
+      }
+      out.push({
+        key, list, latest, months, interval, toPartner,
+        amount: Math.abs(latest.amount),
+        name: hint ? hint[1] : (latest.name || latest.purpose || '').slice(0, 40),
+        category: hint ? hint[2] : guessCategory(text),
+        counterparty: latest.name || latest.purpose.slice(0, 40),
+      });
+    }
+    return out.sort((a, b) => (!!data.links[b.key] - !!data.links[a.key]) || b.amount - a.amount);
+  }
+
+  function presetFor(g, type) {
+    const start = g.months[0];
+    if (type === 'transfer') {
+      return { type: 'transfer', name: 'Haushaltsgeld', amount: g.amount, interval: g.interval, payer: state.settings.me, to: g.toPartner || otherPerson(), start };
+    }
+    return { type: 'fixed', name: g.name, amount: g.amount, interval: g.interval, category: g.category, payer: state.settings.me, start };
+  }
+
+  function linkGroup(g, type) {
+    delete data.dismissed[g.key];
+    openSubDialog(null, presetFor(g, type), (subId) => {
+      data.links[g.key] = subId; write(); window.render();
+      toast(type === 'transfer' ? '💶 Haushaltsgeld eingetragen ✓' : '🏠 Als gemeinsame Fixkosten übernommen ✓');
+    });
+  }
+
+  /** Neuer Betrag (z. B. Strom-Abschlag erhöht): alten Eintrag beenden, neuen ab diesem Monat anlegen */
+  function updateAmount(g) {
+    const s = linkedSub(g.key);
+    if (!s) return;
+    const L = g.latest.date.slice(0, 7);
+    if (s.start >= L) s.amount = g.amount;
+    else {
+      s.end = ymOf(monthIdx(L) - 1);
+      const n = { ...s, id: uid(), amount: g.amount, start: L, end: '' };
+      state.subs.push(n);
+      data.links[g.key] = n.id;
+    }
+    write(); save(); window.render();
+    toast(`Neuer Betrag ${fmt(g.amount)} ab ${L.split('-').reverse().join('/')} ✓`);
+  }
+
+  let lastGroups = [];
+  function renderRecurring(accId) {
+    const card = $('#kontoRecurringCard');
+    lastGroups = detect(accId);
+    card.hidden = !lastGroups.length;
+    if (!lastGroups.length) return;
+    const rhythm = { month: 'monatlich', quarter: 'vierteljährlich', year: 'jährlich' };
+    $('#kontoRecurring').innerHTML = lastGroups.map((g, i) => {
+      const s = linkedSub(g.key);
+      const day = +g.latest.date.slice(8, 10);
+      const sub = [esc(g.counterparty), `${rhythm[g.interval]}, ca. am ${day}.`, `${g.list.length}× gefunden`].join(' · ');
+      let actions;
+      if (s) {
+        const what = s.type === 'transfer' ? `✓ Haushaltsgeld an ${esc(s.to)}` : `✓ Gemeinsame Fixkosten „${esc(s.name)}“`;
+        const current = state.subs.find((x) => x.id === s.id);
+        const changed = current && Math.abs(current.amount - g.amount) > 0.009 && !current.end;
+        actions = `<span class="rec-linked">${what}</span>`
+          + (changed ? `<span class="rec-warn">⚠️ Letzte Buchung ${fmt(g.amount)} statt ${fmt(current.amount)}</span><button class="tx-add" data-act="update" data-i="${i}">Betrag übernehmen</button>` : '')
+          + `<button class="tx-add" data-act="edit" data-i="${i}">Bearbeiten</button>`;
+      } else {
+        const tr = `<button class="tx-add" data-act="transfer" data-i="${i}">💶 Haushaltsgeld</button>`;
+        const fx = `<button class="tx-add" data-act="fixed" data-i="${i}">＋ Fixkosten</button>`;
+        actions = (g.toPartner ? tr + fx : fx + tr) + `<button class="tx-add" data-act="dismiss" data-i="${i}">Privat / ausblenden</button>`;
+      }
+      return `<li class="row tx rec"><span class="emoji">🔁</span>
+        <span class="main"><div class="title">${esc(s ? s.name : g.name)}</div><div class="sub">${sub}</div><div class="actions">${actions}</div></span>
+        <span class="tx-right"><span class="amount">${fmt(g.amount)}</span></span></li>`;
+    }).join('');
+  }
+
+  function onRecurringClick(e) {
+    const b = e.target.closest('button[data-act]');
+    if (!b) return;
+    const g = lastGroups[+b.dataset.i];
+    if (!g) return;
+    const act = b.dataset.act;
+    if (act === 'fixed' || act === 'transfer') linkGroup(g, act);
+    else if (act === 'dismiss') { data.dismissed[g.key] = true; write(); render(); toast('Ausgeblendet – bleibt privat'); }
+    else if (act === 'update') updateAmount(g);
+    else if (act === 'edit') { const s = linkedSub(g.key); if (s) openSubDialog(s); }
+  }
+
+  /** Einzelne Buchung manuell als regelmäßig markieren */
+  function markTx(txId) {
+    const t = data.tx.find((x) => x.id === txId);
+    if (!t) return;
+    const key = groupKey(t);
+    const g = detect('', true).find((x) => x.key === key);
+    if (g) linkGroup(g, g.toPartner ? 'transfer' : 'fixed');
+  }
+
   // ---------- Anzeige ----------
   function selectedAccount() {
     let id = '';
@@ -209,6 +382,7 @@ const Konto = (() => {
       const id = selectedAccount(); const acc = data.accounts.find((a) => a.id === id);
       if (!acc || !confirm(`Alle importierten Umsätze von „${acc.name}“ auf diesem Gerät löschen? (Das Haushaltsbuch bleibt unverändert.)`)) return;
       data.tx = data.tx.filter((t) => t.account !== id);
+      Object.keys(data.links).forEach((k) => { if (k.startsWith(id + '|')) delete data.links[k]; });
       data.accounts = data.accounts.filter((a) => a.id !== id);
       write(); try { sessionStorage.removeItem('konto-acc'); } catch (e) { /* egal */ }
       render(); toast('Gelöscht');
@@ -216,7 +390,10 @@ const Konto = (() => {
     $('#kontoList').addEventListener('click', (e) => {
       const b = e.target.closest('button[data-add]');
       if (b) addToHousehold(b.dataset.add);
+      const r = e.target.closest('button[data-rec]');
+      if (r) markTx(r.dataset.rec);
     });
+    $('#kontoRecurring').addEventListener('click', onRecurringClick);
   }
 
   function render() {
@@ -241,6 +418,7 @@ const Konto = (() => {
     $('#kontoOut').textContent = fmt(Math.abs(out));
     const s = $('#kontoSaldo'); s.textContent = fmt(inc + out); s.className = 'kpi-value ' + (inc + out < 0 ? 'neg' : 'pos');
 
+    renderRecurring(accId);
     const root = $('#kontoList');
     if (!data.tx.length) { root.innerHTML = '<div class="empty-state">Noch keine Umsätze importiert.<br>Tippe auf <b>Umsätze importieren (CSV)</b>.</div>'; return; }
     if (!list.length) { root.innerHTML = '<div class="empty-state">Keine Buchungen in diesem Monat.<br>Mit ‹ › oben den Monat wechseln.</div>'; return; }
@@ -258,8 +436,13 @@ const Konto = (() => {
         const sub = [t.name ? t.purpose : '', !accId && data.accounts.length > 1 ? accName(t.account) : ''].filter(Boolean).map(esc).join(' · ');
         let action = '';
         if (t.amount < 0) {
-          if (t.linked && expIds.has(t.linked)) action = '<span class="tx-add done">✓ im Haushalt</span>';
-          else action = `<button class="tx-add" data-add="${esc(t.id)}">＋ Haushalt</button>` + (maybeCaptured(t) ? '<span class="muted" style="font-size:.7rem">evtl. schon erfasst</span>' : '');
+          const gk = groupKey(t);
+          const ls = gk ? linkedSub(gk) : null;
+          if (ls) action = `<span class="tx-tag">${ls.type === 'transfer' ? '💶 Haushaltsgeld' : '🔁 ' + esc(ls.name)}</span>`;
+          else if (t.linked && expIds.has(t.linked)) action = '<span class="tx-add done">✓ im Haushalt</span>';
+          else action = `<button class="tx-add" data-add="${esc(t.id)}">＋ Haushalt</button>`
+            + (maybeCaptured(t) ? '<span class="muted" style="font-size:.7rem">evtl. schon erfasst</span>' : '')
+            + `<button class="tx-mini" data-rec="${esc(t.id)}">🔁 regelmäßig</button>`;
         }
         return `<li class="row tx"><span class="emoji">${t.amount > 0 ? '⬇️' : '⬆️'}</span>
           <span class="main"><div class="title">${esc(t.name || t.purpose || 'Buchung')}</div><div class="sub">${sub}</div></span>
@@ -270,5 +453,5 @@ const Konto = (() => {
     root.innerHTML = html;
   }
 
-  return { render, parseStatement, _data: () => data };
+  return { render, parseStatement, detect, _data: () => data };
 })();

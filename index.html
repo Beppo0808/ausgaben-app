@@ -82,10 +82,16 @@
     <!-- Abos -->
     <section id="view-subs" class="view" aria-label="Abos">
       <div class="card">
-        <div class="card-head"><h2>Abos & Fixkosten</h2><span class="muted" id="subsTotal"></span></div>
-        <p class="hint">Werden automatisch in jedem Monat (bzw. jährlich im Startmonat) mitgezählt.</p>
+        <div class="card-head"><h2>🏠 Fixkosten & Abos</h2><span class="muted" id="subsTotal"></span></div>
+        <p class="hint">Miete, Strom, Versicherungen, Verträge … werden automatisch in jedem Monat mitgezählt – mit dem Namen, den ihr vergebt, und wer sie bezahlt.</p>
         <ul class="rows" id="subsList"></ul>
-        <button class="btn" id="addSubBtn">+ Abo / Fixkosten hinzufügen</button>
+        <button class="btn" id="addSubBtn">+ Fixkosten hinzufügen</button>
+      </div>
+      <div class="card">
+        <div class="card-head"><h2>💶 Haushaltsgeld zwischen euch</h2><span class="muted" id="transferTotal"></span></div>
+        <p class="hint">Regelmäßige Überweisungen von einem zum anderen (z. B. „Tom → Anna 1.200 € für Miete & Haushalt“). Ist <b>keine</b> Ausgabe, wird aber bei „Wer hat bezahlt?“ dem Überweisenden angerechnet.</p>
+        <ul class="rows" id="transferList"></ul>
+        <button class="btn" id="addTransferBtn">+ Haushaltsgeld hinzufügen</button>
       </div>
     </section>
 
@@ -114,6 +120,12 @@
           </ol>
           <p class="hint">Funktioniert mit Sparkasse, Volksbank, ING, DKB, comdirect, Commerzbank, Postbank, N26 u. a. Mehrfach importieren ist kein Problem – doppelte Buchungen werden erkannt.</p>
         </div>
+      </div>
+
+      <div class="card" id="kontoRecurringCard" hidden>
+        <div class="card-head"><h2>🔁 Regelmäßige Zahlungen</h2><span class="muted">automatisch erkannt</span></div>
+        <p class="hint">Gehört eine Abbuchung zum gemeinsamen Haushalt (Miete, Strom …)? Mit <b>＋ Fixkosten</b> benennen und übernehmen – geteilt wird nur dieser Eintrag, <b>nicht</b> deine Kontobuchungen.</p>
+        <ul class="rows" id="kontoRecurring"></ul>
       </div>
 
       <div class="kpis kpis-3">
@@ -231,7 +243,7 @@
   <nav class="tabbar" aria-label="Navigation">
     <button data-view="overview" class="active"><span>📊</span>Übersicht</button>
     <button data-view="list"><span>🧾</span>Ausgaben</button>
-    <button data-view="subs"><span>🔁</span>Abos</button>
+    <button data-view="subs"><span>🏠</span>Fixkosten</button>
     <button data-view="konto"><span>🏦</span>Mein Konto</button>
     <button data-view="settings"><span>⚙️</span>Einstellungen</button>
   </nav>
@@ -276,19 +288,29 @@
   <!-- Dialog: Abo -->
   <dialog id="subDialog">
     <form method="dialog" id="subForm">
-      <h2 id="subDialogTitle">Abo / Fixkosten</h2>
-      <label class="field">Name <input type="text" name="name" required placeholder="z. B. Netflix, Miete"></label>
+      <h2 id="subDialogTitle">Fixkosten</h2>
+      <label class="field">Art
+        <select name="type">
+          <option value="fixed">🏠 Fixkosten / Abo – Haushaltsausgabe</option>
+          <option value="transfer">💶 Haushaltsgeld – Überweisung zwischen euch</option>
+        </select>
+      </label>
+      <label class="field">Name <input type="text" name="name" placeholder="z. B. Miete, Strom, Netflix"></label>
       <div class="field-row">
         <label class="field">Betrag (€) <input type="text" inputmode="decimal" name="amount" required></label>
         <label class="field">Intervall
-          <select name="interval"><option value="month">monatlich</option><option value="year">jährlich</option></select>
+          <select name="interval"><option value="month">monatlich</option><option value="quarter">vierteljährlich</option><option value="year">jährlich</option></select>
         </label>
       </div>
       <div class="field-row">
-        <label class="field">Kategorie <select name="category"></select></label>
-        <label class="field">Seit <input type="month" name="start" required></label>
+        <label class="field" id="subPayerLabel">Bezahlt von <select name="payer"></select></label>
+        <label class="field only-transfer">An <select name="to"></select></label>
+        <label class="field only-fixed">Kategorie <select name="category"></select></label>
       </div>
-      <label class="field">Bezahlt von <select name="payer"></select></label>
+      <div class="field-row">
+        <label class="field">Seit <input type="month" name="start" required></label>
+        <label class="field">Bis (optional) <input type="month" name="end"></label>
+      </div>
       <div class="dialog-actions">
         <button type="button" class="btn btn-danger" id="deleteSubBtn">Löschen</button>
         <span class="spacer"></span>

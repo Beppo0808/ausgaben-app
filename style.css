@@ -315,3 +315,13 @@ dialog h2 { margin-bottom: 14px; font-size: 1.15rem; }
 /* „hidden“ muss immer gewinnen (sonst überschreibt z. B. .btn { display: inline-flex } das Ausblenden) */
 [hidden] { display: none !important; }
 dialog { max-height: calc(100dvh - 24px); overflow: auto; }
+
+/* Regelmäßige Zahlungen / Fixkosten */
+.row.ended { opacity: .55; }
+.rec .actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.rec .title { white-space: normal; }
+.rec-linked { color: var(--good); font-size: .8rem; font-weight: 600; }
+.rec-warn { color: var(--warning); font-size: .8rem; }
+.tx-tag { font-size: .75rem; color: var(--good); white-space: nowrap; }
+.tx-mini { border: 0; background: transparent; color: var(--muted); font-size: .75rem; cursor: pointer; padding: 2px 0; }
+#subsList .sub, #transferList .sub { white-space: normal; }

@@ -155,18 +155,33 @@ function shiftMonth(delta) {
   render();
 }
 
-/** Abos, die in einem Monat anfallen, als „virtuelle“ Ausgaben */
+const INTERVALS = { month: 'monatlich', quarter: 'vierteljährlich', year: 'jährlich' };
+/** Fällt ein wiederkehrender Eintrag (Fixkosten oder Haushaltsgeld) im Monat key (JJJJ-MM) an? */
+function subActive(s, key) {
+  if (!s.start || s.start > key) return false;
+  if (s.end && s.end < key) return false;
+  const diff = (+key.slice(0, 4) - +s.start.slice(0, 4)) * 12 + (+key.slice(5, 7) - +s.start.slice(5, 7));
+  if (s.interval === 'year') return diff % 12 === 0;
+  if (s.interval === 'quarter') return diff % 3 === 0;
+  return true;
+}
+function perMonth(s) { return s.interval === 'year' ? s.amount / 12 : s.interval === 'quarter' ? s.amount / 3 : s.amount; }
+const isTransfer = (s) => s.type === 'transfer';
+
+/** Haushaltsgeld-Überweisungen zwischen euch in einem Monat (zählen NICHT als Ausgabe) */
+function transfersForMonth(y, m) {
+  const key = monthKey(y, m);
+  return state.subs.filter((s) => isTransfer(s) && subActive(s, key));
+}
+
+/** Abos/Fixkosten, die in einem Monat anfallen, als „virtuelle“ Ausgaben */
 function subsForMonth(y, m) {
   const key = monthKey(y, m);
   return state.subs
-    .filter((s) => {
-      if (!s.start || s.start > key) return false;
-      if (s.interval === 'year') return s.start.slice(5, 7) === key.slice(5, 7);
-      return true;
-    })
+    .filter((s) => !isTransfer(s) && subActive(s, key))
     .map((s) => ({
       id: 'sub-' + s.id, subId: s.id, virtual: true, date: `${key}-01`, amount: s.amount,
-      merchant: s.name, category: s.category, person: s.payer || '', note: s.interval === 'year' ? 'jährlich' : 'monatlich',
+      merchant: s.name, category: s.category, person: s.payer || '', note: INTERVALS[s.interval] || 'monatlich',
     }));
 }
 
@@ -243,15 +258,24 @@ function renderOverview() {
 function renderWhoPaid(items) {
   const persons = state.settings.persons;
   const stats = {};
-  persons.forEach((p) => { stats[p] = { total: 0, count: 0, fixed: 0 }; });
+  const mk = () => ({ total: 0, count: 0, fixed: 0, given: 0, received: 0 });
+  persons.forEach((p) => { stats[p] = mk(); });
   let open = 0; // Fixkosten ohne zugeordnete Person (z. B. Gemeinschaftskonto)
   items.forEach((e) => {
     if (!e.person) { open += e.amount; return; }
-    const s = stats[e.person] || (stats[e.person] = { total: 0, count: 0, fixed: 0 });
+    const s = stats[e.person] || (stats[e.person] = mk());
     s.total += e.amount;
     if (e.virtual) s.fixed += e.amount; else s.count++;
   });
-  const rows = Object.entries(stats).filter(([p, s]) => s.total > 0 || persons.includes(p));
+  // Haushaltsgeld: wer überweist, hat (über den anderen) mitbezahlt
+  transfersForMonth(viewY, viewM).forEach((t) => {
+    if (!t.payer || !t.to || t.payer === t.to) return;
+    const from = stats[t.payer] || (stats[t.payer] = mk());
+    const to = stats[t.to] || (stats[t.to] = mk());
+    from.total += t.amount; from.given += t.amount;
+    to.total -= t.amount; to.received += t.amount;
+  });
+  const rows = Object.entries(stats).filter(([p, s]) => s.total !== 0 || s.received || persons.includes(p));
   const sum = rows.reduce((a, [, s]) => a + s.total, 0);
   const ul = $('#whoList');
   if (!sum) {
@@ -261,12 +285,13 @@ function renderWhoPaid(items) {
     return;
   }
   ul.innerHTML = rows.sort((a, b) => b[1].total - a[1].total).map(([p, s]) => {
-    const pct = (s.total / sum) * 100;
+    const pct = Math.min(100, Math.max(0, (s.total / sum) * 100));
     const i = personIndex(p);
-    const detail = [`${s.count} ${s.count === 1 ? 'Einkauf' : 'Einkäufe'}`, s.fixed ? `Fixkosten ${fmt0(s.fixed)}` : ''].filter(Boolean).join(' · ');
+    const detail = [s.count ? `${s.count} ${s.count === 1 ? 'Einkauf' : 'Einkäufe'}` : '', s.fixed ? `Fixkosten ${fmt0(s.fixed)}` : '',
+      s.given ? `+ Haushaltsgeld ${fmt0(s.given)}` : '', s.received ? `− erhaltenes Haushaltsgeld ${fmt0(s.received)}` : ''].filter(Boolean).join(' · ');
     return `<li data-person="${esc(p)}">
       <div class="who-line">${personAvatar(p)}<span class="who-name">${esc(p)}<span class="muted who-detail">${esc(detail)}</span></span>
-        <span class="amt"><b>${fmt(s.total)}</b> <span class="muted">${Math.round(pct)} %</span></span></div>
+        <span class="amt">${s.total < 0 ? `<span class="muted">Überschuss</span> <b>${fmt(-s.total)}</b>` : `<b>${fmt(s.total)}</b> <span class="muted">${Math.round(pct)} %</span>`}</span></div>
       <div class="progress"><div class="progress-fill ${i > -1 ? 'bg-p' + (i % 4) : ''}" style="width:${pct}%"></div></div>
     </li>`;
   }).join('');
@@ -436,17 +461,31 @@ function renderList() {
 }
 
 function renderSubs() {
+  const key = monthKey(now.getFullYear(), now.getMonth());
+  const ended = (s) => s.end && s.end < key;
+  const until = (s) => (s.end ? (ended(s) ? 'beendet ' : 'bis ') + s.end.split('-').reverse().join('/') : '');
+
+  const fixed = state.subs.filter((s) => !isTransfer(s));
   const ul = $('#subsList');
-  const monthly = state.subs.reduce((a, s) => a + (s.interval === 'year' ? s.amount / 12 : s.amount), 0);
-  $('#subsTotal').textContent = state.subs.length ? `≈ ${fmt(monthly)} / Monat` : '';
-  if (!state.subs.length) { ul.innerHTML = '<li class="empty-state">Noch keine Abos. Miete, Handyvertrag, Netflix …</li>'; return; }
-  ul.innerHTML = [...state.subs].sort((a, b) => b.amount - a.amount).map((s) => {
+  const monthly = fixed.filter((s) => !ended(s)).reduce((a, s) => a + perMonth(s), 0);
+  $('#subsTotal').textContent = fixed.length ? `≈ ${fmt(monthly)} / Monat` : '';
+  ul.innerHTML = fixed.length ? [...fixed].sort((a, b) => ended(a) - ended(b) || b.amount - a.amount).map((s) => {
     const c = catById(s.category);
-    return `<li class="row" data-id="${esc(s.id)}"><span class="emoji">${esc(c.emoji)}</span>
-      <span class="main"><div class="title">${esc(s.name)}</div><div class="sub">${[s.interval === 'year' ? 'jährlich' : 'monatlich', esc(c.name), s.payer ? personTag(s.payer) : 'gemeinsam'].join(' · ')}</div></span>
+    return `<li class="row ${ended(s) ? 'ended' : ''}" data-id="${esc(s.id)}"><span class="emoji">${esc(c.emoji)}</span>
+      <span class="main"><div class="title">${esc(s.name)}</div><div class="sub">${[esc(INTERVALS[s.interval] || 'monatlich'), esc(c.name), s.payer ? personTag(s.payer) : 'gemeinsam', esc(until(s))].filter(Boolean).join(' · ')}</div></span>
       <span class="amount">${fmt(s.amount)}</span></li>`;
-  }).join('');
-  $$('.row', ul).forEach((row) => row.addEventListener('click', () => openSubDialog(state.subs.find((s) => s.id === row.dataset.id))));
+  }).join('') : '<li class="empty-state">Noch keine Fixkosten. Miete, Strom, Handyvertrag, Netflix …<br>Tipp: In „Mein Konto“ werden regelmäßige Abbuchungen automatisch erkannt.</li>';
+
+  const tr = state.subs.filter(isTransfer);
+  const tl = $('#transferList');
+  const tMonthly = tr.filter((s) => !ended(s)).reduce((a, s) => a + perMonth(s), 0);
+  $('#transferTotal').textContent = tr.length ? `≈ ${fmt(tMonthly)} / Monat` : '';
+  tl.innerHTML = tr.length ? tr.map((s) => `<li class="row ${ended(s) ? 'ended' : ''}" data-id="${esc(s.id)}"><span class="emoji">💶</span>
+      <span class="main"><div class="title">${esc(s.name || 'Haushaltsgeld')}</div><div class="sub">${[personTag(s.payer), '→', personTag(s.to), esc(INTERVALS[s.interval] || 'monatlich'), esc(until(s))].filter(Boolean).join(' ')}</div></span>
+      <span class="amount">${fmt(s.amount)}</span></li>`).join('')
+    : '<li class="empty-state">Überweist einer von euch dem anderen regelmäßig Geld für den Haushalt? Dann hier eintragen – es zählt bei „Wer hat bezahlt?“, aber nicht als Ausgabe.</li>';
+
+  $$('.row', ul).concat($$('.row', tl)).forEach((row) => row.addEventListener('click', () => openSubDialog(state.subs.find((s) => s.id === row.dataset.id))));
 }
 
 function renderSettings() {
@@ -588,18 +627,37 @@ function saveExpenseFromForm() {
 
 // ---------- Sub dialog ----------
 let editingSubId = null;
-function openSubDialog(sub) {
+let subSavedCb = null;
+function syncSubType() {
   const f = $('#subForm');
+  const t = f.type.value === 'transfer';
+  $$('.only-fixed', f).forEach((el) => { el.hidden = t; });
+  $$('.only-transfer', f).forEach((el) => { el.hidden = !t; });
+  $('#subPayerLabel').firstChild.textContent = t ? 'Von ' : 'Bezahlt von ';
+  if (t && !f.name.value) f.name.placeholder = 'z. B. Haushaltsgeld';
+}
+/** sub: vorhandener Eintrag; preset: Vorbelegung (z. B. aus „Mein Konto“); onSaved(id): Rückmeldung */
+function openSubDialog(sub, preset = null, onSaved = null) {
+  const f = $('#subForm');
+  const v = sub || preset || {};
   editingSubId = sub ? sub.id : null;
-  f.name.value = sub ? sub.name : '';
-  f.amount.value = sub ? String(sub.amount).replace('.', ',') : '';
-  f.interval.value = sub ? sub.interval : 'month';
+  subSavedCb = onSaved;
+  const persons = state.settings.persons;
+  f.type.value = v.type === 'transfer' ? 'transfer' : 'fixed';
+  f.name.value = v.name || '';
+  f.amount.value = v.amount ? String(v.amount).replace('.', ',') : '';
+  f.interval.value = INTERVALS[v.interval] ? v.interval : 'month';
   f.category.innerHTML = state.categories.map((c) => `<option value="${esc(c.id)}">${esc(c.emoji)} ${esc(c.name)}</option>`).join('');
-  f.category.value = sub ? sub.category : (state.categories.some((c) => c.id === 'abos') ? 'abos' : state.categories[0].id);
-  f.start.value = sub ? sub.start : monthKey(viewY, viewM);
-  f.payer.innerHTML = '<option value="">Gemeinsam / Gemeinschaftskonto</option>' + state.settings.persons.map((p) => `<option>${esc(p)}</option>`).join('');
-  f.payer.value = sub && sub.payer ? sub.payer : '';
+  f.category.value = v.category && state.categories.some((c) => c.id === v.category) ? v.category : (state.categories.some((c) => c.id === 'abos') ? 'abos' : state.categories[0].id);
+  f.start.value = v.start || monthKey(viewY, viewM);
+  f.end.value = v.end || '';
+  f.payer.innerHTML = '<option value="">Gemeinsam / Gemeinschaftskonto</option>' + persons.map((p) => `<option>${esc(p)}</option>`).join('');
+  f.payer.value = v.payer !== undefined ? v.payer : '';
+  f.to.innerHTML = persons.map((p) => `<option>${esc(p)}</option>`).join('');
+  f.to.value = v.to || persons.find((p) => p !== (v.payer || state.settings.me)) || persons[0];
+  $('#subDialogTitle').textContent = sub ? 'Bearbeiten' : 'Neu: Fixkosten oder Haushaltsgeld';
   $('#deleteSubBtn').hidden = !sub;
+  syncSubType();
   $('#subDialog').showModal();
 }
 
@@ -784,14 +842,23 @@ function bind() {
     const f = e.target;
     const amount = parseAmount(f.amount.value);
     if (!(amount > 0)) { toast('Bitte einen gültigen Betrag eingeben'); return; }
-    const data = { name: f.name.value.trim(), amount, interval: f.interval.value, category: f.category.value, start: f.start.value, payer: f.payer.value };
-    if (editingSubId) Object.assign(state.subs.find((s) => s.id === editingSubId), data);
-    else state.subs.push({ id: uid(), ...data });
+    const type = f.type.value === 'transfer' ? 'transfer' : 'fixed';
+    if (f.end.value && f.end.value < f.start.value) { toast('„Bis“ liegt vor „Seit“'); return; }
+    const data = { type, name: f.name.value.trim() || (type === 'transfer' ? 'Haushaltsgeld' : ''), amount, interval: f.interval.value,
+      category: f.category.value, start: f.start.value, end: f.end.value || '', payer: f.payer.value, to: type === 'transfer' ? f.to.value : '' };
+    if (!data.name) { toast('Bitte einen Namen eingeben, z. B. Miete'); return; }
+    if (type === 'transfer' && (!data.payer || data.payer === data.to)) { toast('Bitte „Von“ und „An“ (zwei verschiedene Personen) wählen'); return; }
+    let id = editingSubId;
+    if (id) Object.assign(state.subs.find((s) => s.id === id), data);
+    else { id = uid(); state.subs.push({ id, ...data }); }
     save(); render(); $('#subDialog').close();
+    if (subSavedCb) { const cb = subSavedCb; subSavedCb = null; cb(id); }
   });
+  $('#subForm').type.addEventListener('change', syncSubType);
+  $('#addTransferBtn').onclick = () => openSubDialog(null, { type: 'transfer', payer: state.settings.me, name: 'Haushaltsgeld' });
   $('#cancelSubBtn').onclick = () => $('#subDialog').close();
   $('#deleteSubBtn').onclick = () => {
-    if (!editingSubId || !confirm('Dieses Abo löschen?')) return;
+    if (!editingSubId || !confirm('Diesen Eintrag löschen? (Er verschwindet auch aus vergangenen Monaten. Wenn er nur endet: stattdessen „Bis“ setzen.)')) return;
     state.subs = state.subs.filter((s) => s.id !== editingSubId);
     save(); render(); $('#subDialog').close();
   };

@@ -122,6 +122,25 @@ jede Zahlung zusätzlich per Tipp auf privat/gemeinsam umschalten.
 - Die Suche in „Ausgaben“ findet auch Artikel, z. B. „Kaffee“ → *Kaffee Crema 1kg 12,99 € bei ALDI*.
 - Artikel lassen sich jederzeit über die Ausgabe → **🧾 Artikel bearbeiten** ändern oder nachträglich hinzufügen.
 
+## Fixkosten & Haushaltsgeld 🏠💶
+**Fixkosten** (Miete, Strom, Versicherungen, Verträge …) legt ihr unter **🏠 Fixkosten** an – mit Name, Betrag,
+Intervall (monatlich/vierteljährlich/jährlich), Kategorie, **wer sie bezahlt** und optional „Bis“, wenn ein Vertrag endet.
+Sie zählen automatisch in jedem Monat zu den gemeinsamen Ausgaben.
+
+**Haushaltsgeld** sind Überweisungen zwischen euch (z. B. Tom → Anna 1.200 € monatlich, von Annas Konto geht dann die
+Miete ab). Das ist **keine** Ausgabe, wird aber bei „Wer hat bezahlt?“ dem Überweisenden angerechnet und beim
+Empfänger abgezogen.
+
+**Automatisch aus dem Konto:** „Mein Konto“ erkennt regelmäßige Abbuchungen (gleicher Empfänger, ähnlicher Betrag,
+jeden Monat – oder typische wie Miete, Stadtwerke, Versicherung) und schlägt sie vor:
+- **＋ Fixkosten** → Name vergeben (z. B. „Miete“), fertig. Gemeinsam sichtbar ist **nur dieser Eintrag** –
+  die Kontobuchungen selbst bleiben privat.
+- **💶 Haushaltsgeld** → für den Dauerauftrag an den Partner.
+- **Privat / ausblenden** → bleibt privat und wird nicht mehr vorgeschlagen.
+- Ändert sich der Betrag (z. B. neuer Strom-Abschlag), zeigt die App das an; „Betrag übernehmen“ gilt ab dem neuen
+  Monat, vergangene Monate behalten den alten Betrag.
+- Nicht erkannt? Bei jeder Abbuchung gibt es **🔁 regelmäßig** zum manuellen Markieren.
+
 ## Mein Konto (Kontoumsätze ansehen)
 1. Im Online-Banking (in Safari) zu **Umsätze** → Zeitraum wählen → **Export als CSV**
 2. In der App **🏦 Mein Konto → Umsätze importieren (CSV)** → Datei aus „Downloads“ wählen → Kontoname eingeben
