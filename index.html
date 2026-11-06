@@ -70,8 +70,9 @@
 
     <!-- Ausgaben -->
     <section id="view-list" class="view" aria-label="Ausgaben">
+      <button class="btn btn-scan" id="scanBtnList">🧾 Kassenbon scannen</button>
       <div class="filters">
-        <input type="search" id="searchInput" placeholder="Suchen (Händler, Notiz …)" aria-label="Suchen">
+        <input type="search" id="searchInput" placeholder="Suchen (Laden, Artikel, Notiz …)" aria-label="Suchen">
         <select id="filterCat" aria-label="Kategorie filtern"></select>
         <select id="filterPerson" aria-label="Person filtern"></select>
       </div>
@@ -238,7 +239,10 @@
   <!-- Dialog: Ausgabe -->
   <dialog id="expenseDialog">
     <form method="dialog" id="expenseForm">
-      <h2 id="expenseDialogTitle">Neue Ausgabe</h2>
+      <div class="dialog-head">
+        <h2 id="expenseDialogTitle">Neue Ausgabe</h2>
+        <button type="button" class="btn btn-scan-sm" id="scanBtnDialog">🧾 Bon scannen</button>
+      </div>
       <label class="field">Betrag (€)
         <input type="text" inputmode="decimal" name="amount" required placeholder="0,00" autocomplete="off">
       </label>
@@ -255,6 +259,11 @@
       </div>
       <label class="field">Notiz <input type="text" name="note" autocomplete="off"></label>
       <label class="check"><input type="checkbox" name="private"> 🔒 Privat – nur auf meinem Gerät, wird nicht geteilt</label>
+      <div id="expItems" hidden>
+        <div class="card-head"><h2 class="small-h">🧾 Artikel</h2><button type="button" class="btn btn-ghost btn-sm" id="expItemsEdit">Bearbeiten</button></div>
+        <ul class="item-list" id="expItemsList"></ul>
+      </div>
+      <button type="button" class="btn btn-ghost btn-sm" id="expItemsAdd" hidden>🧾 Artikel vom Bon hinzufügen</button>
       <div class="dialog-actions">
         <button type="button" class="btn btn-danger" id="deleteExpenseBtn">Löschen</button>
         <span class="spacer"></span>
@@ -289,6 +298,43 @@
     </form>
   </dialog>
 
+  <!-- Dialog: Kassenbon -->
+  <dialog id="receiptDialog">
+    <div class="receipt">
+      <h2 id="rcTitle">🧾 Kassenbon scannen</h2>
+      <div id="rcPick">
+        <p class="hint">Bon glatt hinlegen, gut beleuchten und so fotografieren, dass er das Bild ausfüllt. Die Texterkennung läuft <b>auf diesem Gerät</b> – das Foto wird nicht hochgeladen und nicht gespeichert.</p>
+        <div class="btn-row">
+          <label class="btn btn-primary btn-file">📷 Foto aufnehmen / auswählen<input type="file" id="rcFile" accept="image/*"></label>
+          <button type="button" class="btn btn-ghost" id="rcManual">Ohne Foto eintippen</button>
+        </div>
+      </div>
+      <img id="rcPreview" alt="Kassenbon" hidden>
+      <div class="progress" id="rcProgress" hidden><div class="progress-fill"></div></div>
+      <p class="hint" id="rcStatus"></p>
+      <div id="rcForm" hidden>
+        <div class="field-row">
+          <label class="field">Laden <input type="text" id="rcStore" placeholder="z. B. ALDI"></label>
+          <label class="field">Datum <input type="date" id="rcDate"></label>
+        </div>
+        <div class="field-row">
+          <label class="field">Bon-Summe (€) <input type="text" inputmode="decimal" id="rcTotal"></label>
+          <label class="field">Bezahlt von <select id="rcPerson"></select></label>
+        </div>
+        <label class="check"><input type="checkbox" id="rcPrivate"> 🔒 Privat – nur auf meinem Gerät</label>
+        <div class="field">Artikel</div>
+        <ul class="items-edit" id="rcItems"></ul>
+        <button type="button" class="btn btn-ghost btn-sm" id="rcAddItem">+ Artikel</button>
+        <p class="hint" id="rcCheck"></p>
+      </div>
+      <div class="dialog-actions">
+        <span class="spacer"></span>
+        <button type="button" class="btn btn-ghost" id="rcCancel">Abbrechen</button>
+        <button type="button" class="btn btn-primary" id="rcSave">Speichern</button>
+      </div>
+    </div>
+  </dialog>
+
   <!-- Erfasst-Hinweis (nach Handy-Zahlung) -->
   <div class="sheet" id="capturedSheet" hidden>
     <div class="sheet-head">
@@ -308,6 +354,7 @@
 
   <script src="sync.js"></script>
   <script src="konto.js"></script>
+  <script src="receipt.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

@@ -399,7 +399,7 @@ function renderList() {
   const items = expensesForMonth(viewY, viewM)
     .filter((e) => !fc.value || e.category === fc.value)
     .filter((e) => !fp.value || (fp.value === '__private' ? e.private : fp.value === '__shared' ? !e.private : e.person === fp.value))
-    .filter((e) => !q || `${e.merchant} ${e.note} ${catById(e.category).name}`.toLowerCase().includes(q))
+    .filter((e) => !q || `${e.merchant} ${e.note} ${catById(e.category).name} ${(e.items || []).map((it) => it.name).join(' ')}`.toLowerCase().includes(q))
     .sort((a, b) => (b.date + (b.created || '')).localeCompare(a.date + (a.created || '')));
 
   const root = $('#expenseList');
@@ -417,10 +417,12 @@ function renderList() {
     html += list.map((e) => {
       const c = catById(e.category);
       const sub = [personTag(e.person), esc(timeOf(e)), esc(c.name), esc(e.note)].filter(Boolean).join(' · ');
-      const badge = (e.private ? '<span class="badge badge-private">🔒 privat</span>' : '') + (e.source === 'wallet' ? '<span class="badge">📲 Handy</span>' : '');
+      const itemHits = q && e.items ? e.items.filter((it) => it.name.toLowerCase().includes(q)).slice(0, 3) : [];
+      const hitLine = itemHits.length ? `<div class="sub hit">🔎 ${itemHits.map((it) => `${esc(it.name)} ${fmt(it.price)}`).join(' · ')}</div>` : '';
+      const badge = (e.private ? '<span class="badge badge-private">🔒 privat</span>' : '') + (e.source === 'wallet' ? '<span class="badge">📲 Handy</span>' : '') + (e.items && e.items.length ? `<span class="badge">🧾 ${e.items.length}</span>` : '');
       return `<li class="row ${e.virtual ? 'virtual' : ''}" data-id="${esc(e.id)}">
         <span class="emoji">${esc(c.emoji)}</span>
-        <span class="main"><div class="title">${esc(e.merchant || c.name)}${badge}</div><div class="sub">${sub}</div></span>
+        <span class="main"><div class="title">${esc(e.merchant || c.name)}${badge}</div><div class="sub">${sub}</div>${hitLine}</span>
         <span class="amount">${fmt(e.amount)}</span></li>`;
     }).join('');
     html += '</ul></div>';
@@ -551,6 +553,11 @@ function openExpenseDialog(exp) {
   chosenCat = exp ? exp.category : null;
   renderChips($('#catChips'), chosenCat, (id) => { chosenCat = id; });
   $('#deleteExpenseBtn').hidden = !exp;
+  $('#scanBtnDialog').hidden = !!exp;
+  const its = exp && exp.items ? exp.items : [];
+  $('#expItems').hidden = !its.length;
+  $('#expItemsAdd').hidden = !exp || !!its.length;
+  $('#expItemsList').innerHTML = its.map((it) => `<li><span>${esc(it.name)}</span><span>${fmt(it.price)}</span></li>`).join('');
   const merchants = [...new Set(state.expenses.map((e) => e.merchant).filter(Boolean))].slice(-200);
   $('#merchantList').innerHTML = merchants.map((m) => `<option value="${esc(m)}">`).join('');
   dlg.showModal();
@@ -750,6 +757,16 @@ function bind() {
     if (saveExpenseFromForm()) $('#expenseDialog').close();
   });
   $('#cancelExpenseBtn').onclick = () => $('#expenseDialog').close();
+  // Kassenbon
+  $('#scanBtnList').onclick = () => Receipt.open();
+  $('#scanBtnDialog').onclick = () => { $('#expenseDialog').close(); Receipt.open(); };
+  const editItems = () => {
+    const e = state.expenses.find((x) => x.id === editingId);
+    if (!e) return;
+    $('#expenseDialog').close(); Receipt.editExpense(e);
+  };
+  $('#expItemsEdit').onclick = editItems;
+  $('#expItemsAdd').onclick = editItems;
   $('#deleteExpenseBtn').onclick = () => {
     if (!editingId || !confirm('Diese Ausgabe löschen?')) return;
     state.expenses = state.expenses.filter((e) => e.id !== editingId);

@@ -9,6 +9,7 @@ inklusive **automatischer Erfassung, sobald mit dem iPhone (Apple Pay) bezahlt w
 - 🏷️ **Automatische Kategorien**: REWE → Lebensmittel, Aral → Tanken … und die App lernt aus jeder Korrektur
 - 👫 **Personen**: wer hat bezahlt?
 - 🔒 **Privat bleibt privat**: eigenes Einkommen, private Ausgaben und Kontobewegungen bleiben nur auf dem eigenen Gerät
+- 🧾 **Kassenbon scannen**: Foto vom Bon → Laden, Datum, Summe und Artikel mit Preisen werden erkannt (auf dem Gerät)
 - 🏦 **Mein Konto**: Kontoumsätze per CSV-Export aus dem Online-Banking ansehen (nur lesen), einzelne Ausgaben per Tipp ins Haushaltsbuch übernehmen
 - ☁️ **Synchronisation** zwischen allen iPhones und iPads (über euer eigenes, kostenloses Supabase-Projekt)
 - 💾 **Backup / CSV-Export** (für Excel, Numbers oder Google Sheets)
@@ -109,6 +110,18 @@ jede Zahlung zusätzlich per Tipp auf privat/gemeinsam umschalten.
 > Hinweis: Kurzbefehle öffnen Safari. Private Einträge liegen daher im Speicher von Safari – nutzt die App für
 > den privaten Teil am besten auch in Safari.
 
+## Kassenbon scannen 🧾
+1. **Ausgaben → 🧾 Kassenbon scannen** (oder im „+“-Dialog oben rechts)
+2. Bon glatt hinlegen, gut beleuchten, Foto aufnehmen oder aus den Fotos wählen
+3. Die App liest **Laden, Datum, Summe und alle Artikel mit Preis** aus – prüfen, ggf. korrigieren, **Speichern**
+
+- Die Texterkennung läuft **direkt auf dem Gerät** (Tesseract.js). Das Foto wird weder hochgeladen noch gespeichert –
+  nur Laden, Datum, Summe und Artikel. Beim allerersten Scan wird die Texterkennung einmalig geladen (ca. 5 MB).
+- Wurde die Zahlung schon per Handy erfasst (gleicher Betrag, gleicher Tag), schlägt die App vor, die Artikel
+  **dort** zu hinterlegen – so gibt es keine doppelte Buchung, und Person/Uhrzeit bleiben erhalten.
+- Die Suche in „Ausgaben“ findet auch Artikel, z. B. „Kaffee“ → *Kaffee Crema 1kg 12,99 € bei ALDI*.
+- Artikel lassen sich jederzeit über die Ausgabe → **🧾 Artikel bearbeiten** ändern oder nachträglich hinzufügen.
+
 ## Mein Konto (Kontoumsätze ansehen)
 1. Im Online-Banking (in Safari) zu **Umsätze** → Zeitraum wählen → **Export als CSV**
 2. In der App **🏦 Mein Konto → Umsätze importieren (CSV)** → Datei aus „Downloads“ wählen → Kontoname eingeben
@@ -140,4 +153,4 @@ im Laden bezahlt – die Einträge erscheinen per Synchronisation aber sofort au
 | `datum`    | Datum `JJJJ-MM-TT` (Standard: heute)   | `2026-11-06`    |
 
 ## Dateien
-`index.html` · `style.css` · `app.js` (App-Logik) · `sync.js` (Synchronisation) · `konto.js` (Kontoumsätze) · `supabase.sql` (Datenbank-Setup) · `sw.js` (Offline) · `manifest.webmanifest` · Icons
+`index.html` · `style.css` · `app.js` (App-Logik) · `sync.js` (Synchronisation) · `konto.js` (Kontoumsätze) · `receipt.js` (Kassenbon-Scan) · `supabase.sql` (Datenbank-Setup) · `sw.js` (Offline) · `manifest.webmanifest` · Icons
