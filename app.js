@@ -33,7 +33,7 @@ const KEYWORD_RULES = [
 function defaultState() {
   return {
     version: 1,
-    settings: { income: 3000, budget: 2000, persons: ['Ich', 'Partner'], me: 'Ich' },
+    settings: { income: 0, budget: 2000, persons: ['Ich', 'Partner'], me: 'Ich' }, // income = privat, wird nie synchronisiert
     categories: structuredClone(DEFAULT_CATEGORIES),
     expenses: [],
     subs: [],
@@ -164,20 +164,43 @@ function render() {
   renderList();
   renderSubs();
   renderSettings();
+  if (typeof Konto !== 'undefined') Konto.render();
 }
 
 function renderOverview() {
-  const items = expensesForMonth(viewY, viewM);
+  const all = expensesForMonth(viewY, viewM);
+  const items = all.filter((e) => !e.private); // Haushalt = alles Gemeinsame
   const spent = round2(items.reduce((a, e) => a + e.amount, 0));
-  const income = Number(state.settings.income) || 0;
+  const fixed = round2(items.filter((e) => e.virtual).reduce((a, e) => a + e.amount, 0));
   const budget = Number(state.settings.budget) || 0;
-  const left = income - spent;
+  const left = budget - spent;
 
-  $('#kpiIncome').textContent = fmt(income);
+  $('#kpiBudget').textContent = budget > 0 ? fmt(budget) : '–';
   $('#kpiSpent').textContent = fmt(spent);
+  $('#kpiSpentSub').textContent = `Fixkosten ${fmt0(fixed)} · Alltag ${fmt0(spent - fixed)}`;
   const leftEl = $('#kpiLeft');
-  leftEl.textContent = fmt(left);
+  leftEl.textContent = budget > 0 ? fmt(left) : '–';
   leftEl.className = 'kpi-value ' + (left < 0 ? 'neg' : '');
+
+  // Wer hat bezahlt (nur Alltagsausgaben, Fixkosten sind gemeinsam)
+  const byPerson = {};
+  items.filter((e) => !e.virtual && e.person).forEach((e) => { byPerson[e.person] = (byPerson[e.person] || 0) + e.amount; });
+  $('#paidBy').textContent = Object.keys(byPerson).length
+    ? 'Bezahlt: ' + Object.entries(byPerson).map(([p, v]) => `${p} ${fmt0(v)}`).join(' · ') : '';
+
+  // Privater Bereich – nur auf diesem Gerät
+  const me = state.settings.me;
+  const income = Number(state.settings.income) || 0;
+  const mine = round2(all.filter((e) => !e.virtual && (e.private || e.person === me)).reduce((a, e) => a + e.amount, 0));
+  const minePrivate = round2(all.filter((e) => e.private).reduce((a, e) => a + e.amount, 0));
+  $('#meTitle').textContent = `🔒 Nur für dich${me ? ' (' + me + ')' : ''}`;
+  $('#meIncome').textContent = income ? fmt(income) : '–';
+  $('#meSpent').textContent = fmt(mine);
+  $('#meSpentSub').textContent = minePrivate ? `davon privat ${fmt0(minePrivate)}` : '';
+  const meLeft = $('#meLeft');
+  meLeft.textContent = income ? fmt(income - mine) : '–';
+  meLeft.className = 'kpi-value ' + (income && income - mine < 0 ? 'neg' : '');
+  $('#meHint').hidden = !!income;
 
   const pct = budget > 0 ? spent / budget : 0;
   const bar = $('#budgetBar');
@@ -294,13 +317,13 @@ function renderList() {
   const fc = $('#filterCat'), fp = $('#filterPerson');
   const prevC = fc.value, prevP = fp.value;
   fc.innerHTML = '<option value="">Alle Kategorien</option>' + state.categories.map((c) => `<option value="${esc(c.id)}">${esc(c.emoji)} ${esc(c.name)}</option>`).join('');
-  fp.innerHTML = '<option value="">Alle Personen</option>' + state.settings.persons.map((p) => `<option>${esc(p)}</option>`).join('');
+  fp.innerHTML = '<option value="">Alle (gemeinsam + privat)</option><option value="__shared">Nur gemeinsame</option><option value="__private">🔒 Nur meine privaten</option>' + state.settings.persons.map((p) => `<option>${esc(p)}</option>`).join('');
   fc.value = prevC; fp.value = prevP;
 
   const q = $('#searchInput').value.trim().toLowerCase();
   const items = expensesForMonth(viewY, viewM)
     .filter((e) => !fc.value || e.category === fc.value)
-    .filter((e) => !fp.value || e.person === fp.value)
+    .filter((e) => !fp.value || (fp.value === '__private' ? e.private : fp.value === '__shared' ? !e.private : e.person === fp.value))
     .filter((e) => !q || `${e.merchant} ${e.note} ${catById(e.category).name}`.toLowerCase().includes(q))
     .sort((a, b) => (b.date + (b.created || '')).localeCompare(a.date + (a.created || '')));
 
@@ -319,7 +342,7 @@ function renderList() {
     html += list.map((e) => {
       const c = catById(e.category);
       const sub = [c.name, e.person, e.note].filter(Boolean).map(esc).join(' · ');
-      const badge = e.source === 'wallet' ? '<span class="badge">📲 Handy</span>' : '';
+      const badge = (e.private ? '<span class="badge badge-private">🔒 privat</span>' : '') + (e.source === 'wallet' ? '<span class="badge">📲 Handy</span>' : '');
       return `<li class="row ${e.virtual ? 'virtual' : ''}" data-id="${esc(e.id)}">
         <span class="emoji">${esc(c.emoji)}</span>
         <span class="main"><div class="title">${esc(e.merchant || c.name)}${badge}</div><div class="sub">${sub}</div></span>
@@ -417,8 +440,9 @@ function shortcutUrl() {
 function showView(name) {
   $$('.view').forEach((v) => v.classList.toggle('active', v.id === 'view-' + name));
   $$('.tabbar button').forEach((b) => b.classList.toggle('active', b.dataset.view === name));
-  $('#fab').hidden = name === 'settings';
+  $('#fab').hidden = name === 'settings' || name === 'konto';
   if (name === 'overview') renderOverview(); // Diagramm an sichtbare Breite anpassen
+  if (name === 'konto' && typeof Konto !== 'undefined') Konto.render();
   window.scrollTo({ top: 0 });
   try { sessionStorage.setItem('ausgaben-view', name); } catch (e) { /* egal */ }
 }
@@ -446,6 +470,7 @@ function openExpenseDialog(exp) {
   const isCurrent = viewY === now.getFullYear() && viewM === now.getMonth();
   f.date.value = exp ? exp.date : (isCurrent ? todayISO() : `${monthKey(viewY, viewM)}-01`);
   f.note.value = exp ? exp.note || '' : '';
+  f.private.checked = !!(exp && exp.private);
   f.person.innerHTML = state.settings.persons.map((p) => `<option>${esc(p)}</option>`).join('');
   f.person.value = exp ? exp.person : state.settings.me;
   chosenCat = exp ? exp.category : null;
@@ -464,7 +489,7 @@ function saveExpenseFromForm() {
   const merchant = f.merchant.value.trim();
   const category = chosenCat || guessCategory(merchant);
   if (chosenCat && merchant) learnRule(merchant, chosenCat);
-  const data = { amount, merchant, category, date: f.date.value || todayISO(), person: f.person.value, note: f.note.value.trim() };
+  const data = { amount, merchant, category, date: f.date.value || todayISO(), person: f.person.value, note: f.note.value.trim(), private: f.private.checked };
   if (editingId) {
     const e = state.expenses.find((x) => x.id === editingId);
     Object.assign(e, data);
@@ -520,6 +545,7 @@ function handleIncomingUrl() {
   const personParam = (params.get('person') || '').trim();
   const person = state.settings.persons.includes(personParam) ? personParam : state.settings.me;
   const card = (params.get('karte') ?? params.get('card') ?? '').trim().slice(0, 40);
+  const isPrivate = /^(1|ja|true)$/i.test(params.get('privat') || '');
   let date = params.get('datum') || todayISO();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) date = todayISO();
 
@@ -530,7 +556,7 @@ function handleIncomingUrl() {
 
   const exp = {
     id: uid(), created: new Date().toISOString(), source: 'wallet', amount, merchant,
-    category: guessCategory(merchant), date, person, note: card,
+    category: guessCategory(merchant), date, person, note: card, private: isPrivate,
   };
   state.expenses.push(exp);
   save();
@@ -550,6 +576,19 @@ function showCapturedSheet(exp) {
     save(); render();
     resetCapturedTimer();
   });
+  const pb = $('#capturedPrivate');
+  const paint = () => {
+    const e = state.expenses.find((x) => x.id === lastCapturedId);
+    pb.classList.toggle('selected', !!(e && e.private));
+    pb.textContent = e && e.private ? '🔒 Privat – wird nicht geteilt' : '🔓 Gemeinsam – tippen für privat';
+  };
+  pb.onclick = () => {
+    const e = state.expenses.find((x) => x.id === lastCapturedId);
+    if (!e) return;
+    e.private = !e.private;
+    save(); render(); paint(); resetCapturedTimer();
+  };
+  paint();
   $('#capturedSheet').hidden = false;
   resetCapturedTimer();
 }

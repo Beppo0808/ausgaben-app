@@ -42,10 +42,10 @@ const Sync = (() => {
   /** Alle synchronisierbaren Datensätze als Map "art:id" → Daten */
   function items() {
     const m = {};
-    state.expenses.forEach((e) => { m['expense:' + e.id] = e; });
+    state.expenses.forEach((e) => { if (!e.private) m['expense:' + e.id] = e; }); // private Ausgaben bleiben auf dem Gerät
     state.subs.forEach((s) => { m['sub:' + s.id] = s; });
     state.categories.forEach((c) => { m['category:' + c.id] = c; });
-    const { me, ...shared } = state.settings; // „Dieses Gerät gehört“ bleibt lokal
+    const { me, income, ...shared } = state.settings; // Gerät-Besitzer und eigenes Einkommen bleiben lokal
     m['settings:main'] = shared;
     Object.entries(state.rules).forEach(([k, v]) => { m['rule:' + k] = { cat: v }; });
     return m;
@@ -110,14 +110,14 @@ const Sync = (() => {
     if (listFor) {
       const arr = state[listFor];
       const idx = arr.findIndex((x) => x.id === r.id);
+      if (idx > -1 && arr[idx].private) return true; // lokal privat gemacht → nicht überschreiben
       if (r.deleted) { if (idx > -1) arr.splice(idx, 1); }
       else {
         const obj = { ...r.data, id: r.id };
         if (idx > -1) arr[idx] = obj; else arr.push(obj);
       }
     } else if (r.kind === 'settings' && !r.deleted && r.data) {
-      const { income, budget, persons } = r.data;
-      if (income !== undefined) state.settings.income = income;
+      const { budget, persons } = r.data; // Einkommen wird bewusst NICHT übernommen
       if (budget !== undefined) state.settings.budget = budget;
       if (Array.isArray(persons) && persons.length) {
         state.settings.persons = persons;

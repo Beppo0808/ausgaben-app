@@ -26,9 +26,9 @@
     <!-- Übersicht -->
     <section id="view-overview" class="view active" aria-label="Übersicht">
       <div class="kpis">
-        <div class="kpi"><span class="kpi-label">Einnahmen</span><span class="kpi-value" id="kpiIncome">–</span></div>
-        <div class="kpi"><span class="kpi-label">Ausgaben</span><span class="kpi-value" id="kpiSpent">–</span></div>
-        <div class="kpi kpi-hero"><span class="kpi-label">Übrig</span><span class="kpi-value" id="kpiLeft">–</span></div>
+        <div class="kpi"><span class="kpi-label">Haushaltsbudget</span><span class="kpi-value" id="kpiBudget">–</span></div>
+        <div class="kpi"><span class="kpi-label">Ausgaben gemeinsam</span><span class="kpi-value" id="kpiSpent">–</span><span class="kpi-sub" id="kpiSpentSub"></span></div>
+        <div class="kpi kpi-hero"><span class="kpi-label">Übrig vom Budget</span><span class="kpi-value" id="kpiLeft">–</span><span class="kpi-sub" id="paidBy"></span></div>
       </div>
 
       <div class="card">
@@ -43,6 +43,16 @@
       <div class="card">
         <div class="card-head"><h2>Ausgaben pro Tag</h2><span class="muted" id="dailyAvg"></span></div>
         <div class="chart" id="dailyChart"></div>
+      </div>
+
+      <div class="card card-private" id="meCard">
+        <div class="card-head"><h2 id="meTitle">🔒 Nur für dich</h2><span class="muted">nur auf diesem Gerät</span></div>
+        <div class="me-grid">
+          <div><span class="kpi-label">Mein Einkommen</span><span class="kpi-value" id="meIncome">–</span></div>
+          <div><span class="kpi-label">Von mir ausgegeben</span><span class="kpi-value" id="meSpent">–</span><span class="kpi-sub" id="meSpentSub"></span></div>
+          <div><span class="kpi-label">Bleibt mir</span><span class="kpi-value" id="meLeft">–</span></div>
+        </div>
+        <p class="hint" id="meHint">Trage dein Einkommen unter Einstellungen ein – es wird <b>nie</b> geteilt, deine Frau/dein Partner sieht es nicht.</p>
       </div>
 
       <div class="card">
@@ -71,15 +81,51 @@
       </div>
     </section>
 
+    <!-- Mein Konto (privat) -->
+    <section id="view-konto" class="view" aria-label="Mein Konto">
+      <div class="card card-private">
+        <div class="card-head"><h2>🔒 Mein Konto</h2><span class="muted">nur auf diesem Gerät</span></div>
+        <p class="hint">Deine Kontobewegungen – nur zum Ansehen. Sie werden <b>nie</b> synchronisiert oder geteilt. Einzelne Ausgaben kannst du mit <b>＋ Haushalt</b> ins gemeinsame Haushaltsbuch übernehmen.</p>
+        <div class="field-row">
+          <label class="field">Konto
+            <select id="kontoAccount"></select>
+          </label>
+          <label class="field">Suchen
+            <input type="search" id="kontoSearch" placeholder="Name, Verwendungszweck">
+          </label>
+        </div>
+        <div class="btn-row">
+          <label class="btn btn-primary btn-file">Umsätze importieren (CSV)<input type="file" id="kontoFile" accept=".csv,text/csv,text/plain"></label>
+          <button class="btn btn-ghost" id="kontoHelpBtn">So geht's</button>
+        </div>
+        <div class="howto" id="kontoHelp" hidden>
+          <ol>
+            <li>Im Online-Banking deiner Bank (Safari, nicht die Banking-App) zu <b>Umsätze</b> gehen.</li>
+            <li>Zeitraum wählen → <b>Export / Herunterladen → CSV</b> (bei manchen Banken „CSV-CAMT“ oder „Excel/CSV“).</li>
+            <li>Hier auf <b>Umsätze importieren</b> tippen und die Datei aus „Downloads“ wählen.</li>
+          </ol>
+          <p class="hint">Funktioniert mit Sparkasse, Volksbank, ING, DKB, comdirect, Commerzbank, Postbank, N26 u. a. Mehrfach importieren ist kein Problem – doppelte Buchungen werden erkannt.</p>
+        </div>
+      </div>
+
+      <div class="kpis kpis-3">
+        <div class="kpi"><span class="kpi-label">Eingänge</span><span class="kpi-value pos" id="kontoIn">–</span></div>
+        <div class="kpi"><span class="kpi-label">Ausgänge</span><span class="kpi-value" id="kontoOut">–</span></div>
+        <div class="kpi"><span class="kpi-label">Saldo Monat</span><span class="kpi-value" id="kontoSaldo">–</span></div>
+      </div>
+      <div id="kontoList"></div>
+      <button class="btn btn-danger" id="kontoDeleteBtn" hidden>Umsätze dieses Kontos löschen</button>
+    </section>
+
     <!-- Einstellungen -->
     <section id="view-settings" class="view" aria-label="Einstellungen">
       <div class="card">
-        <h2>Monat & Budget</h2>
-        <label class="field">Monatliche Einnahmen (€)
-          <input type="text" inputmode="decimal" id="setIncome">
-        </label>
-        <label class="field">Gesamtbudget für Ausgaben (€)
+        <h2>Budget</h2>
+        <label class="field">Gemeinsames Haushaltsbudget pro Monat (€) – inkl. Fixkosten, für alle sichtbar
           <input type="text" inputmode="decimal" id="setBudget">
+        </label>
+        <label class="field">🔒 Mein Einkommen pro Monat (€) – <b>privat</b>, nur auf diesem Gerät
+          <input type="text" inputmode="decimal" id="setIncome" placeholder="optional">
         </label>
       </div>
 
@@ -177,6 +223,7 @@
     <button data-view="overview" class="active"><span>📊</span>Übersicht</button>
     <button data-view="list"><span>🧾</span>Ausgaben</button>
     <button data-view="subs"><span>🔁</span>Abos</button>
+    <button data-view="konto"><span>🏦</span>Mein Konto</button>
     <button data-view="settings"><span>⚙️</span>Einstellungen</button>
   </nav>
 
@@ -199,6 +246,7 @@
         <label class="field">Person <select name="person"></select></label>
       </div>
       <label class="field">Notiz <input type="text" name="note" autocomplete="off"></label>
+      <label class="check"><input type="checkbox" name="private"> 🔒 Privat – nur auf meinem Gerät, wird nicht geteilt</label>
       <div class="dialog-actions">
         <button type="button" class="btn btn-danger" id="deleteExpenseBtn">Löschen</button>
         <span class="spacer"></span>
@@ -239,6 +287,7 @@
       <span id="capturedText"></span>
     </div>
     <div class="chips" id="capturedChips"></div>
+    <button type="button" class="chip chip-private" id="capturedPrivate">🔓 Gemeinsam</button>
     <div class="btn-row">
       <button class="btn btn-ghost" id="capturedUndo">Rückgängig</button>
       <button class="btn btn-primary" id="capturedOk">Passt</button>
@@ -249,6 +298,7 @@
   <div class="tooltip" id="tooltip" hidden></div>
 
   <script src="sync.js"></script>
+  <script src="konto.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

@@ -8,6 +8,8 @@ inklusive **automatischer Erfassung, sobald mit dem iPhone (Apple Pay) bezahlt w
 - 🔁 **Abos & Fixkosten**: Miete, Handy, Netflix … werden jeden Monat automatisch mitgezählt
 - 🏷️ **Automatische Kategorien**: REWE → Lebensmittel, Aral → Tanken … und die App lernt aus jeder Korrektur
 - 👫 **Personen**: wer hat bezahlt?
+- 🔒 **Privat bleibt privat**: eigenes Einkommen, private Ausgaben und Kontobewegungen bleiben nur auf dem eigenen Gerät
+- 🏦 **Mein Konto**: Kontoumsätze per CSV-Export aus dem Online-Banking ansehen (nur lesen), einzelne Ausgaben per Tipp ins Haushaltsbuch übernehmen
 - ☁️ **Synchronisation** zwischen allen iPhones und iPads (über euer eigenes, kostenloses Supabase-Projekt)
 - 💾 **Backup / CSV-Export** (für Excel, Numbers oder Google Sheets)
 - 🌙 Hell/Dunkel, iPad-Ansicht, funktioniert offline
@@ -75,6 +77,30 @@ iOS hat in der App **Kurzbefehle** eine Automation **„Transaktion“**: Sie st
 Beim nächsten Bezahlen öffnet sich die App kurz, zeigt **„Erfasst ✓“**, und die Ausgabe ist sofort auf allen Geräten.
 Mit einem Tipp lässt sich die Kategorie korrigieren – die App merkt sich das für diesen Händler.
 
+## Was wird geteilt – und was nicht?
+
+| Geteilt mit allen Geräten im Haushalt | Bleibt nur auf deinem Gerät 🔒 |
+|---|---|
+| Gemeinsame Ausgaben, Abos & Fixkosten | Dein Einkommen |
+| Haushaltsbudget, Kategorien, Personen | Ausgaben mit Haken „Privat“ |
+| Händler-Regeln (Auto-Kategorie) | Alles unter „Mein Konto“ (Kontoumsätze) |
+
+**Private Zahlungen automatisch erkennen:** Legt im Kurzbefehl für eure *private* Karte eine eigene
+Transaktions-Automation an und hängt an den Link `&privat=1` an. Zahlungen mit der Haushalts-/Gemeinschaftskarte
+landen dann im gemeinsamen Buch, die mit der privaten Karte nur bei euch. Im „Erfasst ✓“-Fenster lässt sich
+jede Zahlung zusätzlich per Tipp auf privat/gemeinsam umschalten.
+
+> Hinweis: Kurzbefehle öffnen Safari. Private Einträge liegen daher im Speicher von Safari – nutzt die App für
+> den privaten Teil am besten auch in Safari.
+
+## Mein Konto (Kontoumsätze ansehen)
+1. Im Online-Banking (in Safari) zu **Umsätze** → Zeitraum wählen → **Export als CSV**
+2. In der App **🏦 Mein Konto → Umsätze importieren (CSV)** → Datei aus „Downloads“ wählen → Kontoname eingeben
+3. Mehrfach importieren ist kein Problem, doppelte Buchungen werden erkannt.
+
+Erkannt werden u. a. Sparkasse, Volksbank/Raiffeisen, ING, DKB, comdirect, Commerzbank, Postbank, N26.
+Die Umsätze werden **nie** synchronisiert und sind auch nicht im Backup enthalten.
+
 ## iPad
 Funktioniert genauso (Safari oder Home-Bildschirm) und zeigt auf dem großen Bildschirm eine zweispaltige Übersicht.
 Die automatische Erfassung beim Bezahlen gibt es nur auf dem **iPhone** (bzw. der Apple Watch), weil man nur damit
@@ -98,4 +124,4 @@ im Laden bezahlt – die Einträge erscheinen per Synchronisation aber sofort au
 | `datum`    | Datum `JJJJ-MM-TT` (Standard: heute)   | `2026-11-06`    |
 
 ## Dateien
-`index.html` · `style.css` · `app.js` (App-Logik) · `sync.js` (Synchronisation) · `supabase.sql` (Datenbank-Setup) · `sw.js` (Offline) · `manifest.webmanifest` · Icons
+`index.html` · `style.css` · `app.js` (App-Logik) · `sync.js` (Synchronisation) · `konto.js` (Kontoumsätze) · `supabase.sql` (Datenbank-Setup) · `sw.js` (Offline) · `manifest.webmanifest` · Icons

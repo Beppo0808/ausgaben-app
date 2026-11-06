@@ -252,3 +252,20 @@ dialog h2 { margin-bottom: 14px; font-size: 1.15rem; }
   #view-overview .card:last-child { grid-column: 2; grid-row: 2 / span 3; }
   #view-list, #view-subs, #view-settings { max-width: 760px; margin: 0 auto; }
 }
+
+.kpi-sub { color: var(--muted); font-size: .75rem; margin-top: 2px; }
+.card-private { border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); }
+.me-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.me-grid > div { display: flex; flex-direction: column; min-width: 0; }
+.me-grid .kpi-value { font-size: 1.1rem; }
+.badge-private { background: var(--surface-2); }
+.check { display: flex; align-items: center; gap: 8px; font-size: .9rem; margin: 4px 0 12px; color: var(--text); }
+.check input { width: 20px; height: 20px; }
+.chip-private { margin-top: 10px; }
+.kpis-3 { grid-template-columns: repeat(3, 1fr); }
+.kpis-3 .kpi-value { font-size: 1.05rem; }
+.amount.in { color: var(--good); }
+.tx-add { border: 1px solid var(--border); background: var(--surface-2); border-radius: 99px; padding: 6px 10px; font-size: .78rem; cursor: pointer; white-space: nowrap; color: var(--text); }
+.tx-add.done { background: transparent; color: var(--good); cursor: default; }
+.tx-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.row.tx { cursor: default; }
