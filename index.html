@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Ausgaben</title>
+  <meta name="description" content="Haushaltsbuch: Ausgaben, Budget und Abos im Blick – mit automatischer Erfassung bei Zahlung per Handy.">
+  <meta name="theme-color" content="#2a78d6">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Ausgaben">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon-180.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <button class="icon-btn" id="prevMonth" aria-label="Vorheriger Monat">‹</button>
+    <h1 id="monthLabel">–</h1>
+    <button class="icon-btn" id="nextMonth" aria-label="Nächster Monat">›</button>
+  </header>
+
+  <main>
+    <!-- Übersicht -->
+    <section id="view-overview" class="view active" aria-label="Übersicht">
+      <div class="kpis">
+        <div class="kpi"><span class="kpi-label">Einnahmen</span><span class="kpi-value" id="kpiIncome">–</span></div>
+        <div class="kpi"><span class="kpi-label">Ausgaben</span><span class="kpi-value" id="kpiSpent">–</span></div>
+        <div class="kpi kpi-hero"><span class="kpi-label">Übrig</span><span class="kpi-value" id="kpiLeft">–</span></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2>Gesamtbudget</h2>
+          <span class="muted" id="budgetText"></span>
+        </div>
+        <div class="progress" id="budgetBar"><div class="progress-fill"></div></div>
+        <p class="hint" id="budgetHint"></p>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Ausgaben pro Tag</h2><span class="muted" id="dailyAvg"></span></div>
+        <div class="chart" id="dailyChart"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Kategorien</h2><span class="muted">Ist / Budget</span></div>
+        <ul class="cat-bars" id="catBars"></ul>
+      </div>
+    </section>
+
+    <!-- Ausgaben -->
+    <section id="view-list" class="view" aria-label="Ausgaben">
+      <div class="filters">
+        <input type="search" id="searchInput" placeholder="Suchen (Händler, Notiz …)" aria-label="Suchen">
+        <select id="filterCat" aria-label="Kategorie filtern"></select>
+        <select id="filterPerson" aria-label="Person filtern"></select>
+      </div>
+      <div id="expenseList"></div>
+    </section>
+
+    <!-- Abos -->
+    <section id="view-subs" class="view" aria-label="Abos">
+      <div class="card">
+        <div class="card-head"><h2>Abos & Fixkosten</h2><span class="muted" id="subsTotal"></span></div>
+        <p class="hint">Werden automatisch in jedem Monat (bzw. jährlich im Startmonat) mitgezählt.</p>
+        <ul class="rows" id="subsList"></ul>
+        <button class="btn" id="addSubBtn">+ Abo / Fixkosten hinzufügen</button>
+      </div>
+    </section>
+
+    <!-- Einstellungen -->
+    <section id="view-settings" class="view" aria-label="Einstellungen">
+      <div class="card">
+        <h2>Monat & Budget</h2>
+        <label class="field">Monatliche Einnahmen (€)
+          <input type="text" inputmode="decimal" id="setIncome">
+        </label>
+        <label class="field">Gesamtbudget für Ausgaben (€)
+          <input type="text" inputmode="decimal" id="setBudget">
+        </label>
+      </div>
+
+      <div class="card">
+        <h2>Personen</h2>
+        <p class="hint">Wer hat bezahlt? Kommagetrennt, z. B. „Ich, Partner“.</p>
+        <label class="field">Personen
+          <input type="text" id="setPersons">
+        </label>
+        <label class="field">Dieses Gerät gehört
+          <select id="setMe"></select>
+        </label>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Kategorien</h2></div>
+        <ul class="rows" id="catSettings"></ul>
+        <button class="btn" id="addCatBtn">+ Kategorie</button>
+      </div>
+
+      <div class="card">
+        <h2>📲 Automatisch erfassen beim Bezahlen</h2>
+        <p class="hint">Bei Zahlung mit Apple Pay startet ein iPhone-Kurzbefehl und öffnet diesen Link – die Ausgabe wird sofort eingetragen und automatisch einer Kategorie zugeordnet.</p>
+        <label class="field">Link für den Kurzbefehl
+          <input type="text" id="shortcutUrl" readonly>
+        </label>
+        <button class="btn" id="copyUrlBtn">Link kopieren</button>
+        <button class="btn btn-ghost" id="testWalletBtn">Test: Zahlung simulieren</button>
+        <details class="howto">
+          <summary>Anleitung (iPhone, 2 Minuten)</summary>
+          <ol>
+            <li>App <b>Kurzbefehle</b> öffnen → unten <b>Automation</b> → <b>+</b> → <b>Transaktion</b>.</li>
+            <li>Deine Karte(n) auswählen, „Sofort ausführen“ wählen → <b>Weiter</b> → <b>Neuer leerer Kurzbefehl</b>.</li>
+            <li>Aktion <b>URL kodieren</b> hinzufügen → als Eingabe die Variable <i>Kurzbefehl-Eingabe › Händler</i> wählen.</li>
+            <li>Aktion <b>Text</b> hinzufügen und den kopierten Link einfügen. Dann ersetzen: <code>BETRAG</code> → Variable <i>Kurzbefehl-Eingabe › Betrag</i>, <code>HAENDLER</code> → <i>URL-kodierter Text</i>.</li>
+            <li>Aktion <b>URLs öffnen</b> hinzufügen (Eingabe: der Text).</li>
+            <li>Fertig. Beim nächsten Bezahlen mit dem iPhone/der Watch öffnet sich die App kurz und zeigt „Erfasst ✓“ – dort kannst du die Kategorie mit einem Tipp korrigieren.</li>
+          </ol>
+          <p class="hint">Wichtig auf dem iPhone: Kurzbefehle öffnen Links in <b>Safari</b>. Nutze die App deshalb in Safari (als Lesezeichen/Favorit), damit alle Einträge an einem Ort landen. Mehr dazu im README.</p>
+        </details>
+      </div>
+
+      <div class="card">
+        <h2>Daten</h2>
+        <p class="hint">Alle Daten bleiben auf diesem Gerät. Für den Partner/die Partnerin: exportieren und auf dem anderen Gerät importieren.</p>
+        <div class="btn-row">
+          <button class="btn" id="exportJsonBtn">Backup exportieren</button>
+          <label class="btn btn-file">Backup importieren<input type="file" id="importFile" accept="application/json,.json"></label>
+          <button class="btn" id="exportCsvBtn">CSV (Excel/Sheets)</button>
+        </div>
+        <button class="btn btn-danger" id="resetBtn">Alle Daten löschen</button>
+      </div>
+      <p class="hint center">Ausgaben-App · Daten lokal gespeichert</p>
+    </section>
+  </main>
+
+  <button class="fab" id="fab" aria-label="Ausgabe hinzufügen">+</button>
+
+  <nav class="tabbar" aria-label="Navigation">
+    <button data-view="overview" class="active"><span>📊</span>Übersicht</button>
+    <button data-view="list"><span>🧾</span>Ausgaben</button>
+    <button data-view="subs"><span>🔁</span>Abos</button>
+    <button data-view="settings"><span>⚙️</span>Einstellungen</button>
+  </nav>
+
+  <!-- Dialog: Ausgabe -->
+  <dialog id="expenseDialog">
+    <form method="dialog" id="expenseForm">
+      <h2 id="expenseDialogTitle">Neue Ausgabe</h2>
+      <label class="field">Betrag (€)
+        <input type="text" inputmode="decimal" name="amount" required placeholder="0,00" autocomplete="off">
+      </label>
+      <label class="field">Händler / Beschreibung
+        <input type="text" name="merchant" list="merchantList" placeholder="z. B. REWE" autocomplete="off">
+      </label>
+      <datalist id="merchantList"></datalist>
+      <div class="field">Kategorie
+        <div class="chips" id="catChips"></div>
+      </div>
+      <div class="field-row">
+        <label class="field">Datum <input type="date" name="date" required></label>
+        <label class="field">Person <select name="person"></select></label>
+      </div>
+      <label class="field">Notiz <input type="text" name="note" autocomplete="off"></label>
+      <div class="dialog-actions">
+        <button type="button" class="btn btn-danger" id="deleteExpenseBtn">Löschen</button>
+        <span class="spacer"></span>
+        <button type="button" class="btn btn-ghost" value="cancel" id="cancelExpenseBtn">Abbrechen</button>
+        <button type="submit" class="btn btn-primary">Speichern</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Dialog: Abo -->
+  <dialog id="subDialog">
+    <form method="dialog" id="subForm">
+      <h2 id="subDialogTitle">Abo / Fixkosten</h2>
+      <label class="field">Name <input type="text" name="name" required placeholder="z. B. Netflix, Miete"></label>
+      <div class="field-row">
+        <label class="field">Betrag (€) <input type="text" inputmode="decimal" name="amount" required></label>
+        <label class="field">Intervall
+          <select name="interval"><option value="month">monatlich</option><option value="year">jährlich</option></select>
+        </label>
+      </div>
+      <div class="field-row">
+        <label class="field">Kategorie <select name="category"></select></label>
+        <label class="field">Seit <input type="month" name="start" required></label>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn btn-danger" id="deleteSubBtn">Löschen</button>
+        <span class="spacer"></span>
+        <button type="button" class="btn btn-ghost" id="cancelSubBtn">Abbrechen</button>
+        <button type="submit" class="btn btn-primary">Speichern</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Erfasst-Hinweis (nach Handy-Zahlung) -->
+  <div class="sheet" id="capturedSheet" hidden>
+    <div class="sheet-head">
+      <strong>Erfasst ✓</strong>
+      <span id="capturedText"></span>
+    </div>
+    <div class="chips" id="capturedChips"></div>
+    <div class="btn-row">
+      <button class="btn btn-ghost" id="capturedUndo">Rückgängig</button>
+      <button class="btn btn-primary" id="capturedOk">Passt</button>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <div class="tooltip" id="tooltip" hidden></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
