@@ -8,59 +8,84 @@ inklusive **automatischer Erfassung, sobald mit dem iPhone (Apple Pay) bezahlt w
 - 🔁 **Abos & Fixkosten**: Miete, Handy, Netflix … werden jeden Monat automatisch mitgezählt
 - 🏷️ **Automatische Kategorien**: REWE → Lebensmittel, Aral → Tanken … und die App lernt aus jeder Korrektur
 - 👫 **Personen**: wer hat bezahlt?
-- 💾 **Backup / CSV-Export** (für Excel oder Google Sheets), Import zum Zusammenführen
-- 🌙 Hell/Dunkel, funktioniert offline, **keine Daten verlassen das Gerät**
+- ☁️ **Synchronisation** zwischen allen iPhones und iPads (über euer eigenes, kostenloses Supabase-Projekt)
+- 💾 **Backup / CSV-Export** (für Excel, Numbers oder Google Sheets)
+- 🌙 Hell/Dunkel, iPad-Ansicht, funktioniert offline
 
-## 1. App online stellen (GitHub Pages, einmalig)
+## Schritt für Schritt einrichten
 
-1. Auf GitHub im Repository: **Settings → Pages**
-2. *Source*: **Deploy from a branch**, Branch: `main`, Ordner: `/ (root)` → **Save**
-3. Nach ca. 1 Minute ist die App erreichbar unter
-   `https://<dein-github-name>.github.io/ausgaben-app/`
+Am einfachsten am **iPad** (größerer Bildschirm). Dauert ca. 15 Minuten, nur einmal nötig.
 
-> Hinweis: Bei privaten Repositories braucht GitHub Pages ein kostenpflichtiges Konto.
-> Alternativ das Repo öffentlich machen (es enthält keine persönlichen Daten – die liegen nur auf dem Handy)
-> oder einen kostenlosen Dienst wie Netlify/Cloudflare Pages nutzen.
+### Schritt 1 – App online stellen (GitHub Pages)
+1. Auf github.com dieses Repository öffnen → **Settings** → links **Pages**
+2. *Source*: **Deploy from a branch**
+3. *Branch*: `claude/expense-tracking-mobile-payment-baq52q` (oder `main`, wenn übernommen), Ordner `/ (root)` → **Save**
+4. Nach 1–2 Minuten erscheint oben die Adresse, z. B. `https://beppo0808.github.io/ausgaben-app/`
 
-Zum lokalen Ausprobieren: `python3 -m http.server` im Ordner starten und `http://localhost:8000` öffnen.
+> Bei einem **privaten** Repository braucht GitHub Pages ein kostenpflichtiges Konto. Dann das Repo auf
+> **öffentlich** stellen (Settings → General → ganz unten „Change visibility“). Das ist unbedenklich:
+> Im Repo liegt nur der Programmcode – eure Ausgaben, Schlüssel und der Haushalts-Code stehen dort nie.
 
-## 2. Automatisch erfassen beim Bezahlen mit dem iPhone
+### Schritt 2 – Kostenlose Datenbank für die Synchronisation (Supabase)
+1. Auf **supabase.com** → **Start your project** → mit GitHub anmelden
+2. **New project**: Name z. B. `ausgaben`, ein Datenbank-Passwort vergeben (wird später nicht gebraucht),
+   Region **Central EU (Frankfurt)** → **Create new project**, ca. 2 Minuten warten
+3. Links **SQL Editor** → **New query** → den kompletten Inhalt der Datei
+   [`supabase.sql`](supabase.sql) einfügen (auf GitHub die Datei öffnen → Kopieren-Symbol) → **Run**.
+   Es muss „Success. No rows returned“ erscheinen.
+4. Oben auf **Connect** bzw. links **Project Settings → API Keys** und **Data API**: zwei Werte notieren:
+   - **Project URL** (`https://xxxx.supabase.co`)
+   - **Publishable key** (`sb_publishable_…`) – oder bei älteren Projekten der **anon public** Key (`eyJ…`)
 
-iOS hat in der App **Kurzbefehle** eine Automation **„Transaktion“**: Sie startet jedes Mal,
-wenn du mit einer Karte in Apple Wallet bezahlst (iPhone oder Apple Watch) und liefert
-**Betrag** und **Händler** mit. Diese schicken wir per Link an die App.
+   ⚠️ Niemals den **secret** / **service_role** Key verwenden.
 
-1. In der Ausgaben-App: **Einstellungen → „Link für den Kurzbefehl“ → Link kopieren**
-   (sieht so aus: `https://…/ausgaben-app/?betrag=BETRAG&haendler=HAENDLER&person=Ich`)
-2. App **Kurzbefehle** → **Automation** → **+** → **Transaktion**
+> Kostenloser Tarif: reicht für ein Haushaltsbuch dauerhaft. Wird ein Projekt eine Woche gar nicht benutzt,
+> pausiert Supabase es – im Dashboard dann einfach auf „Restore“ tippen. Bei täglicher Nutzung passiert das nicht.
+
+### Schritt 3 – Ersten Haushalt anlegen (auf einem Gerät)
+1. Die App-Adresse aus Schritt 1 in **Safari** öffnen
+2. **Einstellungen → Personen**: eure Namen eintragen, z. B. `Anna, Tom`; bei „Dieses Gerät gehört“ den eigenen Namen wählen
+3. Einnahmen, Gesamtbudget und Budgets je Kategorie anpassen
+4. **☁️ Gemeinsam nutzen**: Project URL und Key einfügen → **Haushalt erstellen** → Punkt wird grün „Synchronisiert“
+5. **Einladungslink kopieren** → per AirDrop/iMessage an die anderen Geräte schicken
+
+### Schritt 4 – Weitere Geräte verbinden (zweites iPhone, iPads)
+1. Den Einladungslink auf dem Gerät antippen → öffnet Safari → „Verbinden?“ **OK**
+2. Auf iPhones bei „Dieses Gerät gehört“ den eigenen Namen wählen (iPads: egal)
+3. **Optional als App auf den Home-Bildschirm**: in Safari *Teilen → Zum Home-Bildschirm*. Die Home-Bildschirm-App
+   hat einen eigenen Speicher – dort einmal **Einstellungen → Ich habe einen Einladungslink** → Link einfügen → **Verbinden**.
+
+> Der Einladungslink ist wie ein Passwort zu euren Daten – nur innerhalb der Familie teilen.
+
+### Schritt 5 – Automatisch erfassen beim Bezahlen (auf jedem iPhone)
+iOS hat in der App **Kurzbefehle** eine Automation **„Transaktion“**: Sie startet bei jeder Zahlung mit Apple Pay
+(iPhone oder Apple Watch) und liefert **Betrag** und **Händler**.
+
+1. In der Ausgaben-App (Safari): **Einstellungen → Automatisch erfassen → Link kopieren**
+   (`https://…/ausgaben-app/?betrag=BETRAG&haendler=HAENDLER&person=Anna`)
+2. App **Kurzbefehle** → unten **Automation** → **+** (bzw. „Neue Automation“) → **Transaktion**
 3. Karte(n) auswählen, **Sofort ausführen** → **Weiter** → **Neuer leerer Kurzbefehl**
-4. Aktionen hinzufügen:
-   1. **URL kodieren** – Eingabe: Variable *Kurzbefehl-Eingabe → Händler*
-   2. **Text** – kopierten Link einfügen, dann `BETRAG` durch *Kurzbefehl-Eingabe → Betrag*
-      und `HAENDLER` durch *URL-kodierter Text* ersetzen
+4. Aktionen hinzufügen (oben in der Suche eintippen):
+   1. **URL kodieren** – auf „Text“ tippen → Variable *Kurzbefehl-Eingabe* → dort **Händler** wählen
+   2. **Text** – den kopierten Link einfügen. Das Wort `BETRAG` löschen und stattdessen die Variable
+      *Kurzbefehl-Eingabe → Betrag* einsetzen; `HAENDLER` löschen und *URL-kodierter Text* einsetzen
    3. **URLs öffnen** – Eingabe: *Text*
-5. Fertig! Beim nächsten Bezahlen öffnet sich die App kurz, zeigt **„Erfasst ✓“** und du kannst
-   die Kategorie mit einem Tipp korrigieren (die App merkt sich das für diesen Händler).
+5. **Fertig**. Mit **Einstellungen → „Test: Zahlung simulieren“** könnt ihr die App vorab testen.
 
-Mit **Einstellungen → „Test: Zahlung simulieren“** kannst du das Ganze vorab ausprobieren.
+Beim nächsten Bezahlen öffnet sich die App kurz, zeigt **„Erfasst ✓“**, und die Ausgabe ist sofort auf allen Geräten.
+Mit einem Tipp lässt sich die Kategorie korrigieren – die App merkt sich das für diesen Händler.
 
-### ⚠️ Wichtig: Safari vs. Home-Bildschirm
-Kurzbefehle öffnen Links immer in **Safari**. Auf dem iPhone hat eine zum Home-Bildschirm
-hinzugefügte Web-App aber einen **eigenen, getrennten Speicher**. Damit alle Einträge an einem Ort
-landen, die App am besten **in Safari** nutzen (als Favorit/Lesezeichen speichern).
+## iPad
+Funktioniert genauso (Safari oder Home-Bildschirm) und zeigt auf dem großen Bildschirm eine zweispaltige Übersicht.
+Die automatische Erfassung beim Bezahlen gibt es nur auf dem **iPhone** (bzw. der Apple Watch), weil man nur damit
+im Laden bezahlt – die Einträge erscheinen per Synchronisation aber sofort auch auf den iPads.
 
-### Android
-Google Wallet bietet keine solche Automation. Mit Apps wie **MacroDroid** oder **Tasker** lässt sich
-die Zahlungsbenachrichtigung von Google Wallet auslesen und derselbe Link öffnen
-(`?betrag=…&haendler=…`).
-
-## 3. Zu zweit nutzen
-Jedes Handy speichert seine eigenen Daten. Zum Zusammenführen:
-**Einstellungen → Backup exportieren** auf dem einen Handy, auf dem anderen **Backup importieren → OK (zusammenführen)**.
-Unter „Dieses Gerät gehört“ einstellen, wer das Handy nutzt – dann werden Zahlungen automatisch der richtigen Person zugeordnet.
-
-> Mögliche Erweiterung: automatische Synchronisation zwischen beiden Handys über einen kleinen
-> Cloud-Speicher (z. B. Supabase oder Firebase).
+## Wie die Synchronisation funktioniert
+- Jede Ausgabe, jedes Abo, jede Kategorie usw. wird einzeln übertragen; bei gleichzeitigen Änderungen gewinnt die neuere.
+- Ohne Internet wird lokal gespeichert und später automatisch nachsynchronisiert.
+- Abgleich bei jedem Speichern, beim Öffnen der App und alle 30 Sekunden, solange sie offen ist.
+- „Daten auf diesem Gerät löschen“ trennt das Gerät zuerst – die gemeinsamen Daten bleiben erhalten.
+- Die Datenbank liegt in **eurem eigenen** Supabase-Projekt. Ohne Haushalts-Code kann niemand die Daten lesen.
 
 ## Link-Parameter (für eigene Automationen)
 
@@ -73,4 +98,4 @@ Unter „Dieses Gerät gehört“ einstellen, wer das Handy nutzt – dann werde
 | `datum`    | Datum `JJJJ-MM-TT` (Standard: heute)   | `2026-11-06`    |
 
 ## Dateien
-`index.html` · `style.css` · `app.js` (gesamte Logik) · `sw.js` (Offline) · `manifest.webmanifest` · Icons
+`index.html` · `style.css` · `app.js` (App-Logik) · `sync.js` (Synchronisation) · `supabase.sql` (Datenbank-Setup) · `sw.js` (Offline) · `manifest.webmanifest` · Icons

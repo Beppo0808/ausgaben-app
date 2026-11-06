@@ -100,6 +100,41 @@
         <button class="btn" id="addCatBtn">+ Kategorie</button>
       </div>
 
+      <div class="card" id="syncCard">
+        <div class="card-head"><h2>☁️ Gemeinsam nutzen (Synchronisation)</h2><span class="sync-dot" id="syncDot"></span></div>
+        <p class="hint" id="syncStatusText">Nicht verbunden</p>
+
+        <div id="syncOff">
+          <p class="hint">Alle Geräte (eure iPhones und iPads) sehen dieselben Daten. Einmalig auf <b>einem</b> Gerät einrichten, dann die anderen per Einladungslink verbinden. Anleitung im README.</p>
+          <details class="howto" open>
+            <summary>Neuen Haushalt einrichten</summary>
+            <label class="field">Supabase Project URL
+              <input type="url" id="syncUrl" placeholder="https://xxxx.supabase.co" autocomplete="off" autocapitalize="off" spellcheck="false">
+            </label>
+            <label class="field">Supabase Publishable / anon Key
+              <input type="text" id="syncKey" placeholder="sb_publishable_… oder eyJ…" autocomplete="off" autocapitalize="off" spellcheck="false">
+            </label>
+            <button class="btn btn-primary" id="syncCreateBtn">Haushalt erstellen</button>
+          </details>
+          <details class="howto">
+            <summary>Ich habe einen Einladungslink</summary>
+            <label class="field">Einladungslink einfügen
+              <input type="text" id="syncInvite" placeholder="https://…#verbinden=…" autocomplete="off" autocapitalize="off" spellcheck="false">
+            </label>
+            <button class="btn btn-primary" id="syncJoinBtn">Verbinden</button>
+          </details>
+        </div>
+
+        <div id="syncOn" hidden>
+          <p class="hint">Weitere Geräte verbinden: Einladungslink kopieren und per AirDrop oder Nachricht an das andere iPhone/iPad schicken (oder dort unter „Einladungslink einfügen“ eintragen). <b>Der Link ist wie ein Passwort – nur mit euch teilen.</b></p>
+          <div class="btn-row">
+            <button class="btn btn-primary" id="syncInviteBtn">Einladungslink kopieren</button>
+            <button class="btn" id="syncNowBtn">Jetzt synchronisieren</button>
+          </div>
+          <button class="btn btn-danger" id="syncDisconnectBtn">Dieses Gerät trennen</button>
+        </div>
+      </div>
+
       <div class="card">
         <h2>📲 Automatisch erfassen beim Bezahlen</h2>
         <p class="hint">Bei Zahlung mit Apple Pay startet ein iPhone-Kurzbefehl und öffnet diesen Link – die Ausgabe wird sofort eingetragen und automatisch einer Kategorie zugeordnet.</p>
@@ -118,21 +153,21 @@
             <li>Aktion <b>URLs öffnen</b> hinzufügen (Eingabe: der Text).</li>
             <li>Fertig. Beim nächsten Bezahlen mit dem iPhone/der Watch öffnet sich die App kurz und zeigt „Erfasst ✓“ – dort kannst du die Kategorie mit einem Tipp korrigieren.</li>
           </ol>
-          <p class="hint">Wichtig auf dem iPhone: Kurzbefehle öffnen Links in <b>Safari</b>. Nutze die App deshalb in Safari (als Lesezeichen/Favorit), damit alle Einträge an einem Ort landen. Mehr dazu im README.</p>
+          <p class="hint">Kurzbefehle öffnen Links in <b>Safari</b>. Mit eingerichteter Synchronisation ist das egal – verbinde Safari <i>und</i> die Home-Bildschirm-App jeweils einmal mit dem Einladungslink. Ohne Synchronisation die App nur in Safari nutzen.</p>
         </details>
       </div>
 
       <div class="card">
         <h2>Daten</h2>
-        <p class="hint">Alle Daten bleiben auf diesem Gerät. Für den Partner/die Partnerin: exportieren und auf dem anderen Gerät importieren.</p>
+        <p class="hint">Backup als Datei sichern oder wiederherstellen; CSV zum Öffnen in Excel/Numbers/Sheets.</p>
         <div class="btn-row">
           <button class="btn" id="exportJsonBtn">Backup exportieren</button>
           <label class="btn btn-file">Backup importieren<input type="file" id="importFile" accept="application/json,.json"></label>
           <button class="btn" id="exportCsvBtn">CSV (Excel/Sheets)</button>
         </div>
-        <button class="btn btn-danger" id="resetBtn">Alle Daten löschen</button>
+        <button class="btn btn-danger" id="resetBtn">Daten auf diesem Gerät löschen</button>
       </div>
-      <p class="hint center">Ausgaben-App · Daten lokal gespeichert</p>
+      <p class="hint center" id="footerNote">Ausgaben-App</p>
     </section>
   </main>
 
@@ -213,6 +248,7 @@
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <div class="tooltip" id="tooltip" hidden></div>
 
+  <script src="sync.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

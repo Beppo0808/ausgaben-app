@@ -65,6 +65,7 @@ let state = load();
 function save() {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
   catch (e) { toast('⚠️ Speichern fehlgeschlagen – Speicher voll oder privat?'); }
+  if (typeof Sync !== 'undefined') Sync.onSave();
 }
 
 // ---------- Helpers ----------
@@ -366,6 +367,44 @@ function renderSettings() {
   }
 
   $('#shortcutUrl').value = shortcutUrl();
+  renderSync();
+}
+
+function renderSync() {
+  const on = typeof Sync !== 'undefined' && Sync.enabled();
+  $('#syncOff').hidden = on;
+  $('#syncOn').hidden = !on;
+  const st = on ? Sync.status() : { state: 'off', text: 'Nicht verbunden – Daten nur auf diesem Gerät' };
+  const pending = on ? Sync.pending() : 0;
+  $('#syncStatusText').textContent = st.text + (pending && st.state !== 'busy' ? ` · ${pending} Änderung(en) ausstehend` : '');
+  $('#syncDot').className = 'sync-dot ' + st.state;
+  $('#footerNote').textContent = on ? 'Ausgaben-App · synchronisiert über eure Supabase-Datenbank' : 'Ausgaben-App · Daten nur auf diesem Gerät';
+}
+
+async function joinFromInvite(text) {
+  const info = Sync.parseInvite(text);
+  if (!info) { toast('⚠️ Ungültiger Einladungslink'); return; }
+  if (Sync.enabled() && Sync.household() === info.h) { toast('Bereits verbunden ✓'); return; }
+  if (!confirm('Mit dem gemeinsamen Haushaltsbuch verbinden?')) return;
+  let keepLocal = false;
+  if (state.expenses.length || state.subs.length) {
+    keepLocal = confirm(`Auf diesem Gerät sind schon ${state.expenses.length} Ausgabe(n) und ${state.subs.length} Abo(s).\n\nOK = in den gemeinsamen Haushalt übernehmen\nAbbrechen = verwerfen`);
+  }
+  if (Sync.enabled()) Sync.disconnect();
+  try {
+    toast('Verbinde …');
+    await Sync.join(info, keepLocal);
+    render();
+    toast('Verbunden ✓ – Daten werden geteilt');
+  } catch (e) { toast('⚠️ ' + e.message); render(); }
+}
+
+function handleInviteHash() {
+  if (!location.hash.startsWith('#verbinden=')) return;
+  const text = location.hash;
+  history.replaceState(null, '', location.pathname + location.search);
+  showView('settings');
+  setTimeout(() => joinFromInvite(text), 300);
 }
 
 function shortcutUrl() {
@@ -678,12 +717,44 @@ function bind() {
     location.href = `${location.pathname}?betrag=${encodeURIComponent(a)}&haendler=${encodeURIComponent(m)}&person=${encodeURIComponent(state.settings.me)}`;
   };
 
+  // Synchronisation
+  $('#syncCreateBtn').onclick = async () => {
+    const url = $('#syncUrl').value, key = $('#syncKey').value;
+    if (!url.trim() || !key.trim()) { toast('Bitte URL und Schlüssel eintragen'); return; }
+    const btn = $('#syncCreateBtn'); btn.disabled = true;
+    try {
+      await Sync.create(url, key);
+      render();
+      toast('Haushalt erstellt ✓ – jetzt Einladungslink an die anderen Geräte schicken');
+    } catch (e) { toast('⚠️ ' + e.message); }
+    finally { btn.disabled = false; }
+  };
+  $('#syncJoinBtn').onclick = () => joinFromInvite($('#syncInvite').value);
+  $('#syncInviteBtn').onclick = async () => {
+    const link = Sync.inviteLink();
+    try {
+      if (navigator.share) { await navigator.share({ title: 'Ausgaben – Einladung', text: 'Verbinde dich mit unserem Haushaltsbuch:', url: link }); return; }
+    } catch (e) { if (e.name === 'AbortError') return; }
+    try { await navigator.clipboard.writeText(link); toast('Einladungslink kopiert ✓'); }
+    catch (e) { prompt('Einladungslink kopieren:', link); }
+  };
+  $('#syncNowBtn').onclick = () => Sync.syncNow();
+  $('#syncDisconnectBtn').onclick = () => {
+    if (!confirm('Dieses Gerät vom gemeinsamen Haushalt trennen? Die Daten bleiben auf diesem Gerät und in der Cloud erhalten.')) return;
+    Sync.disconnect(); render(); toast('Getrennt');
+  };
+  Sync.onStatus(() => renderSync());
+
   $('#exportJsonBtn').onclick = () => download(`ausgaben-backup-${todayISO()}.json`, JSON.stringify(state, null, 2), 'application/json');
   $('#exportCsvBtn').onclick = exportCsv;
   $('#importFile').addEventListener('change', (e) => { if (e.target.files[0]) importJson(e.target.files[0]); e.target.value = ''; });
   $('#resetBtn').onclick = () => {
-    if (!confirm('Wirklich ALLE Daten auf diesem Gerät löschen? Vorher am besten ein Backup exportieren.')) return;
-    state = defaultState(); save(); render(); toast('Alle Daten gelöscht');
+    const msg = Sync.enabled()
+      ? 'Dieses Gerät wird vom gemeinsamen Haushalt getrennt und die Daten auf DIESEM Gerät gelöscht. Die gemeinsamen Daten in der Cloud bleiben erhalten. Fortfahren?'
+      : 'Wirklich ALLE Daten auf diesem Gerät löschen? Vorher am besten ein Backup exportieren.';
+    if (!confirm(msg)) return;
+    if (Sync.enabled()) Sync.disconnect(); // sonst würden die Löschungen an alle Geräte verteilt
+    state = defaultState(); save(); render(); toast('Daten auf diesem Gerät gelöscht');
   };
 
   $('#capturedOk').onclick = () => { $('#capturedSheet').hidden = true; };
@@ -699,10 +770,13 @@ function bind() {
 // ---------- Start ----------
 bind();
 handleIncomingUrl();
+handleInviteHash();
+window.addEventListener('hashchange', handleInviteHash);
 let startView = 'overview';
 try { startView = sessionStorage.getItem('ausgaben-view') || 'overview'; } catch (e) { /* egal */ }
 showView(startView);
 render();
+Sync.init();
 
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   navigator.serviceWorker.register('sw.js').catch(() => {});

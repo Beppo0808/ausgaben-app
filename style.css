@@ -238,3 +238,17 @@ dialog h2 { margin-bottom: 14px; font-size: 1.15rem; }
   .filters { grid-template-columns: 2fr 1fr 1fr; }
   .filters input { grid-column: auto; }
 }
+
+.sync-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--axis); flex: none; align-self: center; }
+.sync-dot.ok { background: var(--good); }
+.sync-dot.busy { background: var(--accent); }
+.sync-dot.error { background: var(--critical); }
+
+/* iPad / großer Bildschirm: Übersicht zweispaltig */
+@media (min-width: 900px) {
+  main { max-width: 1100px; }
+  #view-overview.active { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto auto auto 1fr; gap: 0 14px; align-items: start; }
+  #view-overview .kpis { grid-column: 1 / -1; grid-template-columns: repeat(3, 1fr); }
+  #view-overview .card:last-child { grid-column: 2; grid-row: 2 / span 3; }
+  #view-list, #view-subs, #view-settings { max-width: 760px; margin: 0 auto; }
+}
