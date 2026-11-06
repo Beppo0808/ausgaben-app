@@ -32,9 +32,16 @@
   </header>
 
   <main>
-    <div class="mode-banner" id="modeBanner"></div>
+    <div class="mode-line"><div class="mode-banner" id="modeBanner"></div><button class="me-chip" id="meChip" type="button" aria-label="Mein Name"></button></div>
     <!-- Übersicht -->
     <section id="view-overview" class="view active" aria-label="Übersicht">
+      <div class="card name-prompt" id="namePrompt" hidden>
+        <b>👋 Wie heißt du?</b>
+        <div class="name-row">
+          <input type="text" id="namePromptInput" maxlength="30" autocomplete="given-name" placeholder="Dein Name">
+          <button class="btn btn-primary" id="namePromptBtn">Speichern</button>
+        </div>
+      </div>
       <div class="card card-private lock-prompt" id="lockPrompt" hidden>
         <div><b>🔐 Dieses Gerät schützen</b><div class="hint">Mit eigener PIN und Face ID – wie bei der Gesundheitsakte.</div></div>
         <button class="btn btn-primary" id="lockPromptBtn">Einrichten</button>
@@ -190,6 +197,17 @@
 
     <!-- Einstellungen -->
     <section id="view-settings" class="view" aria-label="Einstellungen">
+      <div class="card" id="nameCard">
+        <h2>👤 Das bin ich</h2>
+        <label class="field">Mein Name
+          <input type="text" id="nameMe" maxlength="30" autocomplete="given-name" placeholder="z. B. Thorsten">
+        </label>
+        <label class="field">Name meiner Partnerin / meines Partners
+          <input type="text" id="namePartner" maxlength="30" autocomplete="off" placeholder="z. B. Anna">
+        </label>
+        <p class="hint">Steht bei euren Einkäufen („wer hat bezahlt“). Ändern geht jederzeit – bisherige Einträge werden mit umbenannt.</p>
+      </div>
+
       <div class="card card-private">
         <h2>🔐 App-Sperre für dieses Gerät</h2>
         <p class="hint">Eigene PIN und Face ID – gilt nur für dieses Gerät. Jede Person schützt ihr eigenes iPhone/iPad, ein gemeinsames Passwort gibt es nicht.</p>
@@ -219,8 +237,8 @@
       </div>
 
       <div class="card">
-        <h2>Personen</h2>
-        <p class="hint">Wer hat bezahlt? Kommagetrennt, z. B. „Ich, Partner“.</p>
+        <h2>Weitere Personen</h2>
+        <p class="hint">Nur nötig, wenn noch jemand mitmacht (z. B. Kinder). Kommagetrennt.</p>
         <label class="field">Personen
           <input type="text" id="setPersons">
         </label>

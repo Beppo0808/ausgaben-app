@@ -216,6 +216,38 @@ function render() {
   if (typeof Konto !== 'undefined') Konto.render();
 }
 
+// ---------- Namen ----------
+const DEFAULT_NAMES = ['Ich', 'Partner', ''];
+/** Person umbenennen – auch in allen bisherigen Einträgen */
+function renamePerson(oldN, newN) {
+  newN = String(newN || '').replace(/[,<>]/g, '').trim().slice(0, 30);
+  if (!newN || newN === oldN) return false;
+  const ps = state.settings.persons;
+  if (ps.includes(newN)) { toast('Diesen Namen gibt es schon'); return false; }
+  const i = ps.indexOf(oldN);
+  if (i > -1) ps[i] = newN; else ps.push(newN);
+  state.expenses.forEach((e) => { if (e.person === oldN) e.person = newN; });
+  state.subs.forEach((s) => { if (s.payer === oldN) s.payer = newN; if (s.to === oldN) s.to = newN; });
+  if (state.settings.me === oldN || !state.settings.me) state.settings.me = state.settings.me === oldN ? newN : state.settings.me;
+  return true;
+}
+function setMyName(name) {
+  const me = state.settings.me;
+  const n = String(name || '').trim();
+  if (!n) return;
+  if (!state.settings.persons.includes(me)) { state.settings.persons.unshift(n.slice(0, 30)); state.settings.me = n.slice(0, 30); save(); render(); return; }
+  if (renamePerson(me, n)) { state.settings.me = n.replace(/[,<>]/g, '').trim().slice(0, 30); save(); render(); Lock.refreshName(); toast(`👤 Hallo ${state.settings.me}!`); }
+}
+function setPartnerName(name) {
+  const me = state.settings.me;
+  const other = state.settings.persons.find((p) => p !== me);
+  const n = String(name || '').replace(/[,<>]/g, '').trim().slice(0, 30);
+  if (!n) return;
+  if (other) { if (renamePerson(other, n)) { save(); render(); } }
+  else if (!state.settings.persons.includes(n)) { state.settings.persons.push(n); save(); render(); }
+}
+const needsName = () => DEFAULT_NAMES.includes(state.settings.me || '');
+
 // ---------- Darstellung (pro Gerät) ----------
 function localGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
 function localSet(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* egal */ } }
@@ -247,6 +279,9 @@ function setMode(m, silent) {
 }
 
 function renderOverview() {
+  const meName = state.settings.me || '';
+  $('#meChip').textContent = needsName() ? '👤 Name eintragen' : `👤 ${meName}`;
+  $('#namePrompt').hidden = !needsName();
   const all = expensesForMonth(viewY, viewM);
   const isCurrent = viewY === now.getFullYear() && viewM === now.getMonth();
   const dim = daysInMonth(viewY, viewM);
@@ -292,7 +327,8 @@ function renderOverview() {
   }
 
   // ----- Gemeinsame Ansicht: reine Ausgabenübersicht -----
-  $('#modeBanner').textContent = `Gemeinsame Ansicht – sehen ${state.settings.persons.join(' & ')}`;
+  const shown = state.settings.persons.filter((p) => !DEFAULT_NAMES.includes(p));
+  $('#modeBanner').textContent = shown.length >= 2 ? `Gemeinsame Ansicht – sehen ${shown.join(' & ')}` : 'Gemeinsame Ansicht';
   const items = all.filter((e) => !e.private);
   const total = sum(items);
   const fixedList = items.filter((e) => e.virtual);
@@ -582,6 +618,10 @@ function renderSettings() {
 
   $('#shortcutUrl').value = shortcutUrl();
   renderLock();
+  const meN = state.settings.me || '';
+  const other = state.settings.persons.find((p) => p !== meN) || '';
+  if (document.activeElement !== $('#nameMe')) $('#nameMe').value = DEFAULT_NAMES.includes(meN) ? '' : meN;
+  if (document.activeElement !== $('#namePartner')) $('#namePartner').value = DEFAULT_NAMES.includes(other) ? '' : other;
   renderSync();
 }
 
@@ -765,6 +805,7 @@ function handleIncomingUrl() {
   const params = new URLSearchParams(location.search);
   const rawAmount = params.get('betrag') ?? params.get('amount');
   if (rawAmount == null) return;
+  Lock.skipAutoBio(); // Erfasst-Fenster zuerst zeigen, Face ID erst auf Wunsch
 
   // Parameter sofort aus der Adresszeile entfernen → Neuladen erfasst nicht doppelt
   const query = location.search;
@@ -892,6 +933,12 @@ function toast(msg) {
 // ---------- Events ----------
 function bind() {
   $$('.mode-switch button').forEach((b) => b.addEventListener('click', () => setMode(b.dataset.mode)));
+  // Namen
+  $('#nameMe').addEventListener('change', (e) => setMyName(e.target.value));
+  $('#namePartner').addEventListener('change', (e) => setPartnerName(e.target.value));
+  $('#namePromptBtn').onclick = () => { const v = $('#namePromptInput').value.trim(); if (!v) { toast('Bitte deinen Namen eingeben'); return; } setMyName(v); };
+  $('#namePromptInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#namePromptBtn').click(); });
+  $('#meChip').onclick = () => { showView('settings'); setTimeout(() => { $('#nameMe').focus(); $('#nameCard').scrollIntoView({ block: 'center' }); }, 50); };
   // App-Sperre
   $('#lockSetupBtn').onclick = () => Lock.startSetup();
   $('#lockPromptBtn').onclick = () => Lock.startSetup();
@@ -1074,7 +1121,7 @@ function bind() {
     state = defaultState(); save(); render(); toast('Daten auf diesem Gerät gelöscht');
   };
 
-  $('#capturedOk').onclick = () => { $('#capturedSheet').hidden = true; };
+  $('#capturedOk').onclick = () => { $('#capturedSheet').hidden = true; Lock.allowAutoBio(); };
   $('#capturedUndo').onclick = () => {
     state.expenses = state.expenses.filter((e) => e.id !== lastCapturedId);
     save(); render(); $('#capturedSheet').hidden = true; toast('Rückgängig gemacht');

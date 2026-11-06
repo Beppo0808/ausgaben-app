@@ -18,6 +18,9 @@ const Lock = (() => {
   let entry = '';
   let hiddenAt = 0;
   let setupMode = null; // { step: 'new' | 'repeat', first: '' }
+  let autoTried = false;  // Face ID pro Sperrvorgang nur einmal automatisch starten
+  let skipAuto = false;   // z. B. wenn gerade eine Zahlung erfasst wurde
+  let bioRunning = false;
 
   function read() { try { return JSON.parse(localStorage.getItem(KEY)) || null; } catch (e) { return null; } }
   function write() { try { cfg ? localStorage.setItem(KEY, JSON.stringify(cfg)) : localStorage.removeItem(KEY); } catch (e) { /* egal */ } }
@@ -86,6 +89,26 @@ const Lock = (() => {
     $l('#lockTitle').textContent = 'Bitte entsperren';
     setMsg(waitText());
     dots();
+    autoTried = false;
+    setTimeout(autoBio, 350);
+  }
+
+  /** Face ID automatisch starten; klappt es nicht, bleibt die PIN-Eingabe */
+  async function autoBio() {
+    if (!cfg || !cfg.bio || unlocked || setupMode || skipAuto || autoTried || bioRunning) return;
+    if (document.visibilityState !== 'visible') return; // beim Zurückkehren erneut versuchen
+    if (cfg.waitUntil && cfg.waitUntil > Date.now()) return;
+    autoTried = true;
+    await tryBio(true);
+  }
+  async function tryBio(auto) {
+    if (bioRunning) return;
+    bioRunning = true;
+    setMsg('Face ID …');
+    const ok = await bioUnlock();
+    bioRunning = false;
+    if (ok) { cfg.fails = 0; cfg.waitUntil = 0; write(); hide(); afterUnlock(); return; }
+    setMsg(auto ? 'Bitte PIN eingeben (Face ID war nicht möglich)' : 'Face ID abgebrochen – bitte PIN eingeben');
   }
   function hide() {
     unlocked = true;
@@ -185,11 +208,12 @@ const Lock = (() => {
     $l('#lockOk').onclick = submit;
     $l('#lockCancel').onclick = cancelSetup;
     $l('#lockForgot').onclick = forgot;
-    $l('#lockBio').onclick = async () => { if (await bioUnlock()) { cfg.fails = 0; cfg.waitUntil = 0; write(); hide(); afterUnlock(); } else setMsg('Face ID abgebrochen – oder PIN eingeben'); };
+    $l('#lockBio').onclick = () => tryBio(false);
     document.addEventListener('visibilitychange', () => {
       if (!enabled()) return;
       if (document.visibilityState === 'hidden') hiddenAt = Date.now();
       else if (unlocked && hiddenAt && Date.now() - hiddenAt > AUTO_LOCK_MIN * 60000) show();
+      else if (!unlocked) setTimeout(autoBio, 350);
     });
     // Countdown bei Wartezeit aktualisieren
     setInterval(() => { if (!$l('#lockScreen').hidden && cfg && cfg.waitUntil > Date.now()) setMsg(waitText(), true); }, 1000);
@@ -207,5 +231,8 @@ const Lock = (() => {
     disableBio() { if (cfg) { cfg.bio = ''; write(); } },
     disable() { cfg = null; write(); },
     onUnlock(cb) { afterUnlockCb = cb; },
+    skipAutoBio() { skipAuto = true; },
+    allowAutoBio() { skipAuto = false; setTimeout(autoBio, 200); },
+    refreshName() { if (!unlocked && enabled()) { const me = (typeof state !== 'undefined' && state.settings.me) || ''; $l('#lockName').textContent = me ? `Haushaltsbuch · ${me}` : 'Haushaltsbuch'; $l('#lockAvatar').textContent = (me || 'H').charAt(0).toUpperCase(); } },
   };
 })();

@@ -614,3 +614,16 @@ body.locked main, body.locked .tabbar, body.locked .fab, body.locked .topbar { v
 .tabbar { display: flex; justify-content: space-around; }
 .fab { bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 16px); }
 body { padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 96px); }
+
+/* Name */
+.mode-line { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 2px 2px 12px; }
+.mode-line .mode-banner { margin: 0; }
+.me-chip {
+  flex: none; border: 1px solid var(--border); border-radius: 999px; padding: 6px 12px; cursor: pointer;
+  font: 800 .9rem var(--font-text); color: var(--accent-deep);
+  background: linear-gradient(180deg, var(--surface), var(--surface-2)); box-shadow: var(--shadow-sm);
+}
+.me-chip:active { box-shadow: var(--shadow-press); }
+.name-prompt .name-row { display: flex; gap: 8px; margin-top: 10px; }
+.name-prompt input { flex: 1; min-width: 0; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface-2); box-shadow: var(--groove); font: inherit; color: var(--text); }
+.name-prompt .btn { margin: 0; }
