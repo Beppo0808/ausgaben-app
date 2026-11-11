@@ -722,6 +722,7 @@ async function renderGate() {
   if (!gateMe) return;
   $('#gateWho').textContent = `Angemeldet als ${gateMe.name} (${gateMe.role === 'owner' ? 'Inhaber' : 'eingeladen'}) – auf diesem Gerät gespeichert.`;
   $('#gateOwner').hidden = gateMe.role !== 'owner';
+  $('#syncInviteBtn').textContent = '👥 Person einladen';
   if (gateMe.role !== 'owner') return;
   try {
     const { people } = await gateCall('people');
@@ -1246,6 +1247,12 @@ function bind() {
   };
   $('#syncJoinBtn').onclick = () => joinFromInvite($('#syncInvite').value);
   $('#syncInviteBtn').onclick = async () => {
+    if (gateMe) { // Zugangssperre aktiv: Einladung über „Zugänge & Einladungen“ (enthält Zugang + Haushalt)
+      $('#gateCard').scrollIntoView({ block: 'start', behavior: 'smooth' });
+      setTimeout(() => $('#gateName').focus(), 400);
+      toast('Hier einladen – der Link enthält Zugang und Haushalt');
+      return;
+    }
     const link = Sync.inviteLink();
     try {
       if (navigator.share) { await navigator.share({ title: 'Ausgaben – Einladung', text: 'Verbinde dich mit unserem Haushaltsbuch:', url: link }); return; }
