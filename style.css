@@ -734,3 +734,6 @@ body[data-mode="personal"] .bon-bar { background: var(--personal-deep); }
 .rec-details li { min-width: 0; overflow-wrap: anywhere; }
 .rd-name { margin-top: 2px; }
 .rd-purpose { margin-top: 2px; color: var(--text-2, #5a4636); font-size: .9em; word-break: break-word; white-space: normal; }
+
+.row.tx[data-open] { cursor: pointer; }
+.tx-info { margin: 0 0 12px; line-height: 1.45; word-break: break-word; }

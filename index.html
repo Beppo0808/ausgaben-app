@@ -409,6 +409,27 @@
     </form>
   </dialog>
 
+  <!-- Dialog: Kontobuchung (persönlich) -->
+  <dialog id="txDialog">
+    <form method="dialog" id="txForm">
+      <div class="dialog-head"><h2>🏦 Kontobuchung</h2></div>
+      <p class="tx-info" id="txInfo"></p>
+      <label class="field">Bezeichnung
+        <input type="text" name="label" autocomplete="off" placeholder="z. B. Tanken Circle K">
+      </label>
+      <div class="field">Kategorie <span class="muted">(nochmal antippen = abwählen)</span>
+        <div class="chips" id="txChips"></div>
+      </div>
+      <label class="check"><input type="checkbox" name="household"> 👫 Auch in der gemeinsamen Ansicht zeigen (als Ausgabe im Haushalt)</label>
+      <p class="hint">Ohne Haken bleibt die Buchung nur hier in deiner persönlichen Ansicht.</p>
+      <div class="dialog-actions">
+        <span class="spacer"></span>
+        <button type="button" class="btn btn-ghost" id="txCancel">Abbrechen</button>
+        <button type="submit" class="btn btn-primary">Speichern</button>
+      </div>
+    </form>
+  </dialog>
+
   <!-- Dialog: Abo -->
   <dialog id="subDialog">
     <form method="dialog" id="subForm">

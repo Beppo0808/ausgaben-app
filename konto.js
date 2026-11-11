@@ -181,19 +181,58 @@ const Konto = (() => {
       Math.abs(new Date(e.date + 'T12:00').getTime() - d) <= 3 * 864e5);
   }
 
-  function addToHousehold(txId) {
+  function addToHousehold(txId) { openTx(txId, true); }
+
+  /** Fenster für eine Kontobuchung: eigene Kategorie (abwählbar) und ob sie im Haushalt erscheint */
+  let txEditing = null, txCat = '';
+  function openTx(txId, household) {
     const t = data.tx.find((x) => x.id === txId);
-    if (!t || t.amount >= 0) return;
-    const merchant = (t.name || t.purpose || 'Kontobuchung').slice(0, 60);
-    const exp = {
-      id: uid(), created: new Date().toISOString(), source: 'bank', amount: Math.abs(t.amount), merchant,
-      category: guessCategory(merchant + ' ' + t.purpose), date: t.date, person: state.settings.me, note: '', private: false,
-    };
-    state.expenses.push(exp);
-    t.linked = exp.id;
-    write(); save(); window.render();
-    toast(`${fmt(exp.amount)} übernommen – bitte Kategorie prüfen`);
-    openExpenseDialog(exp); // gleich Kategorie/Name anpassen können (z. B. Tanken)
+    if (!t) return;
+    txEditing = t;
+    const exp = t.linked ? state.expenses.find((e) => e.id === t.linked) : null;
+    const f = $('#txForm');
+    const d = t.date.split('-').reverse().join('.');
+    $('#txInfo').innerHTML = `<b>${fmt(t.amount)}</b> · ${esc(d)}<br>${esc(t.name || '')}${t.purpose ? '<br><span class="muted">' + esc(t.purpose) + '</span>' : ''}`;
+    f.label.value = t.label || (exp && exp.merchant) || (t.name || t.purpose || '').slice(0, 60);
+    if (t.cat !== undefined) txCat = t.cat;
+    else if (exp) txCat = exp.category;
+    else { const g = guessCategory(`${t.name} ${t.purpose}`); txCat = g === 'sonstiges' ? '' : g; }
+    drawTxChips();
+    f.household.checked = t.amount < 0 && (household || !!exp);
+    f.household.disabled = t.amount >= 0; // Eingänge sind keine Haushaltsausgaben
+    $('#txDialog').showModal();
+  }
+  function drawTxChips() {
+    const box = $('#txChips');
+    box.innerHTML = state.categories.map((c) =>
+      `<button type="button" class="chip ${c.id === txCat ? 'selected' : ''}" data-id="${esc(c.id)}">${esc(c.emoji)} ${esc(c.name)}</button>`).join('');
+    $$('.chip', box).forEach((ch) => ch.addEventListener('click', () => { txCat = txCat === ch.dataset.id ? '' : ch.dataset.id; drawTxChips(); }));
+  }
+  function saveTx(ev) {
+    ev.preventDefault();
+    const t = txEditing; if (!t) return;
+    const f = $('#txForm');
+    const label = f.label.value.trim();
+    const orig = (t.name || t.purpose || '').slice(0, 60);
+    if (label && label !== orig) t.label = label; else delete t.label;
+    t.cat = txCat;
+    if (txCat && label) learnRule(label, txCat);
+    let exp = t.linked ? state.expenses.find((e) => e.id === t.linked) : null;
+    if (f.household.checked && t.amount < 0) {
+      const cat = txCat || 'sonstiges';
+      if (exp) { exp.merchant = label || orig; exp.category = cat; }
+      else {
+        exp = { id: uid(), created: new Date().toISOString(), source: 'bank', amount: Math.abs(t.amount), merchant: label || orig || 'Kontobuchung',
+          category: cat, date: t.date, person: state.settings.me, note: '', private: false };
+        state.expenses.push(exp); t.linked = exp.id;
+      }
+      toast('✓ Im Haushalt');
+    } else if (exp) {
+      state.expenses = state.expenses.filter((e) => e.id !== exp.id);
+      delete t.linked;
+      toast('Aus dem Haushalt entfernt – bleibt nur persönlich');
+    } else toast('Gespeichert ✓');
+    write(); save(); $('#txDialog').close(); txEditing = null; window.render();
   }
 
   // ---------- Regelmäßige Zahlungen erkennen ----------
@@ -674,6 +713,8 @@ const Konto = (() => {
     $('#kontoHelpBtn').onclick = () => { const h = $('#kontoHelp'); h.hidden = !h.hidden; };
     $('#kontoAccount').addEventListener('change', (e) => { try { sessionStorage.setItem('konto-acc', e.target.value); } catch (x) { /* egal */ } render(); });
     $('#kontoSearch').addEventListener('input', render);
+    $('#txForm').addEventListener('submit', saveTx);
+    $('#txCancel').onclick = () => { $('#txDialog').close(); txEditing = null; };
     $('#kontoDeleteBtn').onclick = () => {
       const id = selectedAccount(); const acc = data.accounts.find((a) => a.id === id);
       if (!acc || !confirm(`Alle importierten Umsätze von „${acc.name}“ auf diesem Gerät löschen? (Das Haushaltsbuch bleibt unverändert.)`)) return;
@@ -688,8 +729,7 @@ const Konto = (() => {
     $('#kontoList').addEventListener('click', (e) => {
       const b = e.target.closest('button[data-add]');
       if (b) addToHousehold(b.dataset.add);
-      const ed = e.target.closest('button[data-edit]');
-      if (ed) { const exp = state.expenses.find((x) => x.id === ed.dataset.edit); if (exp) openExpenseDialog(exp); }
+      if (!b && !e.target.closest('button[data-rec]')) { const o = e.target.closest('[data-open]'); if (o) openTx(o.dataset.open, false); }
       const r = e.target.closest('button[data-rec]');
       if (r) markTx(r.dataset.rec);
     });
@@ -740,13 +780,14 @@ const Konto = (() => {
           const gk = groupKey(t);
           const ls = gk ? linkedSub(gk) : null;
           if (ls) action = `<span class="tx-tag">${ls.type === 'transfer' ? '💶 Haushaltsgeld' : '🔁 ' + esc(ls.name)}</span>`;
-          else if (t.linked && expIds.has(t.linked)) action = `<button class="tx-add done" data-edit="${esc(t.linked)}" title="Kategorie oder Name ändern">✓ im Haushalt · ändern</button>`;
+          else if (t.linked && expIds.has(t.linked)) action = `<button class="tx-add done" data-open="${esc(t.id)}">✓ im Haushalt · ändern</button>`;
           else action = `<button class="tx-add" data-add="${esc(t.id)}">＋ Haushalt</button>`
             + (maybeCaptured(t) ? '<span class="muted" style="font-size:.7rem">evtl. schon erfasst</span>' : '')
             + `<button class="tx-mini" data-rec="${esc(t.id)}">🔁 regelmäßig</button>`;
         }
-        return `<li class="row tx"><span class="emoji">${t.amount > 0 ? '⬇️' : '⬆️'}</span>
-          <span class="main"><div class="title">${esc(t.name || t.purpose || 'Buchung')}</div><div class="sub">${sub}</div></span>
+        const cat = t.cat ? state.categories.find((c) => c.id === t.cat) : null;
+        return `<li class="row tx" data-open="${esc(t.id)}"><span class="emoji">${cat ? esc(cat.emoji) : (t.amount > 0 ? '⬇️' : '⬆️')}</span>
+          <span class="main"><div class="title">${esc(t.label || t.name || t.purpose || 'Buchung')}</div><div class="sub">${cat ? '<b>' + esc(cat.name) + '</b> · ' : ''}${sub}</div></span>
           <span class="tx-right"><span class="amount ${t.amount > 0 ? 'in' : ''}">${t.amount > 0 ? '+' : ''}${fmt(t.amount)}</span>${action}</span></li>`;
       }).join('');
       html += '</ul></div>';
