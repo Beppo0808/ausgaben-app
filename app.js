@@ -21,7 +21,7 @@ const DEFAULT_CATEGORIES = [
 const KEYWORD_RULES = [
   [/rewe|edeka|aldi|lidl|netto|penny|kaufland|norma|globus|tegut|real\b|bäcker|baecker|backhaus|metzger|denns|alnatura|bio ?company|marktkauf|hit markt|famila|combi|nahkauf/i, 'lebensmittel'],
   [/mc ?donald|burger|starbucks|caf[eé]|coffee|kaffee|restaurant|pizza|döner|doener|kebab|sushi|subway|kfc|vapiano|lieferando|wolt|uber ?eats|bistro|bar\b|imbiss|eis/i, 'restaurant'],
-  [/aral|shell|esso|jet\b|total|tankstelle|agip|omv|avia|star tankstelle|bft|deutsche bahn|\bdb\b|bahn|bvg|mvg|hvv|vrr|kvb|rmv|flixbus|uber|bolt|free ?now|sixt|parken|parkhaus|apcoa|ladestation|ionity|e\.on drive|enbw/i, 'mobilitaet'],
+  [/aral|shell|esso|jet\b|total|tankstelle|couche-?tard|circle ?k|westfalen|hem\b|raiffeisen tank|q1\b|orlen|agip|omv|avia|star tankstelle|bft|deutsche bahn|\bdb\b|bahn|bvg|mvg|hvv|vrr|kvb|rmv|flixbus|uber|bolt|free ?now|sixt|parken|parkhaus|apcoa|ladestation|ionity|e\.on drive|enbw/i, 'mobilitaet'],
   [/\bdm\b|dm-drogerie|rossmann|müller|mueller|apotheke|pharmacy|budni|arzt|optik|fielmann/i, 'drogerie'],
   [/amazon|zalando|h&m|h ?& ?m|zara|primark|ikea|media ?markt|saturn|otto|about you|decathlon|tk ?maxx|c&a|deichmann|thalia|douglas|obi|hornbach|bauhaus|toom|action|tedi|kik/i, 'shopping'],
   [/netflix|spotify|disney|apple\.com|icloud|google|youtube|dazn|sky|audible|prime video|telekom|vodafone|o2|1&1|congstar/i, 'abos'],

@@ -192,7 +192,8 @@ const Konto = (() => {
     state.expenses.push(exp);
     t.linked = exp.id;
     write(); save(); window.render();
-    toast(`${fmt(exp.amount)} ins Haushaltsbuch übernommen ✓`);
+    toast(`${fmt(exp.amount)} übernommen – bitte Kategorie prüfen`);
+    openExpenseDialog(exp); // gleich Kategorie/Name anpassen können (z. B. Tanken)
   }
 
   // ---------- Regelmäßige Zahlungen erkennen ----------
@@ -687,6 +688,8 @@ const Konto = (() => {
     $('#kontoList').addEventListener('click', (e) => {
       const b = e.target.closest('button[data-add]');
       if (b) addToHousehold(b.dataset.add);
+      const ed = e.target.closest('button[data-edit]');
+      if (ed) { const exp = state.expenses.find((x) => x.id === ed.dataset.edit); if (exp) openExpenseDialog(exp); }
       const r = e.target.closest('button[data-rec]');
       if (r) markTx(r.dataset.rec);
     });
@@ -737,7 +740,7 @@ const Konto = (() => {
           const gk = groupKey(t);
           const ls = gk ? linkedSub(gk) : null;
           if (ls) action = `<span class="tx-tag">${ls.type === 'transfer' ? '💶 Haushaltsgeld' : '🔁 ' + esc(ls.name)}</span>`;
-          else if (t.linked && expIds.has(t.linked)) action = '<span class="tx-add done">✓ im Haushalt</span>';
+          else if (t.linked && expIds.has(t.linked)) action = `<button class="tx-add done" data-edit="${esc(t.linked)}" title="Kategorie oder Name ändern">✓ im Haushalt · ändern</button>`;
           else action = `<button class="tx-add" data-add="${esc(t.id)}">＋ Haushalt</button>`
             + (maybeCaptured(t) ? '<span class="muted" style="font-size:.7rem">evtl. schon erfasst</span>' : '')
             + `<button class="tx-mini" data-rec="${esc(t.id)}">🔁 regelmäßig</button>`;
