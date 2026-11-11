@@ -370,9 +370,20 @@ const Konto = (() => {
         actions = (g.toPartner ? tr + fx : fx + tr) + `<button class="tx-add" data-act="dismiss" data-i="${i}">Privat / ausblenden</button>`;
       }
       return `<li class="row tx rec"><span class="emoji">🔁</span>
-        <span class="main"><div class="title">${esc(s ? s.name : g.name)}</div><div class="sub">${sub}</div><div class="actions">${actions}</div></span>
+        <span class="main"><div class="title">${esc(s ? s.name : g.name)}</div><div class="sub">${sub}</div><div class="actions">${actions}</div>${recDetails(g)}</span>
         <span class="tx-right"><span class="amount">${fmt(g.amount)}</span></span></li>`;
     }).join('');
+  }
+
+  /** Aufklappbare Liste der einzelnen Buchungen einer erkannten Gruppe */
+  function recDetails(g) {
+    const items = [...g.list].sort((a, b) => b.date.localeCompare(a.date)).map((t) => {
+      const d = t.date.split('-').reverse().join('.');
+      return `<li><div class="rd-head"><span>${esc(d)}</span><b>${fmt(Math.abs(t.amount))}</b></div>`
+        + (t.name ? `<div class="rd-name">${esc(t.name)}</div>` : '')
+        + (t.purpose ? `<div class="rd-purpose">${esc(t.purpose)}</div>` : '') + '</li>';
+    }).join('');
+    return `<details class="rec-details"><summary>Einzelne Buchungen ansehen (${g.list.length})</summary><ul>${items}</ul></details>`;
   }
 
   function onRecurringClick(e) {
