@@ -1,5 +1,5 @@
 // Offline-Unterstützung: Netzwerk zuerst (für Updates), sonst Cache.
-const CACHE = 'ausgaben-v18';
+const CACHE = 'ausgaben-v19';
 const ASSETS = ['./', 'index.html', 'style.css', 'app.js', 'sync.js', 'konto.js', 'receipt.js', 'scanner.js', 'lock.js', 'manifest.webmanifest', 'icon.svg', 'fonts/fraunces-latin.woff2', 'fonts/nunito-latin.woff2', 'icon-180.png', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', (e) => {
@@ -14,8 +14,10 @@ self.addEventListener('fetch', (e) => {
   e.respondWith(
     fetch(e.request)
       .then((res) => {
-        const copy = res.clone();
-        caches.open(CACHE).then((c) => c.put(e.request, copy)).catch(() => {});
+        if (res.ok) { // nur echte App-Dateien aufheben, nie die Einladungsseite
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put(e.request, copy)).catch(() => {});
+        }
         return res;
       })
       .catch(() => caches.match(e.request, { ignoreSearch: true }))
