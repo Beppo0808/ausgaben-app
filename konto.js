@@ -534,6 +534,13 @@ const Konto = (() => {
             const b = await call('balances', { account: a.uid });
             const list = (b.balances || []).slice().sort((x, y) => (BAL_ORDER.indexOf(x.type) + 99) % 99 - (BAL_ORDER.indexOf(y.type) + 99) % 99);
             if (list[0]) { a.balance = list[0].amount; a.balanceCurrency = list[0].currency; a.balanceDate = list[0].date; }
+            const carry = {}; // „im Haushalt übernommen“-Markierungen behalten
+            if (a.idv !== 2) { // ältere Kennungen konnten bei manchen Banken gleiche Buchungen zusammenlegen → einmal komplett neu holen
+              const pre = `eb-${a.uid.slice(0, 8)}-`;
+              data.tx.forEach((t) => { if (String(t.id).startsWith(pre) && t.linked) carry[`${t.date}|${t.amount}|${t.name}|${t.purpose}`] = t.linked; });
+              data.tx = data.tx.filter((t) => !String(t.id).startsWith(pre));
+              delete a.lastDate;
+            }
             const from = new Date(a.lastDate ? new Date(a.lastDate + 'T12:00').getTime() - 10 * 864e5 : Date.now() - 89 * 864e5);
             let next = null, pages = 0;
             const existing = new Set(data.tx.map((t) => t.id));
@@ -543,17 +550,20 @@ const Konto = (() => {
               for (const t of r.transactions || []) {
                 if (t.status && t.status !== 'BOOK') continue; // nur gebuchte Umsätze (vorgemerkte ändern sich noch)
                 if (!/^\d{4}-\d{2}-\d{2}$/.test(t.date) || !t.amount) continue;
-                const base = t.id || hash(`${t.date}|${t.amount}|${t.name}|${t.purpose}`);
+                // Kennung aus allen Angaben – die Referenz der Bank allein ist nicht immer eindeutig (z. B. „NONREF“)
+                const base = hash(`${t.id}|${t.date}|${t.amount}|${t.name}|${t.purpose}`);
                 seen[base] = (seen[base] || 0) + 1;
-                const id = `eb-${a.uid.slice(0, 8)}-${base}${t.id ? '' : '-' + seen[base]}`;
+                const id = `eb2-${a.uid.slice(0, 8)}-${base}-${seen[base]}`;
                 if (existing.has(id)) continue;
-                data.tx.push({ id, account: a.accId, date: t.date, amount: t.amount, name: String(t.name || '').slice(0, 120), purpose: String(t.purpose || '').slice(0, 300) });
+                const row = { id, account: a.accId, date: t.date, amount: t.amount, name: String(t.name || '').slice(0, 120), purpose: String(t.purpose || '').slice(0, 300) };
+                const lk = carry[`${row.date}|${row.amount}|${row.name}|${row.purpose}`]; if (lk) row.linked = lk;
+                data.tx.push(row);
                 existing.add(id); added++;
                 if (!a.lastDate || t.date > a.lastDate) a.lastDate = t.date;
               }
               next = r.next; pages++;
             } while (next && pages < 25);
-            a.fetched = new Date().toISOString();
+            a.fetched = new Date().toISOString(); a.idv = 2;
           } catch (e) {
             problems++;
             if (/expired|abgelaufen|consent|revoked|EXPIRED|SESSION/i.test(e.message)) conn.expired = true;
