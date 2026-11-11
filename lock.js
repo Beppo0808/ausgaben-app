@@ -90,7 +90,7 @@ const Lock = (() => {
     setMsg(waitText());
     dots();
     autoTried = false;
-    setTimeout(autoBio, 350);
+    setTimeout(autoBio, 60);
   }
 
   /** Face ID automatisch starten; klappt es nicht, bleibt die PIN-Eingabe */
@@ -213,7 +213,7 @@ const Lock = (() => {
       if (!enabled()) return;
       if (document.visibilityState === 'hidden') hiddenAt = Date.now();
       else if (unlocked && hiddenAt && Date.now() - hiddenAt > AUTO_LOCK_MIN * 60000) show();
-      else if (!unlocked) setTimeout(autoBio, 350);
+      else if (!unlocked) setTimeout(autoBio, 60);
     });
     // Countdown bei Wartezeit aktualisieren
     setInterval(() => { if (!$l('#lockScreen').hidden && cfg && cfg.waitUntil > Date.now()) setMsg(waitText(), true); }, 1000);
