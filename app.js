@@ -631,7 +631,18 @@ function renderList() {
   }
   const groups = new Map();
   items.forEach((e) => { const k = e.virtual ? 'Abos & Fixkosten' : e.date; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(e); });
-  let html = '';
+  // Monatssumme (berücksichtigt Suche und Filter, z. B. nur eine Person)
+  const monthName = new Date(viewY, viewM, 1).toLocaleDateString('de-DE', { month: 'long' });
+  const total = round2(items.reduce((a, e) => a + e.amount, 0));
+  let perPerson = '';
+  if (!isPersonal() && !fp.value) {
+    const by = {};
+    items.forEach((e) => { const p = e.person || 'ohne Person'; by[p] = (by[p] || 0) + e.amount; });
+    const parts = Object.entries(by).sort((a, b) => b[1] - a[1]);
+    if (parts.length > 1) perPerson = `<div class="month-sum-split">${parts.map(([p, v]) => `${esc(p)}: <b>${fmt(v)}</b>`).join(' · ')}</div>`;
+  }
+  let html = `<div class="month-sum"><div class="month-sum-head"><span>Summe ${esc(monthName)}${fc.value || fp.value || q ? ' (gefiltert)' : ''}</span><b>${fmt(total)}</b></div>`
+    + `<div class="month-sum-sub">${items.length} ${items.length === 1 ? 'Eintrag' : 'Einträge'}</div>${perPerson}</div>`;
   for (const [k, list] of groups) {
     const label = k.includes('-') ? new Date(k + 'T12:00').toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' }) : k;
     const sum = list.reduce((a, e) => a + e.amount, 0);

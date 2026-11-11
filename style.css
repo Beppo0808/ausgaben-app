@@ -737,3 +737,10 @@ body[data-mode="personal"] .bon-bar { background: var(--personal-deep); }
 
 .row.tx[data-open] { cursor: pointer; }
 .tx-info { margin: 0 0 12px; line-height: 1.45; word-break: break-word; }
+
+/* Monatssumme über der Ausgabenliste */
+.month-sum { margin: 4px 0 14px; padding: 14px 16px; border-radius: 16px; background: var(--surface); box-shadow: var(--shadow-sm); border: 1px solid var(--border); }
+.month-sum-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-weight: 700; }
+.month-sum-head b { font-family: var(--font-display, serif); font-size: 1.5rem; color: var(--accent-deep, #8c4325); }
+.month-sum-sub { color: var(--text-2); font-size: .9rem; margin-top: 2px; }
+.month-sum-split { margin-top: 6px; font-size: .95rem; }
