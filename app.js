@@ -348,7 +348,10 @@ function renderOverview() {
   $('#kpiTotalSub').textContent = prevTotal ? `Vormonat ${fmt0(prevTotal)}` : '';
   $('#kpiLabel2').textContent = '🏠 Fixkosten';
   $('#kpiA').textContent = fmt(sum(fixedList));
-  $('#kpiASub').textContent = `${fixedList.length} Posten`;
+  const trSum = round2(transfersForMonth(viewY, viewM).reduce((a, t) => a + t.amount, 0));
+  $('#kpiASub').textContent = !fixedList.length && trSum
+    ? `Haushaltsgeld ${fmt0(trSum)} – Miete & Co. noch eintragen`
+    : `${fixedList.length} Posten`;
   $('#kpiLabel3').textContent = '🛒 Alltag';
   $('#kpiB').textContent = fmt(sum(dailyList));
   $('#kpiBSub').textContent = `${dailyList.length} ${dailyList.length === 1 ? 'Einkauf' : 'Einkäufe'}`;
