@@ -415,7 +415,8 @@ const Konto = (() => {
     return s.url ? s.url.replace(/\/+$/, '') + '/functions/v1/bank' : '';
   }
   function redirectUrl() { return location.origin + location.pathname.replace(/index\.html$/, ''); }
-  function bankReady() { return !!(bankCfg().token && functionUrl()); }
+  const selfHosted = () => document.querySelector('meta[name="sync-backend"]')?.content === 'self' && !bankCfg().url;
+  function bankReady() { return !!((bankCfg().token || selfHosted()) && functionUrl()); }
   function connections() { data.bank = data.bank || { connections: [] }; return data.bank.connections; }
   function randomToken(n = 32) {
     const b = crypto.getRandomValues(new Uint8Array(n));
@@ -425,8 +426,9 @@ const Konto = (() => {
   async function call(action, payload = {}) {
     const url = functionUrl();
     const c = bankCfg();
-    if (!url || !c.token) throw new Error('Bank-Zugang ist noch nicht eingerichtet (siehe „Einrichtung“).');
-    const headers = { 'Content-Type': 'application/json', 'x-bank-token': c.token };
+    if (!url || !(c.token || selfHosted())) throw new Error('Bank-Zugang ist noch nicht eingerichtet (siehe „Einrichtung“).');
+    const headers = { 'Content-Type': 'application/json' };
+    if (c.token) headers['x-bank-token'] = c.token;
     const s = syncCfg();
     if (s.key) headers.apikey = s.key;
     let res;
@@ -574,6 +576,7 @@ const Konto = (() => {
     if (document.activeElement !== $('#bankToken')) $('#bankToken').value = cfg.token || '';
     if (document.activeElement !== $('#bankUrl')) $('#bankUrl').value = cfg.url || functionUrl();
     $('#bankRedirect').value = redirectUrl();
+    $('#bankSetup').hidden = selfHosted(); // bei eurer Netlify-App ist alles schon eingerichtet
     const conns = connections();
     $('#bankRefresh').hidden = !conns.length;
     $('#bankSetup').open = !bankReady() && !conns.length ? $('#bankSetup').open : $('#bankSetup').open;

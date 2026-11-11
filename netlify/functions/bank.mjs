@@ -11,7 +11,15 @@ if (!globalThis.crypto) globalThis.crypto = webcrypto;
 import { denyIfNoAccess } from '../lib/gate-node.mjs';
 
 export default async (req) => {
-  if (req.method !== 'OPTIONS') { const deny = await denyIfNoAccess(req); if (deny) return deny; }
+  if (req.method === 'OPTIONS') return handler(req);
+  const deny = await denyIfNoAccess(req); if (deny) return deny;
+  // Mit aktiver Zugangssperre ist die Person schon per Einladung angemeldet –
+  // der zusätzliche Bank-Schlüssel wird dann hier auf dem Server ergänzt (nicht auf den Geräten).
+  if (process.env.GATE_SECRET && process.env.BANK_ACCESS_TOKEN) {
+    const headers = new Headers(req.headers);
+    headers.set('x-bank-token', process.env.BANK_ACCESS_TOKEN);
+    req = new Request(req, { headers, duplex: 'half' });
+  }
   return handler(req);
 };
 export const config = { path: '/api/bank' };
