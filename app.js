@@ -462,21 +462,30 @@ function renderDailyChart(items, dim, elapsedDays) {
   el.innerHTML = svg;
 
   const tip = $('#tooltip');
+  let tipTimer;
+  const hide = () => { clearTimeout(tipTimer); tip.hidden = true; $$('.bar.hover', el).forEach((x) => x.classList.remove('hover')); };
   const show = (ev) => {
-    const t = ev.target.closest('.hit'); if (!t) return;
+    const t = ev.target.closest('.hit'); if (!t) return hide();
     const i = +t.dataset.i;
-    $$('.bar.hover', el).forEach((b) => b.classList.remove('hover'));
-    const b = el.querySelector(`.bar[data-i="${i}"]`); if (b) b.classList.add('hover');
+    if (!(perDay[i] > 0)) return hide(); // nur bei Tagen mit Ausgaben
+    $$('.bar.hover', el).forEach((x) => x.classList.remove('hover'));
+    const bar = el.querySelector(`.bar[data-i="${i}"]`); if (bar) bar.classList.add('hover');
     const d = new Date(viewY, viewM, i + 1).toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'short' });
     tip.textContent = `${d}: ${fmt(perDay[i])}`;
     const r = t.getBoundingClientRect();
-    tip.style.left = (r.left + r.width / 2) + 'px';
+    tip.style.left = Math.min(Math.max(r.left + r.width / 2, 90), innerWidth - 90) + 'px';
     tip.style.top = (r.top + 10) + 'px';
     tip.hidden = false;
+    clearTimeout(tipTimer); tipTimer = setTimeout(hide, 2500); // verschwindet von selbst
   };
-  const hide = () => { tip.hidden = true; $$('.bar.hover', el).forEach((b) => b.classList.remove('hover')); };
-  el.onpointermove = show;
-  if (!el.dataset.resize) { el.dataset.resize = '1'; let rt; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(renderOverview, 150); }); } el.onpointerdown = show; el.onpointerleave = hide;
+  hide();
+  if (!el.dataset.resize) {
+    el.dataset.resize = '1'; let rt;
+    addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(renderOverview, 150); });
+    addEventListener('scroll', () => { tip.hidden = true; }, { passive: true, capture: true }); // beim Scrollen weg
+  }
+  if (total) { el.onpointermove = (ev) => { if (ev.pointerType === 'mouse') show(ev); }; el.onpointerdown = show; el.onpointerleave = hide; }
+  else { el.onpointermove = el.onpointerdown = el.onpointerleave = null; }
 }
 
 function roundedTop(x, y, w, h, r) {
