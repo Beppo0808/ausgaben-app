@@ -634,15 +634,23 @@ function renderList() {
   // Monatssumme (berücksichtigt Suche und Filter, z. B. nur eine Person)
   const monthName = new Date(viewY, viewM, 1).toLocaleDateString('de-DE', { month: 'long' });
   const total = round2(items.reduce((a, e) => a + e.amount, 0));
-  let perPerson = '';
+  // Haushaltsgeld zählt beim Überweisenden mit (nicht als Ausgabe im Haushalt, aber als sein Beitrag)
+  const given = {};
+  if (!isPersonal() && !fc.value && !q) transfersForMonth(viewY, viewM).forEach((t) => { if (t.payer) given[t.payer] = (given[t.payer] || 0) + t.amount; });
+  let perPerson = '', extra = '';
   if (!isPersonal() && !fp.value) {
     const by = {};
     items.forEach((e) => { const p = e.person || 'ohne Person'; by[p] = (by[p] || 0) + e.amount; });
+    state.settings.persons.forEach((p) => { if (p && (by[p] || given[p])) by[p] = (by[p] || 0) + (given[p] || 0); });
     const parts = Object.entries(by).sort((a, b) => b[1] - a[1]);
-    if (parts.length > 1) perPerson = `<div class="month-sum-split">${parts.map(([p, v]) => `${esc(p)}: <b>${fmt(v)}</b>`).join(' · ')}</div>`;
+    if (parts.length) perPerson = `<ul class="month-sum-split">${parts.map(([p, v]) => `<li><span>${esc(p)}</span><b>${fmt(v)}</b></li>`).join('')}</ul>`
+      + (Object.keys(given).length ? `<div class="month-sum-sub">inkl. Haushaltsgeld: ${Object.entries(given).map(([p, v]) => `${esc(p)} ${fmt(v)}`).join(', ')}</div>` : '');
+  } else if (!isPersonal() && given[fp.value]) {
+    extra = `<div class="month-sum-head month-sum-plus"><span>+ Haushaltsgeld an ${esc(state.subs.find((s) => isTransfer(s) && s.payer === fp.value)?.to || 'Partner')}</span><b>${fmt(given[fp.value])}</b></div>`
+      + `<div class="month-sum-head"><span>${esc(fp.value)} insgesamt</span><b>${fmt(total + given[fp.value])}</b></div>`;
   }
-  let html = `<div class="month-sum"><div class="month-sum-head"><span>Summe ${esc(monthName)}${fc.value || fp.value || q ? ' (gefiltert)' : ''}</span><b>${fmt(total)}</b></div>`
-    + `<div class="month-sum-sub">${items.length} ${items.length === 1 ? 'Eintrag' : 'Einträge'}</div>${perPerson}</div>`;
+  let html = `<div class="month-sum"><div class="month-sum-head"><span>${fp.value && !fp.value.startsWith('__') ? esc(fp.value) + ' – Einkäufe' : 'Summe'} ${esc(monthName)}</span><b>${fmt(total)}</b></div>`
+    + `<div class="month-sum-sub">${items.length} ${items.length === 1 ? 'Eintrag' : 'Einträge'}${fc.value || q ? ' (gefiltert)' : ''}</div>${extra}${perPerson}</div>`;
   for (const [k, list] of groups) {
     const label = k.includes('-') ? new Date(k + 'T12:00').toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' }) : k;
     const sum = list.reduce((a, e) => a + e.amount, 0);
@@ -1333,5 +1341,19 @@ loadGate();
 Konto.handleCallback();
 
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
-  navigator.serviceWorker.register('sw.js').catch(() => {});
+  const hadController = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.register('sw.js').then((reg) => {
+    // Beim Zurückkehren in die App nach einer neuen Version schauen
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reg.update().catch(() => {}); });
+  }).catch(() => {});
+  // Neue Version aktiv → einmal neu laden (nicht während ein Fenster offen ist)
+  let reloaded = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController || reloaded) return;
+    const tryReload = () => {
+      if (document.querySelector('dialog[open]') || document.activeElement?.matches('input, textarea, select')) { setTimeout(tryReload, 3000); return; }
+      reloaded = true; location.reload();
+    };
+    tryReload();
+  });
 }

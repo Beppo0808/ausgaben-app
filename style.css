@@ -744,3 +744,8 @@ body[data-mode="personal"] .bon-bar { background: var(--personal-deep); }
 .month-sum-head b { font-family: var(--font-display, serif); font-size: 1.5rem; color: var(--accent-deep, #8c4325); }
 .month-sum-sub { color: var(--text-2); font-size: .9rem; margin-top: 2px; }
 .month-sum-split { margin-top: 6px; font-size: .95rem; }
+
+ul.month-sum-split { list-style: none; margin: 10px 0 0; padding: 8px 0 0; border-top: 1px solid var(--border); }
+ul.month-sum-split li { display: flex; justify-content: space-between; padding: 3px 0; font-size: 1.05rem; }
+.month-sum-plus { margin-top: 8px; font-weight: 600; }
+.month-sum-plus b { font-size: 1.1rem !important; }
