@@ -236,6 +236,12 @@ function setMyName(name) {
   const me = state.settings.me;
   const n = String(name || '').trim();
   if (!n) return;
+  // Name gibt es schon (z. B. nach dem Beitreten zum Haushalt): nur „Das bin ich“ umstellen, nichts umbenennen
+  const existing = state.settings.persons.find((p) => p.toLowerCase() === n.toLowerCase());
+  if (existing) {
+    if (existing !== me) { state.settings.me = existing; save(); render(); Lock.refreshName(); toast(`👤 Hallo ${existing}!`); }
+    return;
+  }
   if (!state.settings.persons.includes(me)) { state.settings.persons.unshift(n.slice(0, 30)); state.settings.me = n.slice(0, 30); save(); render(); return; }
   if (renamePerson(me, n)) { state.settings.me = n.replace(/[,<>]/g, '').trim().slice(0, 30); save(); render(); Lock.refreshName(); toast(`👤 Hallo ${state.settings.me}!`); }
 }
