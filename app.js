@@ -379,7 +379,7 @@ function renderWhoPaid(items) {
     const from = stats[t.payer] || (stats[t.payer] = mk());
     const to = stats[t.to] || (stats[t.to] = mk());
     from.total += t.amount; from.given += t.amount;
-    to.total -= t.amount; to.received += t.amount;
+    to.received += t.amount; // nur als Info – zählt beim Überweisenden als Ausgabe
   });
   const rows = Object.entries(stats).filter(([p, s]) => s.total !== 0 || s.received || persons.includes(p));
   const sum = rows.reduce((a, [, s]) => a + s.total, 0);
@@ -394,7 +394,7 @@ function renderWhoPaid(items) {
     const pct = Math.min(100, Math.max(0, (s.total / sum) * 100));
     const i = personIndex(p);
     const detail = [s.count ? `${s.count} ${s.count === 1 ? 'Einkauf' : 'Einkäufe'}` : '', s.fixed ? `Fixkosten ${fmt0(s.fixed)}` : '',
-      s.given ? `+ Haushaltsgeld ${fmt0(s.given)}` : '', s.received ? `− erhaltenes Haushaltsgeld ${fmt0(s.received)}` : ''].filter(Boolean).join(' · ');
+      s.given ? `+ Haushaltsgeld ${fmt0(s.given)}` : '', s.received ? `erhält Haushaltsgeld ${fmt0(s.received)}` : ''].filter(Boolean).join(' · ');
     return `<li data-person="${esc(p)}">
       <div class="who-line">${personAvatar(p)}<span class="who-name">${esc(p)}<span class="muted who-detail">${esc(detail)}</span></span>
         <span class="amt">${s.total < 0 ? `<span class="muted">Überschuss</span> <b>${fmt(-s.total)}</b>` : `<b>${fmt(s.total)}</b> <span class="muted">${Math.round(pct)} %</span>`}</span></div>
@@ -405,27 +405,7 @@ function renderWhoPaid(items) {
     $('#filterPerson').value = li.dataset.person; showView('list'); renderList();
   }));
 
-  // Ausgleich bei gleicher Aufteilung
-  const active = rows.filter(([p]) => persons.includes(p));
-  let balance = '';
-  if (active.length >= 2) {
-    const share = sum / active.length;
-    const diffs = active.map(([p, s]) => [p, round2(s.total - share)]);
-    const payers = diffs.filter(([, d]) => d < -0.5).sort((a, b) => a[1] - b[1]);
-    const receivers = diffs.filter(([, d]) => d > 0.5).sort((a, b) => b[1] - a[1]);
-    const moves = [];
-    let ri = 0;
-    for (const [p, d0] of payers) {
-      let d = -d0;
-      while (d > 0.5 && ri < receivers.length) {
-        const take = Math.min(d, receivers[ri][1]);
-        moves.push(`${p} → ${receivers[ri][0]}: ${fmt(take)}`);
-        receivers[ri][1] = round2(receivers[ri][1] - take); d = round2(d - take);
-        if (receivers[ri][1] <= 0.5) ri++;
-      }
-    }
-    balance = moves.length ? `⚖️ Bei halbe-halbe: ${moves.join(' · ')}` : '⚖️ Ausgeglichen – alle haben gleich viel bezahlt.';
-  }
+  const balance = ''; // kein „halbe-halbe“-Ausgleich: ihr teilt nicht 50/50
   $('#whoBalance').textContent = balance;
   $('#whoOpen').textContent = open ? `Ohne Person (z. B. Gemeinschaftskonto): ${fmt(open)}` : '';
 }
