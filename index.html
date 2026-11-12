@@ -608,7 +608,8 @@
       <h2 id="subDialogTitle">Fixkosten</h2>
       <label class="field">Art
         <select name="type">
-          <option value="fixed">🏠 Fixkosten / Abo – Haushaltsausgabe</option>
+          <option value="fixed">🏠 Fixkosten gemeinsam – Miete, Strom, Kredit, Netflix …</option>
+          <option value="private">🔒 Fixkosten privat – nur meine (eigenes Handy, Spotify …)</option>
           <option value="transfer">💶 Haushaltsgeld – Überweisung zwischen euch</option>
         </select>
       </label>
@@ -635,7 +636,7 @@
         </select>
       </label>
       <label class="check" id="subSpreadRow"><input type="checkbox" name="spread"> Auf die Monate umlegen (z. B. 120 € im Jahr = 10 € pro Monat in der Übersicht)</label>
-      <label class="check only-fixed" id="subPrivateRow"><input type="checkbox" name="private"> 🔒 Privat – nur meine eigene Ausgabe (z. B. eigenes Abo), Ute/Partner sieht sie nicht</label>
+      <input type="checkbox" name="private" hidden>
       <div class="dialog-actions">
         <button type="button" class="btn btn-danger" id="deleteSubBtn">Löschen</button>
         <span class="spacer"></span>

@@ -1106,6 +1106,8 @@ let subSavedCb = null;
 function syncSubType() {
   const f = $('#subForm');
   const t = f.type.value === 'transfer';
+  f.private.checked = f.type.value === 'private';
+  if (f.type.value === 'private') f.payer.value = state.settings.me;
   $$('.only-fixed', f).forEach((el) => { el.hidden = t; });
   $$('.only-transfer', f).forEach((el) => { el.hidden = !t; });
   $('#subSpreadRow').hidden = t || f.interval.value === 'month';
@@ -1131,6 +1133,7 @@ function openSubDialog(sub, preset = null, onSaved = null) {
   f.via.value = v.via || '';
   f.spread.checked = v.spread !== undefined ? !!v.spread : false;
   f.private.checked = !!v.private;
+  if (v.private && v.type !== 'transfer') f.type.value = 'private';
   subPresetSubcat = v.subcat || '';
   f.payer.innerHTML = '<option value="">Gemeinsam / Gemeinschaftskonto</option>' + persons.map((p) => `<option>${esc(p)}</option>`).join('');
   f.payer.value = v.payer !== undefined ? v.payer : '';
