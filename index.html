@@ -168,31 +168,31 @@
         </details>
       </div>
 
-      <div class="card card-private">
-        <div class="card-head"><h2>🔒 Umsätze</h2><span class="muted">nur auf diesem Gerät</span></div>
-        <p class="hint">Nur zum Ansehen – wird <b>nie</b> synchronisiert oder geteilt. Einzelne Ausgaben kannst du mit <b>＋ Haushalt</b> ins gemeinsame Haushaltsbuch übernehmen.</p>
+      <div class="card card-private" id="kontoUmsatzCard">
+        <div class="card-head"><h2>🧾 Umsätze</h2><span class="muted">wie in der Banking-App · nur auf diesem Gerät</span></div>
         <div class="field-row">
           <label class="field">Konto
             <select id="kontoAccount"></select>
           </label>
           <label class="field">Suchen
-            <input type="search" id="kontoSearch" placeholder="Name, Verwendungszweck">
+            <input type="search" id="kontoSearch" placeholder="Name, Verwendungszweck, Betrag">
           </label>
         </div>
-        <div class="btn-row">
-          <label class="btn btn-ghost btn-file">Alternativ: CSV-Datei importieren<input type="file" id="kontoFile" accept=".csv,text/csv,text/plain"></label>
-          <button class="btn btn-ghost" id="kontoHelpBtn">So geht's</button>
+        <div class="seg" id="kontoRange">
+          <button type="button" data-v="all" aria-pressed="true">Alle Umsätze</button>
+          <button type="button" data-v="month" aria-pressed="false" id="kontoRangeMonth">Nur diesen Monat</button>
         </div>
-        <div class="howto" id="kontoHelp" hidden>
-          <ol>
-            <li>Im Online-Banking deiner Bank (Safari, nicht die Banking-App) zu <b>Umsätze</b> gehen.</li>
-            <li>Zeitraum wählen → <b>Export / Herunterladen → CSV</b> (bei manchen Banken „CSV-CAMT“ oder „Excel/CSV“).</li>
-            <li>Hier auf <b>Umsätze importieren</b> tippen und die Datei aus „Downloads“ wählen.</li>
-          </ol>
-          <p class="hint">Funktioniert mit Sparkasse, Volksbank, ING, DKB, comdirect, Commerzbank, Postbank, N26 u. a. Mehrfach importieren ist kein Problem – doppelte Buchungen werden erkannt.</p>
+        <div class="kpis kpis-3" id="kontoKpis" hidden>
+          <div class="kpi"><span class="kpi-label">Eingänge</span><span class="kpi-value pos" id="kontoIn">–</span></div>
+          <div class="kpi"><span class="kpi-label">Ausgänge</span><span class="kpi-value" id="kontoOut">–</span></div>
+          <div class="kpi"><span class="kpi-label">Saldo Monat</span><span class="kpi-value" id="kontoSaldo">–</span></div>
         </div>
+        <div id="kontoList"></div>
+        <button class="btn" id="kontoMore" hidden>Weitere Umsätze anzeigen</button>
+        <p class="hint">Antippen: Kategorie, Abo oder „gemeinsame Ausgabe“ festlegen. Die Liste selbst bleibt immer so, wie die Bank sie liefert.</p>
       </div>
 
+      <h2 class="section-title">Auswertung</h2>
       <div class="card card-private" id="privSubsCard">
         <div class="card-head"><h2>🔒 Meine Abos &amp; Verträge</h2><span class="muted" id="privSubsTotal"></span></div>
         <p class="hint">Nur für dich – zum Beispiel dein eigenes Handy, Spotify oder Fitnessstudio. Gemeinsame Abos (z. B. Netflix für euch beide) gehören zu den Fixkosten.</p>
@@ -206,13 +206,22 @@
         <ul class="rows" id="kontoRecurring"></ul>
       </div>
 
-      <div class="kpis kpis-3">
-        <div class="kpi"><span class="kpi-label">Eingänge</span><span class="kpi-value pos" id="kontoIn">–</span></div>
-        <div class="kpi"><span class="kpi-label">Ausgänge</span><span class="kpi-value" id="kontoOut">–</span></div>
-        <div class="kpi"><span class="kpi-label">Saldo Monat</span><span class="kpi-value" id="kontoSaldo">–</span></div>
-      </div>
-      <div id="kontoList"></div>
-      <button class="btn btn-danger" id="kontoDeleteBtn" hidden>Umsätze dieses Kontos löschen</button>
+      <details class="card card-private howto-card">
+        <summary><b>Weitere Optionen</b> – CSV-Import, Umsätze löschen</summary>
+        <div class="btn-row">
+          <label class="btn btn-ghost btn-file">Alternativ: CSV-Datei importieren<input type="file" id="kontoFile" accept=".csv,text/csv,text/plain"></label>
+          <button class="btn btn-ghost" id="kontoHelpBtn">So geht's</button>
+        </div>
+        <div class="howto" id="kontoHelp" hidden>
+          <ol>
+            <li>Im Online-Banking deiner Bank (Safari, nicht die Banking-App) zu <b>Umsätze</b> gehen.</li>
+            <li>Zeitraum wählen → <b>Export / Herunterladen → CSV</b> (bei manchen Banken „CSV-CAMT“ oder „Excel/CSV“).</li>
+            <li>Hier auf <b>Umsätze importieren</b> tippen und die Datei aus „Downloads“ wählen.</li>
+          </ol>
+          <p class="hint">Funktioniert mit Sparkasse, Volksbank, ING, DKB, comdirect, Commerzbank, Postbank, N26 u. a. Mehrfach importieren ist kein Problem – doppelte Buchungen werden erkannt.</p>
+        </div>
+        <button class="btn btn-danger" id="kontoDeleteBtn" hidden>Umsätze dieses Kontos löschen</button>
+      </details>
     </section>
 
     <!-- Einstellungen -->

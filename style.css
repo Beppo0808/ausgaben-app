@@ -773,3 +773,22 @@ ul.month-sum-split li { display: flex; justify-content: space-between; padding: 
 .art-group select { flex: 1; padding: 6px 8px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface-2); font: inherit; color: var(--text); }
 .art-rows li { cursor: default; }
 .art-bon { grid-column: 1 / -1; justify-self: end; }
+
+/* Umsatzliste wie in der Banking-App */
+.section-title { font: 700 1.15rem var(--font-display, serif); margin: 22px 4px 10px; color: var(--text-2); }
+.sp-day { margin: 14px 2px 6px; font-weight: 800; font-size: .9rem; color: var(--text-2); }
+.sp-list { list-style: none; margin: 0; padding: 0; border-radius: 14px; background: var(--surface-2); border: 1px solid var(--border); overflow: hidden; }
+.sp-row { padding: 11px 14px; border-top: 1px solid var(--border); cursor: pointer; }
+.sp-row:first-child { border-top: 0; }
+.sp-line { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.sp-name { font-weight: 700; overflow-wrap: anywhere; }
+.sp-amt { font-weight: 800; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.sp-amt.in { color: var(--good, #2f6b4f); }
+.sp-purpose { margin-top: 3px; font-size: .88rem; color: var(--text-2); overflow-wrap: anywhere; line-height: 1.35; }
+.sp-acc { margin-top: 3px; font-size: .8rem; color: var(--text-2); }
+.sp-tags { margin-top: 5px; font-size: .8rem; font-weight: 700; color: var(--accent-deep, #8c4325); }
+.sp-pending { opacity: .75; font-style: italic; cursor: default; }
+#kontoRange { margin-top: 4px; }
+#kontoMore { width: 100%; margin-top: 12px; }
+.howto-card > summary { cursor: pointer; padding: 2px 0; }
+.howto-card[open] > summary { margin-bottom: 10px; }

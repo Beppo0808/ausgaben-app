@@ -675,13 +675,17 @@ const Konto = (() => {
               : a.lastDate ? new Date(a.lastDate + 'T12:00').getTime() - 30 * 864e5 // 30 Tage Überlappung: spät gebuchte Umsätze nicht verpassen
                 : Date.now() - 89 * 864e5;
             // Erst ALLE Seiten holen – nur wenn alles geklappt hat, wird übernommen (keine Lücken bei Abbruch)
+            let pend = [];
             const fetchAll = async (fromIso) => {
-              const rows = []; let next = null, pages = 0;
+              const rows = []; let next = null, pages = 0; pend = [];
               do {
                 const r = await call('transactions', { account: a.uid, date_from: fromIso, continuation_key: next || undefined });
                 for (const t of r.transactions || []) {
-                  if (t.status && t.status !== 'BOOK') continue; // nur gebuchte Umsätze (vorgemerkte ändern sich noch)
                   if (!/^\d{4}-\d{2}-\d{2}$/.test(t.date) || !t.amount) continue;
+                  if (t.status && t.status !== 'BOOK') { // vorgemerkt: nur anzeigen, wird erst nach Buchung übernommen
+                    pend.push({ date: t.date, amount: t.amount, name: String(t.name || '').slice(0, 120), purpose: String(t.purpose || '').slice(0, 300) });
+                    continue;
+                  }
                   rows.push({ account: a.accId, date: t.date, amount: t.amount, name: String(t.name || '').slice(0, 120), purpose: String(t.purpose || '').slice(0, 300) });
                 }
                 next = r.next; pages++;
@@ -697,6 +701,7 @@ const Konto = (() => {
               toast('ℹ️ Die Bank liefert nur die letzten 90 Tage');
             }
             // Abgleich über den Inhalt (Datum, Betrag, Name, Zweck) – zwei gleiche Buchungen am selben Tag bleiben beide erhalten
+            a.pending = pend;
             const have = {};
             data.tx.forEach((t) => { if (t.account === a.accId) have[ck(t)] = (have[ck(t)] || 0) + 1; });
             const got = {};
@@ -707,6 +712,7 @@ const Konto = (() => {
               if (row.date > newest) newest = row.date;
               if (got[k] <= (have[k] || 0)) continue;
               row.id = `eb3-${a.accId.slice(3, 11)}-${hash(k)}-${got[k]}`;
+              row.seq = (data.seq = (data.seq || 0) + 1); // Reihenfolge der Bank innerhalb eines Tages
               if (carry[k]) row.linked = carry[k];
               data.tx.push(row); added++;
             }
@@ -839,7 +845,9 @@ const Konto = (() => {
     $('#kontoFile').addEventListener('change', (e) => { const f = e.target.files[0]; e.target.value = ''; if (f) importFile(f); });
     $('#kontoHelpBtn').onclick = () => { const h = $('#kontoHelp'); h.hidden = !h.hidden; };
     $('#kontoAccount').addEventListener('change', (e) => { try { sessionStorage.setItem('konto-acc', e.target.value); } catch (x) { /* egal */ } render(); });
-    $('#kontoSearch').addEventListener('input', render);
+    $('#kontoSearch').addEventListener('input', () => { kontoLimit = 150; render(); });
+    $('#kontoRange').addEventListener('click', (e) => { const x = e.target.closest('button[data-v]'); if (!x) return; kontoRange = x.dataset.v; kontoLimit = 150; render(); });
+    $('#kontoMore').onclick = () => { kontoLimit += 300; render(); };
     $('#txForm').addEventListener('submit', saveTx);
     $('#txForm').sub.addEventListener('change', syncTxSub);
     $('#txForm').household.addEventListener('change', syncTxSub);
@@ -877,57 +885,75 @@ const Konto = (() => {
     $('#kontoDeleteBtn').hidden = !accId;
 
     const key = monthKey(viewY, viewM);
+    const monthOnly = kontoRange === 'month';
+    $$('#kontoRange button').forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.v === kontoRange)));
+    $('#kontoRangeMonth').textContent = 'Nur ' + new Date(viewY, viewM, 1).toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
     const q = $('#kontoSearch').value.trim().toLowerCase();
-    const list = data.tx
-      .filter((t) => (!accId || t.account === accId) && t.date.startsWith(key))
-      .filter((t) => !q || `${t.name} ${t.purpose}`.toLowerCase().includes(q))
-      .sort((a, b) => b.date.localeCompare(a.date));
+    const qNum = q.replace(/[€\s]/g, '').replace('.', ',');
+    const match = (t) => !q || `${t.name} ${t.purpose} ${t.label || ''}`.toLowerCase().includes(q) || (qNum && fmt(Math.abs(t.amount)).replace(/\s|€/g, '').includes(qNum));
+    const inRange = (t) => (!accId || t.account === accId) && (!monthOnly || t.date.startsWith(key));
+    const list = data.tx.filter(inRange).filter(match)
+      .sort((x, y) => y.date.localeCompare(x.date) || (x.seq || 0) - (y.seq || 0));
+    const pending = connections().flatMap((c) => c.accounts.flatMap((acc) => (acc.pending || []).map((t) => ({ ...t, account: acc.accId, pending: true }))))
+      .filter(inRange).filter(match).sort((x, y) => y.date.localeCompare(x.date));
 
-    const inc = list.filter((t) => t.amount > 0).reduce((a, t) => a + t.amount, 0);
-    const out = list.filter((t) => t.amount < 0).reduce((a, t) => a + t.amount, 0);
-    $('#kontoIn').textContent = fmt(inc);
-    $('#kontoOut').textContent = fmt(Math.abs(out));
-    const s = $('#kontoSaldo'); s.textContent = fmt(inc + out); s.className = 'kpi-value ' + (inc + out < 0 ? 'neg' : 'pos');
+    $('#kontoKpis').hidden = !monthOnly;
+    if (monthOnly) {
+      const inc = list.filter((t) => t.amount > 0).reduce((s2, t) => s2 + t.amount, 0);
+      const out = list.filter((t) => t.amount < 0).reduce((s2, t) => s2 + t.amount, 0);
+      $('#kontoIn').textContent = fmt(inc);
+      $('#kontoOut').textContent = fmt(Math.abs(out));
+      const sEl = $('#kontoSaldo'); sEl.textContent = fmt(inc + out); sEl.className = 'kpi-value ' + (inc + out < 0 ? 'neg' : 'pos');
+    }
 
     renderBank();
     renderPrivSubs();
     renderRecurring(accId);
     const root = $('#kontoList');
-    if (!data.tx.length) { root.innerHTML = '<div class="empty-state">Noch keine Umsätze importiert.<br>Tippe auf <b>Umsätze importieren (CSV)</b>.</div>'; return; }
-    if (!list.length) { root.innerHTML = '<div class="empty-state">Keine Buchungen in diesem Monat.<br>Mit ‹ › oben den Monat wechseln.</div>'; return; }
+    $('#kontoMore').hidden = true;
+    if (!data.tx.length && !pending.length) { root.innerHTML = '<div class="empty-state">Noch keine Umsätze.<br>Oben auf <b>🔗 Konto verbinden</b> tippen.</div>'; return; }
+    if (!list.length && !pending.length) { root.innerHTML = `<div class="empty-state">${q ? 'Keine passende Buchung.' : 'Keine Buchungen in diesem Monat.'}</div>`; return; }
 
     const expIds = new Set(state.expenses.map((e) => e.id));
-    const accName = (id) => (data.accounts.find((a) => a.id === id) || {}).name || '';
-    const groups = new Map();
-    list.forEach((t) => { if (!groups.has(t.date)) groups.set(t.date, []); groups.get(t.date).push(t); });
-    let html = '';
-    for (const [d, items] of groups) {
-      const label = new Date(d + 'T12:00').toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
-      const sum = items.reduce((a, t) => a + t.amount, 0);
-      html += `<div class="day-group"><div class="day-head"><span>${esc(label)}</span><span>${fmt(sum)}</span></div><ul class="rows">`;
-      html += items.map((t) => {
-        const sub = [t.name ? t.purpose : '', !accId && data.accounts.length > 1 ? accName(t.account) : ''].filter(Boolean).map(esc).join(' · ');
-        let action = '';
+    const accName = (id) => (data.accounts.find((x) => x.id === id) || {}).name || '';
+    const multi = !accId && data.accounts.length > 1;
+    const row = (t) => {
+      // Wie in der Banking-App: Empfänger/Auftraggeber, Verwendungszweck, Betrag – unverändert
+      const tags = [];
+      if (!t.pending) {
+        const cat = t.cat ? state.categories.find((c) => c.id === t.cat) : null;
+        if (cat) tags.push(`${esc(cat.emoji)} ${esc(cat.name)}`);
+        if (t.label) tags.push(`„${esc(t.label)}“`);
         if (t.amount < 0) {
           const gk = groupKey(t);
-          const ls = gk ? linkedSub(gk) : null;
-          const ts = !ls && t.sub ? state.subs.find((x) => x.id === t.sub) : null;
-          const sb = ls || ts;
-          if (sb) action = `<button class="tx-add done" data-open="${esc(t.id)}">${sb.type === 'transfer' ? '💶 Haushaltsgeld' : (sb.private ? '🔒 ' : '👫 ') + esc(sb.name)}</button>`;
-          else if (t.linked && expIds.has(t.linked)) action = `<button class="tx-add done" data-open="${esc(t.id)}">✓ im Haushalt · ändern</button>`;
-          else action = `<button class="tx-add" data-add="${esc(t.id)}">＋ Haushalt</button>`
-            + (maybeCaptured(t) ? '<span class="muted" style="font-size:.7rem">evtl. schon erfasst</span>' : '')
-            + `<button class="tx-mini" data-rec="${esc(t.id)}">🔁 regelmäßig</button>`;
+          const sb = (gk && linkedSub(gk)) || (t.sub && state.subs.find((x) => x.id === t.sub)) || null;
+          if (sb) tags.push(sb.type === 'transfer' ? '💶 Haushaltsgeld' : `${sb.private ? '🔒' : '👫'} ${esc(sb.name)}`);
+          else if (t.linked && expIds.has(t.linked)) tags.push('👫 im Haushalt');
         }
-        const cat = t.cat ? state.categories.find((c) => c.id === t.cat) : null;
-        return `<li class="row tx" data-open="${esc(t.id)}"><span class="emoji">${cat ? esc(cat.emoji) : (t.amount > 0 ? '⬇️' : '⬆️')}</span>
-          <span class="main"><div class="title">${esc(t.label || t.name || t.purpose || 'Buchung')}</div><div class="sub">${cat ? '<b>' + esc(cat.name) + '</b> · ' : ''}${sub}</div></span>
-          <span class="tx-right"><span class="amount ${t.amount > 0 ? 'in' : ''}">${t.amount > 0 ? '+' : ''}${fmt(t.amount)}</span>${action}</span></li>`;
-      }).join('');
-      html += '</ul></div>';
-    }
+      }
+      return `<li class="sp-row ${t.pending ? 'sp-pending' : ''}" ${t.pending ? '' : `data-open="${esc(t.id)}"`}>
+        <div class="sp-line"><span class="sp-name">${esc(t.name || t.purpose || 'Buchung')}</span>
+          <span class="sp-amt ${t.amount > 0 ? 'in' : 'out'}">${t.amount > 0 ? '+' : ''}${fmt(t.amount)}</span></div>
+        ${t.purpose && t.name ? `<div class="sp-purpose">${esc(t.purpose)}</div>` : ''}
+        ${t.pending ? '<div class="sp-tags">vorgemerkt</div>' : ''}
+        ${multi ? `<div class="sp-acc">${esc(accName(t.account))}</div>` : ''}
+        ${tags.length ? `<div class="sp-tags">${tags.join(' · ')}</div>` : ''}</li>`;
+    };
+    const day = (d) => new Date(d + 'T12:00').toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' });
+    let html = '';
+    if (pending.length) html += `<div class="sp-day">Vorgemerkte Umsätze</div><ul class="sp-list">${pending.map(row).join('')}</ul>`;
+    const shown = list.slice(0, kontoLimit);
+    let cur = '';
+    shown.forEach((t, i) => {
+      if (t.date !== cur) { html += (cur ? '</ul>' : '') + `<div class="sp-day">${esc(day(t.date))}</div><ul class="sp-list">`; cur = t.date; }
+      html += row(t);
+      if (i === shown.length - 1) html += '</ul>';
+    });
     root.innerHTML = html;
+    $('#kontoMore').hidden = list.length <= kontoLimit;
+    $('#kontoMore').textContent = `Weitere Umsätze anzeigen (${list.length - shown.length})`;
   }
+  let kontoRange = 'all', kontoLimit = 150;
 
   /** Summen eines Monats über alle Konten (für die persönliche Übersicht) */
   function monthSummary(y, m) {
