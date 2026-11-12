@@ -398,8 +398,29 @@ const Receipt = (() => {
       const pv = $('#rcPreview'); pv.src = URL.createObjectURL(current.blob); pv.hidden = false;
       const w = await getWorker(setProgress);
       setProgress(0.35, 'Lese Bon …');
-      const { data } = await w.recognize(forOcr(color, prepared));
-      const r = parse(data.text || '');
+      const img = forOcr(color, prepared);
+      // Mehrere Lesarten probieren; die beste ist die, deren Artikel am besten zur Bon-Summe passen
+      const score = (r) => {
+        const sum = r.items.reduce((a, it) => a + it.price, 0);
+        const off = r.total > 0 ? Math.abs(sum - r.total) / r.total : 1;
+        return r.items.length * 2 - off * 20 + (r.total > 0 ? 3 : 0) + (r.date ? 1 : 0);
+      };
+      let r = null;
+      for (const [i, psm] of ['3', '6', '4'].entries()) {
+        if (i) setProgress(0.35, `Lese Bon noch einmal anders (${i + 1}/3) …`);
+        await w.setParameters({ tessedit_pageseg_mode: psm });
+        const { data } = await w.recognize(img);
+        const cand = parse(data.text || '');
+        if (!r || score(cand) > score(r)) {
+          // Kopfdaten (Laden, Datum …) aus der besseren Lesart, fehlende aus der vorigen ergänzen
+          if (r) for (const k of ['store', 'branch', 'date', 'time']) if (!cand[k] && r[k]) cand[k] = r[k];
+          if (r && !(cand.total > 0) && r.total > 0) cand.total = r.total;
+          r = cand;
+        } else for (const k of ['store', 'branch', 'date', 'time']) if (!r[k] && cand[k]) r[k] = cand[k];
+        const sum = r.items.reduce((a, it) => a + it.price, 0);
+        if (r.total > 0 && r.items.length && Math.abs(sum - r.total) < 0.02) break; // passt genau → fertig
+      }
+      await w.setParameters({ tessedit_pageseg_mode: '3' });
       setProgress(1, '');
       if (editing) {
         const cur = readItems();
@@ -639,5 +660,5 @@ const Receipt = (() => {
     return data.text || '';
   }
 
-  return { ocrFile, open, startScan, editExpense, parse, view, init, itemCategory, uploadPending, bonList, prefetch, _scanCanvas: (c) => scanCanvas(c) };
+  return { _forOcr: forOcr, _toCanvas: toCanvas, _getWorker: getWorker, ocrFile, open, startScan, editExpense, parse, view, init, itemCategory, uploadPending, bonList, prefetch, _scanCanvas: (c) => scanCanvas(c) };
 })();
