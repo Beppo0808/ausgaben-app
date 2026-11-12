@@ -558,6 +558,22 @@
     </form>
   </dialog>
 
+  <!-- Dialog: Einkaufslisten-Eintrag ändern -->
+  <dialog id="shEditDialog">
+    <form method="dialog" id="shEditForm">
+      <h2>🛒 Eintrag ändern</h2>
+      <label class="field">Artikel (mit Menge, z. B. „2 Butter“) <input type="text" name="text" autocomplete="off"></label>
+      <label class="field">Gruppe <select name="group"></select></label>
+      <p class="hint">Die App merkt sich die Gruppe für diesen Artikel.</p>
+      <div class="dialog-actions">
+        <button type="button" class="btn btn-danger" id="shEditDelete">Löschen</button>
+        <span class="spacer"></span>
+        <button type="button" class="btn btn-ghost" id="shEditCancel">Abbrechen</button>
+        <button type="submit" class="btn btn-primary">Speichern</button>
+      </div>
+    </form>
+  </dialog>
+
   <!-- Dialog: Rezept ansehen -->
   <dialog id="recipeDialog">
     <div class="rd">

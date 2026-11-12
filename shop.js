@@ -75,7 +75,7 @@ const Shop = (() => {
     $('#shopCount').textContent = open.length ? `${open.length} offen` : 'alles erledigt';
     const groups = new Map();
     open.forEach((x) => { const g = itemGroup(x.name); if (!groups.has(g)) groups.set(g, []); groups.get(g).push(x); });
-    const order = ITEM_GROUPS.map(([id]) => id).concat('sonst');
+    const order = GROUP_ORDER;
     const item = (x) => {
       const p = priceInfo(x.name);
       return `<li class="sh-item ${x.done ? 'done' : ''}" data-id="${esc(x.id)}">
@@ -112,12 +112,27 @@ const Shop = (() => {
     } else if (b.dataset.act === 'del') {
       state.shopping = state.shopping.filter((s) => s.id !== x.id); save(); render();
     } else if (b.dataset.act === 'edit') {
-      const v = prompt('Eintrag ändern (z. B. „2 Butter“):', (x.qty ? x.qty + ' ' : '') + x.name);
-      if (v === null) return;
-      if (!v.trim()) { state.shopping = state.shopping.filter((s) => s.id !== x.id); }
-      else { const s = splitQty(v); x.name = s.name.slice(0, 80); x.qty = s.qty.slice(0, 30); }
-      save(); render();
+      shEditing = x;
+      const f = $('#shEditForm');
+      f.text.value = (x.qty ? x.qty + ' ' : '') + x.name;
+      f.group.innerHTML = GROUP_ORDER.map((g) => `<option value="${g}">${esc(GROUP_LABEL[g])}</option>`).join('');
+      f.group.value = itemGroup(x.name);
+      $('#shEditDialog').showModal();
     }
+  }
+
+  let shEditing = null;
+  function saveShEdit(ev) {
+    ev.preventDefault();
+    const x = shEditing; if (!x) return;
+    const f = $('#shEditForm');
+    const v = f.text.value.trim();
+    if (!v) state.shopping = state.shopping.filter((s) => s.id !== x.id);
+    else {
+      const sp = splitQty(v); x.name = sp.name.slice(0, 80); x.qty = sp.qty.slice(0, 30);
+      if (f.group.value !== itemGroup(x.name)) state.rules['grp:' + normItem(x.name)] = f.group.value; // gemerkt – auch für Artikel & Preise
+    }
+    save(); $('#shEditDialog').close(); shEditing = null; render(); toast('Gespeichert ✓');
   }
 
   function submitInput(ev) {
@@ -297,6 +312,9 @@ const Shop = (() => {
     $('#shopTabs').addEventListener('click', (e) => { const b = e.target.closest('button[data-v]'); if (b) { tab = b.dataset.v; render(); } });
     $('#shopForm').addEventListener('submit', submitInput);
     $('#shopList').addEventListener('click', onListClick);
+    $('#shEditForm').addEventListener('submit', saveShEdit);
+    $('#shEditCancel').onclick = () => { $('#shEditDialog').close(); shEditing = null; };
+    $('#shEditDelete').onclick = () => { if (shEditing) { state.shopping = state.shopping.filter((s) => s.id !== shEditing.id); save(); } $('#shEditDialog').close(); shEditing = null; render(); };
     $('#shopVoice').onclick = voice;
     $('#shopPhoto').addEventListener('change', (e) => { const f = e.target.files[0]; e.target.value = ''; if (f) openImport(f); });
     $('#shopImportForm').addEventListener('submit', (e) => {

@@ -606,6 +606,9 @@ let storeFilter = '';
 // ---------- Artikel-Gruppen (Unterkategorien beim Einkauf) ----------
 const ITEM_GROUPS = [
   ['pfand', '♻️ Pfand', /pfand|leergut/i],
+  ['haushalt', '🧽 Haushalt & Reinigung', /sp(ü|ue)l|wasch|reinig|putz|m(ü|ue)llbeutel|alufolie|frischhalte|schwamm|toilett|klopapier|k(ü|ue)chenrolle|weichsp|entkalk|backpapier|tabs\b|allzweck|glasrein|wc[- ]/i],
+  ['pflege', '🧴 Körperpflege & Gesundheit', /zahnpast|zahnb(ü|ue)rst|zahncreme|shampoo|sp(ü|ue)lung|duschgel|\bdeo|seife|creme|lotion|rasier|windel|tampon|binde|taschent|pflaster|vitamin|tablett|kosmet|watte/i],
+  ['tier', '🐾 Tierbedarf', /katze|\bhund|tierfutter|whiskas|felix|frolic|pedigree|sheba|katzenstreu/i],
   ['butter', '🧈 Butter & Margarine', /butter(?!milch|keks)|margarine|\bmarg\b|\brama\b|kerrygold|halbfett/i],
   ['kaese', '🧀 Käse', /k(ä|ae)se|gouda|emmentaler|mozzarella|\bfeta\b|camembert|parmesan|\bbrie\b|edamer|tilsiter|cheddar|bergk/i],
   ['milch', '🥛 Milch & Milchprodukte', /milch|joghurt|jogh|quark|sahne|schmand|kefir|\bskyr\b|pudding|creme fraiche|cr(è|e)me|h-milch|\bvollm|frischm/i],
@@ -619,10 +622,8 @@ const ITEM_GROUPS = [
   ['suess', '🍫 Süßes & Snacks', /schoko|chips|keks|riegel|gummi|bonbon|s(ü|ue)(ß|ss)|praline|waffel|cracker|n(ü|ue)sse|erdnuss|flips|popcorn|kaugummi|haribo|milka|ritter sport|nutella/i],
   ['getraenke', '🥤 Getränke', /wasser|saft|\bcola\b|limo|\bbier\b|\bwein\b|sekt|kaffee|\btee\b|getr(ä|ae)nk|schorle|sprudel|fanta|sprite|energy|pils|radler|smoothie|eistee|espresso|kapseln|pads/i],
   ['vorrat', '🥫 Vorrat & Konserven', /nudel|spaghetti|penne|fusilli|\breis\b|mehl|zucker|\bsalz\b|(ö|oe)l\b|essig|konserve|\bdose\b|so(ß|ss)e|sauce|ketchup|senf|mayo|m(ü|ue)sli|haferfl|cornflakes|honig|marmelade|konfit|aufstrich|gew(ü|ue)rz|br(ü|ue)he|suppe|linsen|bohnen|mais|erbsen|tomatenmark|passata/i],
-  ['haushalt', '🧽 Haushalt & Reinigung', /sp(ü|ue)l|wasch|reinig|putz|m(ü|ue)llbeutel|alufolie|frischhalte|schwamm|toilett|klopapier|k(ü|ue)chenrolle|weichsp|entkalk|backpapier|tabs\b|allzweck|glasrein|wc[- ]/i],
-  ['pflege', '🧴 Körperpflege & Gesundheit', /zahnpast|zahnb(ü|ue)rst|zahncreme|shampoo|sp(ü|ue)lung|duschgel|\bdeo|seife|creme|lotion|rasier|windel|tampon|binde|taschent|pflaster|vitamin|tablett|kosmet|watte/i],
-  ['tier', '🐾 Tierbedarf', /katze|\bhund|tierfutter|whiskas|felix|frolic|pedigree|sheba|katzenstreu/i],
 ];
+const GROUP_ORDER = ['pfand', 'obst', 'brot', 'milch', 'butter', 'kaese', 'eier', 'wurst', 'fleisch', 'fisch', 'tk', 'vorrat', 'suess', 'getraenke', 'haushalt', 'pflege', 'tier', 'sonst'];
 const GROUP_LABEL = Object.fromEntries(ITEM_GROUPS.map(([id, label]) => [id, label]).concat([['sonst', '📦 Sonstiges']]));
 function itemGroup(name) {
   const k = 'grp:' + normItem(name);
@@ -660,7 +661,7 @@ function renderArticles() {
   // Artikel in Gruppen (Butter, Käse, Wurst …) einsortieren
   const byGroup = new Map();
   list.forEach((g) => { const k = itemGroup(g[0].name); if (!byGroup.has(k)) byGroup.set(k, []); byGroup.get(k).push(g); });
-  const order = ITEM_GROUPS.map(([id]) => id).concat('sonst');
+  const order = GROUP_ORDER;
   const groupOpts = (sel) => order.map((id) => `<option value="${id}" ${id === sel ? 'selected' : ''}>${esc(GROUP_LABEL[id])}</option>`).join('');
   const article = (g) => {
     const last = g[0], each = g.map((r) => r.each);
