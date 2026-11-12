@@ -40,6 +40,7 @@ function defaultState() {
     subs: [],
     rules: {}, // händler (klein) → kategorie-id
     shopping: [], // gemeinsame Einkaufsliste
+    avatars: {}, // Bild je Person: { t: 'emoji'|'img', v }
     recipes: [], // eigene Rezepte
   };
 }
@@ -58,6 +59,7 @@ function load() {
       subs: Array.isArray(s.subs) ? s.subs : [],
       rules: s.rules && typeof s.rules === 'object' ? s.rules : {},
       shopping: Array.isArray(s.shopping) ? s.shopping : [],
+      avatars: s.avatars && typeof s.avatars === 'object' ? s.avatars : {},
       recipes: Array.isArray(s.recipes) ? s.recipes : [],
     };
   } catch (e) {
@@ -135,11 +137,19 @@ const daysInMonth = (y, m) => new Date(y, m + 1, 0).getDate();
 
 // Personen: feste Farbe je Position in der Personenliste (Name steht immer dabei)
 function personIndex(name) { return state.settings.persons.indexOf(name); }
+/** Inhalt des runden Bildes: eigenes Foto/GIF, Emoji oder Anfangsbuchstabe */
+function avatarInner(name) {
+  const av = name && state.avatars ? state.avatars[name] : null;
+  if (av && av.t === 'img' && /^data:image\/(jpeg|png|gif|webp);base64,[A-Za-z0-9+/=]+$/.test(av.v)) return `<img src="${av.v}" alt="">`;
+  if (av && av.t === 'emoji' && av.v) return `<span class="av-emoji">${esc(av.v)}</span>`;
+  return esc(String(name || 'H').trim().charAt(0).toUpperCase());
+}
 function personAvatar(name, size = '') {
   if (!name) return '';
   const i = personIndex(name);
   const cls = i > -1 ? 'p' + (i % 4) : 'px';
-  return `<span class="avatar ${cls} ${size}" aria-hidden="true">${esc(name.trim().charAt(0).toUpperCase())}</span>`;
+  const av = state.avatars && state.avatars[name];
+  return `<span class="avatar ${cls} ${size} ${av ? 'has-av' : ''}" aria-hidden="true">${avatarInner(name)}</span>`;
 }
 function personTag(name) {
   return name ? `<span class="who">${personAvatar(name, 'sm')}${esc(name)}</span>` : '';
@@ -257,6 +267,7 @@ function renamePerson(oldN, newN) {
   if (i > -1) ps[i] = newN; else ps.push(newN);
   state.expenses.forEach((e) => { if (e.person === oldN) e.person = newN; });
   state.subs.forEach((s) => { if (s.payer === oldN) s.payer = newN; if (s.to === oldN) s.to = newN; });
+  if (state.avatars && state.avatars[oldN]) { state.avatars[newN] = state.avatars[oldN]; delete state.avatars[oldN]; }
   if (state.settings.me === oldN || !state.settings.me) state.settings.me = state.settings.me === oldN ? newN : state.settings.me;
   return true;
 }
@@ -845,7 +856,48 @@ function renderSyncBanner() {
   if (text) { $('#syncBannerText').textContent = text; $('#syncBannerBtn').textContent = btn; $('#syncBannerBtn').onclick = act; }
 }
 
+// ---------- Mein Bild (Foto, Emoji, GIF) ----------
+const AV_EMOJIS = ['😀', '😄', '😊', '😎', '🤓', '🥳', '😇', '🤠', '🧔', '👨', '👩', '👵', '👴', '🧑‍🍳', '🦸', '🧙', '🐶', '🐱', '🐻', '🦊', '🐼', '🐨', '🦁', '🐸', '🐧', '🦉', '🐝', '🦋', '🌻', '🌸', '🌈', '☀️', '⭐', '🍀', '🍕', '☕', '🍷', '🎸', '⚽', '🚲', '🚗', '🏡', '❤️', '💪', '👑', '🎉'];
+function renderMyAvatar() {
+  const me = state.settings.me;
+  const box = $('#avPreview'); if (!box) return;
+  box.innerHTML = me ? personAvatar(me, 'xl') : '';
+  $('#avRemove').hidden = !(me && state.avatars[me]);
+}
+function setMyAvatar(av) {
+  const me = state.settings.me;
+  if (!me) { toast('Bitte zuerst deinen Namen eintragen'); return; }
+  if (av) state.avatars[me] = { ...av, at: new Date().toISOString() }; else delete state.avatars[me];
+  save(); render(); renderMyAvatar(); if (typeof Lock !== 'undefined') Lock.refreshName();
+  toast(av ? '👤 Bild gespeichert – Ute/Partner sieht es nach dem Abgleich' : 'Bild entfernt');
+}
+function pickAvatarImage(file) {
+  if (!file) return;
+  const isGif = file.type === 'image/gif';
+  if (isGif && file.size <= 450000) { // bewegte GIFs bleiben bewegt, wenn sie nicht zu groß sind
+    const r = new FileReader(); r.onload = () => setMyAvatar({ t: 'img', v: r.result }); r.readAsDataURL(file); return;
+  }
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+  img.onload = () => {
+    const S = 256, c = document.createElement('canvas'); c.width = S; c.height = S;
+    const s = Math.min(img.naturalWidth, img.naturalHeight);
+    c.getContext('2d').drawImage(img, (img.naturalWidth - s) / 2, (img.naturalHeight - s) / 2, s, s, 0, 0, S, S); // mittig quadratisch zuschneiden
+    URL.revokeObjectURL(url);
+    setMyAvatar({ t: 'img', v: c.toDataURL('image/jpeg', 0.82) });
+    if (isGif) toast('GIF war zu groß – als Standbild übernommen');
+  };
+  img.onerror = () => { URL.revokeObjectURL(url); toast('Bild konnte nicht geöffnet werden'); };
+  img.src = url;
+}
+function openEmojiPicker() {
+  $('#avEmojiGrid').innerHTML = AV_EMOJIS.map((e) => `<button type="button" class="av-pick" data-e="${e}">${e}</button>`).join('');
+  $('#avEmojiInput').value = '';
+  $('#avEmojiDialog').showModal();
+}
+
 function renderSettings() {
+  renderMyAvatar();
   const s = state.settings;
   const setIfIdle = (el, v) => { if (document.activeElement !== el) el.value = v; };
   $$('#segTheme button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.v === (localGet('ausgaben-theme') || 'light'))));
@@ -1475,6 +1527,12 @@ try { startView = sessionStorage.getItem('ausgaben-view') || 'overview'; } catch
 if ((startView === 'subs' && isPersonal()) || (startView === 'konto' && !isPersonal())) startView = 'overview';
 showView(startView);
 render();
+$('#avEmojiBtn').onclick = openEmojiPicker;
+$('#avPhoto').addEventListener('change', (e) => { const f = e.target.files[0]; e.target.value = ''; pickAvatarImage(f); });
+$('#avRemove').onclick = () => { if (confirm('Dein Bild entfernen?')) setMyAvatar(null); };
+$('#avEmojiGrid').addEventListener('click', (e) => { const b = e.target.closest('[data-e]'); if (b) { $('#avEmojiDialog').close(); setMyAvatar({ t: 'emoji', v: b.dataset.e }); } });
+$('#avEmojiForm').addEventListener('submit', (e) => { e.preventDefault(); const v = [...$('#avEmojiInput').value.trim()].slice(0, 4).join(''); if (v) { $('#avEmojiDialog').close(); setMyAvatar({ t: 'emoji', v }); } });
+$('#avEmojiCancel').onclick = () => $('#avEmojiDialog').close();
 Sync.init();
 renderSyncBanner();
 loadGate();

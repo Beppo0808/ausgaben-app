@@ -58,6 +58,7 @@ const Sync = (() => {
     state.categories.forEach((c) => { m['category:' + c.id] = c; });
     (state.shopping || []).forEach((x) => { m['shop:' + x.id] = x; });
     (state.recipes || []).forEach((x) => { m['recipe:' + x.id] = x; });
+    Object.entries(state.avatars || {}).forEach(([n, av]) => { m['avatar:' + n] = av; });
     const { me, income, ...shared } = state.settings; // Gerät-Besitzer und eigenes Einkommen bleiben lokal
     m['settings:main'] = shared;
     Object.entries(state.rules).forEach(([k, v]) => { m['rule:' + k] = { cat: v }; });
@@ -184,6 +185,9 @@ const Sync = (() => {
         state.settings.persons = persons;
         if (!persons.includes(state.settings.me)) state.settings.me = persons[0];
       }
+    } else if (r.kind === 'avatar') {
+      state.avatars = state.avatars || {};
+      if (r.deleted || !r.data) delete state.avatars[r.id]; else state.avatars[r.id] = r.data;
     } else if (r.kind === 'rule') {
       if (r.deleted || !r.data) delete state.rules[r.id]; else state.rules[r.id] = r.data.cat;
     }
@@ -330,10 +334,10 @@ const Sync = (() => {
       if (cfg && cfg.e2e !== 2) cfg = null;
       if (!cfg) setStatus('off', 'Nicht verbunden');
     });
-    if (enabled() && !cfg.v3) {
+    if (enabled() && !cfg.v4) {
       // Einkaufsliste/Rezepte neu: ältere App-Versionen haben solche Einträge evtl. schon „gesehen“, aber nicht gespeichert → einmal neu holen
-      Object.keys(cfg.mtimes).forEach((k) => { if (/^(shop|recipe):/.test(k) && !(k in (cfg.hashes || {}))) delete cfg.mtimes[k]; });
-      cfg.lastPull = null; cfg.v3 = 1; writeCfg();
+      Object.keys(cfg.mtimes).forEach((k) => { if (/^(shop|recipe|avatar):/.test(k) && !(k in (cfg.hashes || {}))) delete cfg.mtimes[k]; });
+      cfg.lastPull = null; cfg.v4 = 1; writeCfg();
     }
     if (enabled()) {
       setStatus('idle', 'Verbunden');

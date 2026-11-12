@@ -82,7 +82,7 @@ const Lock = (() => {
     document.body.classList.add('locked');
     const me = (typeof state !== 'undefined' && state.settings.me) || '';
     $l('#lockName').textContent = me ? `Haushaltsbuch · ${me}` : 'Haushaltsbuch';
-    $l('#lockAvatar').textContent = (me || 'H').charAt(0).toUpperCase();
+    if (typeof avatarInner === 'function') $l('#lockAvatar').innerHTML = avatarInner(me); else $l('#lockAvatar').textContent = (me || 'H').charAt(0).toUpperCase();
     $l('#lockScreen').hidden = false;
     $l('#lockBio').hidden = !cfg.bio;
     $l('#lockForgot').hidden = false;
@@ -237,6 +237,6 @@ const Lock = (() => {
     onUnlock(cb) { afterUnlockCb = cb; },
     skipAutoBio() { skipAuto = true; },
     allowAutoBio() { skipAuto = false; setTimeout(autoBio, 200); },
-    refreshName() { if (!unlocked && enabled()) { const me = (typeof state !== 'undefined' && state.settings.me) || ''; $l('#lockName').textContent = me ? `Haushaltsbuch · ${me}` : 'Haushaltsbuch'; $l('#lockAvatar').textContent = (me || 'H').charAt(0).toUpperCase(); } },
+    refreshName() { if (!unlocked && enabled()) { const me = (typeof state !== 'undefined' && state.settings.me) || ''; $l('#lockName').textContent = me ? `Haushaltsbuch · ${me}` : 'Haushaltsbuch'; if (typeof avatarInner === 'function') $l('#lockAvatar').innerHTML = avatarInner(me); else $l('#lockAvatar').textContent = (me || 'H').charAt(0).toUpperCase(); } },
   };
 })();

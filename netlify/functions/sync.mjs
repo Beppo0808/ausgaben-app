@@ -13,7 +13,7 @@ import { getStore } from '@netlify/blobs';
 import { denyIfNoAccess } from '../lib/gate-node.mjs';
 import { randomBytes } from 'node:crypto';
 
-const KINDS = new Set(['expense', 'sub', 'category', 'settings', 'rule', 'shop', 'recipe']);
+const KINDS = new Set(['expense', 'sub', 'category', 'settings', 'rule', 'shop', 'recipe', 'avatar']);
 const HID = /^[0-9a-f]{64}$/;
 const PAGE = 1000;
 const MAX_BODY = 2_000_000;

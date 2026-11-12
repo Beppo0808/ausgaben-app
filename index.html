@@ -272,6 +272,16 @@
           <input type="text" id="namePartner" maxlength="30" autocomplete="off" placeholder="z. B. Anna">
         </label>
         <p class="hint">Steht bei euren Einkäufen („wer hat bezahlt“). Ändern geht jederzeit – bisherige Einträge werden mit umbenannt.</p>
+        <div class="field">Mein Bild
+          <div class="av-row">
+            <div id="avPreview"></div>
+            <div class="btn-row">
+              <button type="button" class="btn" id="avEmojiBtn">😀 Emoji</button>
+              <label class="btn btn-file">📷 Foto / GIF<input type="file" id="avPhoto" accept="image/*"></label>
+              <button type="button" class="btn btn-ghost" id="avRemove" hidden>Entfernen</button>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div class="card" id="gateCard" hidden>
@@ -572,6 +582,19 @@
       <p class="hint">Das iPhone zeigt danach den Termin an – dort auf „Hinzufügen“ tippen. Mit Erinnerung 30 Minuten vorher.</p>
       <div class="dialog-actions"><span class="spacer"></span>
         <button type="button" class="btn btn-ghost" id="calCancel">Abbrechen</button>
+        <button type="submit" class="btn btn-primary">Übernehmen</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Dialog: Emoji als Bild -->
+  <dialog id="avEmojiDialog">
+    <form method="dialog" id="avEmojiForm">
+      <h2>😀 Emoji als Bild</h2>
+      <div class="av-grid" id="avEmojiGrid"></div>
+      <label class="field">Oder ein eigenes Emoji eintippen <input type="text" id="avEmojiInput" maxlength="12" autocomplete="off" placeholder="🦄"></label>
+      <div class="dialog-actions"><span class="spacer"></span>
+        <button type="button" class="btn btn-ghost" id="avEmojiCancel">Abbrechen</button>
         <button type="submit" class="btn btn-primary">Übernehmen</button>
       </div>
     </form>
