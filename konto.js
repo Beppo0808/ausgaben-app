@@ -205,6 +205,10 @@ const Konto = (() => {
       : txCurSub ? (txCurSub.private ? 'fixprivate' : 'fixshared')
         : (household || (exp && !exp.private)) ? 'shared' : 'personal';
     f.querySelectorAll('input[name=kind]').forEach((r) => { r.checked = r.value === kind; r.disabled = t.amount >= 0 && r.value !== 'personal'; });
+    { // Rhythmus vorschlagen: aus bisherigen gleichen Buchungen, sonst aus dem Text
+      const g = gk ? detect('', true).find((x) => x.key === gk) : null;
+      f.interval.value = g && g.months.length >= 2 ? g.interval : guessInterval(`${t.name} ${t.purpose}`);
+    }
     const bonBtn = $('#txBon');
     bonBtn.hidden = !(exp && exp.receipt);
     bonBtn.onclick = () => { $('#txDialog').close(); Receipt.view(exp); };
@@ -246,6 +250,21 @@ const Konto = (() => {
     return changed;
   }
 
+  /** Rhythmus aus dem Buchungstext erraten: „Jahresbeitrag“, „01.10.26-30.09.27“ → jährlich usw. */
+  function guessInterval(text) {
+    const t = String(text || '');
+    if (/halbj(ä|ae)hr|1\.\s*halbjahr|2\.\s*halbjahr|\bhj\b/i.test(t)) return 'half';
+    if (/quartal|viertelj(ä|ae)hr|\bq[1-4]\b/i.test(t)) return 'quarter';
+    if (/jahres|j(ä|ae)hrlich|p\.\s?a\.|beitrag\s*\d{4}\b/i.test(t)) return 'year';
+    const r = t.match(/(\d{1,2})\.(\d{1,2})\.(\d{2,4})\s*[-–bis ]+\s*(\d{1,2})\.(\d{1,2})\.(\d{2,4})/);
+    if (r) { // Zeitraum im Verwendungszweck
+      const y = (v) => (+v < 100 ? 2000 + +v : +v);
+      const months = (y(r[6]) - y(r[3])) * 12 + (+r[5] - +r[2]) + 1;
+      if (months >= 11) return 'year'; if (months >= 5) return 'half'; if (months >= 3) return 'quarter';
+    }
+    return 'month';
+  }
+
   /** Kategorie, die ihr bei einer gleichen Buchung schon festgelegt habt – sonst keine */
   function learnedCat(t) {
     const k = groupKey(t);
@@ -259,7 +278,7 @@ const Konto = (() => {
     const f = $('#txForm');
     const k = txKind();
     const fix = k === 'fixshared' || k === 'fixprivate';
-    $('#txSubRow').hidden = !fix; $('#txSubHint').hidden = !fix;
+    $('#txSubRow').hidden = !fix; $('#txSubHint').hidden = !fix; $('#txIvRow').hidden = true;
     if (!fix) return;
     const priv = k === 'fixprivate';
     const list = state.subs.filter((x) => !isTransfer(x) && !!x.private === priv);
@@ -268,6 +287,7 @@ const Konto = (() => {
       + '<option value="__new">＋ Neu anlegen …</option>';
     const want = txCurSub && !!txCurSub.private === priv ? txCurSub.id : prev;
     f.sub.value = list.some((x) => x.id === want) ? want : '__new';
+    $('#txIvRow').hidden = f.sub.value !== '__new';
   }
   let txSubcat = '';
   /** Kategorie als aufklappbare Liste (+ neu anlegen), darunter „Genauer“ mit Unterkategorien (+ neu, abwählbar) */
@@ -347,7 +367,8 @@ const Konto = (() => {
     if (subSel === '__new') {
       const shared = kind === 'fixshared';
       write(); $('#txDialog').close(); txEditing = null;
-      openSubDialog(null, { type: 'fixed', name: label || orig, amount: Math.abs(t.amount), interval: 'month', category: txCat || 'abos', subcat: txSubcat,
+      const iv = f.interval.value || 'month';
+      openSubDialog(null, { type: 'fixed', name: label || orig, amount: Math.abs(t.amount), interval: iv, spread: iv !== 'month', category: txCat || 'abos', subcat: txSubcat,
         start: t.date.slice(0, 7), payer: state.settings.me, private: !shared, via: /paypal/i.test(`${t.name} ${t.purpose}`) ? 'PayPal' : '' }, (id) => {
         linkTo(id); write(); save(); window.render(); toast(shared ? '🏠 Gemeinsame Fixkosten angelegt ✓' : '🔒 Private Fixkosten angelegt ✓');
       });
@@ -507,12 +528,12 @@ const Konto = (() => {
       const recurring = (months.length >= 2 && stable) || (hint && Math.abs(latest.amount) >= 2) || toPartner;
       if (!recurring && !linked && !includeAll) continue;
       if (data.dismissed[key] && !linked && !includeAll) continue;
-      let interval = /jahres|jährlich|jaehrlich|p\.a\./i.test(text) ? 'year' : /quartal|vierteljähr|vierteljaehr/i.test(text) ? 'quarter' : 'month';
+      let interval = guessInterval(text);
       if (months.length >= 2) {
         const idx = months.map(monthIdx);
         const gaps = idx.slice(1).map((v, i) => v - idx[i]).sort((a, b) => a - b);
         const g = gaps[Math.floor(gaps.length / 2)];
-        interval = g <= 1.5 ? 'month' : g <= 4.5 ? 'quarter' : 'year';
+        interval = g <= 1.5 ? 'month' : g <= 4.5 ? 'quarter' : g <= 8.5 ? 'half' : 'year';
       }
       if (gi.partner) interval = 'month'; // Haushaltsgeld kommt monatlich, auch wenn mal ein Monat fehlt
       out.push({
@@ -567,7 +588,7 @@ const Konto = (() => {
     lastGroups = detect(accId);
     card.hidden = !lastGroups.length;
     if (!lastGroups.length) return;
-    const rhythm = { month: 'monatlich', quarter: 'vierteljährlich', year: 'jährlich' };
+    const rhythm = INTERVALS;
     $('#kontoRecurring').innerHTML = lastGroups.map((g, i) => {
       const s = linkedSub(g.key);
       const day = +g.latest.date.slice(8, 10);
@@ -596,9 +617,9 @@ const Konto = (() => {
     const key = monthKey(new Date().getFullYear(), new Date().getMonth());
     const list = state.subs.filter((s) => s.private && !isTransfer(s));
     const active = list.filter((s) => !s.end || s.end >= key);
-    const monthly = active.reduce((a, s) => a + (s.interval === 'year' ? s.amount / 12 : s.interval === 'quarter' ? s.amount / 3 : s.amount), 0);
+    const monthly = active.reduce((a, s) => a + perMonth(s), 0);
     $('#privSubsTotal').textContent = list.length ? `≈ ${fmt(monthly)} / Monat` : '';
-    const iv = { month: 'monatlich', quarter: 'vierteljährlich', year: 'jährlich' };
+    const iv = INTERVALS;
     $('#privSubsList').innerHTML = list.length ? list.sort((a, b) => b.amount - a.amount).map((s) => {
       const c = state.categories.find((x) => x.id === s.category) || { emoji: '🔁' };
       const ended = s.end && s.end < key;
@@ -968,6 +989,7 @@ const Konto = (() => {
     $('#kontoMore').onclick = () => { kontoLimit += 300; render(); };
     $('#txForm').addEventListener('submit', saveTx);
     $('#txKind').addEventListener('change', syncTxSub);
+    $('#txSub').addEventListener('change', () => { $('#txIvRow').hidden = $('#txSub').value !== '__new'; });
     $('#txCatSel').addEventListener('change', onTxCat);
     $('#txSubcatSel').addEventListener('change', onTxSubcat);
     $('#addPrivSubBtn').onclick = () => openSubDialog(null, { type: 'fixed', private: true, payer: state.settings.me, category: 'abos', interval: 'month' });

@@ -193,17 +193,16 @@ function shiftMonth(delta) {
   render();
 }
 
-const INTERVALS = { month: 'monatlich', quarter: 'vierteljährlich', year: 'jährlich' };
+const INTERVALS = { month: 'monatlich', quarter: 'vierteljährlich', half: 'halbjährlich', year: 'jährlich' };
+const IV_MONTHS = { month: 1, quarter: 3, half: 6, year: 12 };
 /** Fällt ein wiederkehrender Eintrag (Fixkosten oder Haushaltsgeld) im Monat key (JJJJ-MM) an? */
 function subActive(s, key) {
   if (!s.start || s.start > key) return false;
   if (s.end && s.end < key) return false;
   const diff = (+key.slice(0, 4) - +s.start.slice(0, 4)) * 12 + (+key.slice(5, 7) - +s.start.slice(5, 7));
-  if (s.interval === 'year') return diff % 12 === 0;
-  if (s.interval === 'quarter') return diff % 3 === 0;
-  return true;
+  return diff % (IV_MONTHS[s.interval] || 1) === 0;
 }
-function perMonth(s) { return s.interval === 'year' ? s.amount / 12 : s.interval === 'quarter' ? s.amount / 3 : s.amount; }
+function perMonth(s) { return s.amount / (IV_MONTHS[s.interval] || 1); }
 const isTransfer = (s) => s.type === 'transfer';
 /** Nächster Monat (JJJJ-MM), in dem ein Eintrag fällig ist – ab dem aktuellen Monat */
 function nextDue(s) {
@@ -803,7 +802,7 @@ function renderSubs() {
   $('#subsTotal').textContent = fixed.length ? `≈ ${fmt(monthly)} / Monat` : '';
   ul.innerHTML = fixed.length ? [...fixed].sort((a, b) => ended(a) - ended(b) || b.amount - a.amount).map((s) => {
     const c = catById(s.category);
-    const rare = s.interval === 'quarter' || s.interval === 'year';
+    const rare = (IV_MONTHS[s.interval] || 1) > 1;
     const due = rare && !ended(s) ? nextDue(s) : '';
     const info = [esc(INTERVALS[s.interval] || 'monatlich'), esc(c.name), s.payer ? personTag(s.payer) : 'gemeinsam',
       s.via && s.via !== 'Girokonto' ? 'über ' + esc(s.via) : '', due ? `nächste Zahlung ${esc(fmtYM(due))}` : '',
@@ -813,7 +812,7 @@ function renderSubs() {
       <span class="amount">${fmt(s.amount)}${rare ? `<div class="muted per">${s.interval === 'year' ? 'pro Jahr' : 'pro Quartal'}</div>` : ''}</span></li>`;
   }).join('') : '<li class="empty-state">Noch keine Fixkosten. Miete, Strom, Handyvertrag, Netflix …<br>Tipp: In „Mein Konto“ werden regelmäßige Abbuchungen automatisch erkannt.</li>';
 
-  const upcoming = fixed.filter((s) => (s.interval === 'quarter' || s.interval === 'year') && !ended(s))
+  const upcoming = fixed.filter((s) => (IV_MONTHS[s.interval] || 1) > 1 && !ended(s))
     .map((s) => ({ s, due: nextDue(s) })).filter((x) => x.due).sort((a, b) => a.due.localeCompare(b.due)).slice(0, 6);
   $('#dueBox').hidden = !upcoming.length;
   $('#dueList').innerHTML = upcoming.map(({ s, due }) => `<li><span>${esc(fmtYM(due))}</span><span>${esc(s.name)}</span><b>${fmt(s.amount)}</b>

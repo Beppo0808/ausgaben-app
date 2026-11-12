@@ -512,6 +512,9 @@
       <label class="field" id="txSubRow" hidden>Welche Fixkosten?
         <select name="sub" id="txSub"></select>
       </label>
+      <label class="field" id="txIvRow" hidden>Wie oft?
+        <select name="interval"><option value="month">monatlich</option><option value="quarter">vierteljährlich</option><option value="half">halbjährlich</option><option value="year">jährlich</option></select>
+      </label>
       <p class="hint" id="txSubHint" hidden>Künftige gleiche Abbuchungen werden automatisch zugeordnet.</p>
       <div class="dialog-actions">
         <span class="spacer"></span>
@@ -620,7 +623,7 @@
       <div class="field-row">
         <label class="field">Betrag (€) <input type="text" inputmode="decimal" name="amount" required></label>
         <label class="field">Intervall
-          <select name="interval"><option value="month">monatlich</option><option value="quarter">vierteljährlich</option><option value="year">jährlich</option></select>
+          <select name="interval"><option value="month">monatlich</option><option value="quarter">vierteljährlich</option><option value="half">halbjährlich</option><option value="year">jährlich</option></select>
         </label>
       </div>
       <div class="field-row">
