@@ -824,6 +824,27 @@ function renderSubs() {
   $$('.row', ul).concat($$('.row', tl)).forEach((row) => row.addEventListener('click', () => openSubDialog(state.subs.find((s) => s.id === row.dataset.id))));
 }
 
+/** Abgleich sichtbar machen: Hinweis oben, sobald dieses Gerät nicht (mehr) mit dem Haushalt abgleicht */
+function renderSyncBanner() {
+  const el = $('#syncBanner'); if (!el || typeof Sync === 'undefined') return;
+  const st = Sync.status();
+  const last = Sync.lastOk() ? new Date(Sync.lastOk()).getTime() : 0;
+  const stale = Sync.enabled() && navigator.onLine !== false && (!last || Date.now() - last > 10 * 60e3);
+  let text = '', btn = '', act = null;
+  if (!Sync.enabled()) {
+    text = '⚠️ Dieses Gerät ist nicht mit eurem Haushalt verbunden – gemeinsame Einträge werden nicht abgeglichen.';
+    btn = 'Verbinden'; act = () => { showView('settings'); const c = $('#syncCard'); if (c) c.scrollIntoView({ behavior: 'smooth' }); };
+  } else if (st.state === 'noaccess') {
+    text = '⚠️ Abgleich gesperrt: Der Zugang auf diesem Gerät ist abgelaufen.';
+    btn = 'Zugang erneuern'; act = () => { location.href = '/?gate=' + Date.now(); };
+  } else if (st.state === 'error' || stale) {
+    text = `⚠️ Abgleich hat ${last ? 'seit ' + new Date(last).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : 'noch nie'} nicht geklappt${st.state === 'error' ? ' (' + st.text.replace(/^Fehler: /, '') + ')' : ''}.`;
+    btn = 'Jetzt abgleichen'; act = () => Sync.syncNow();
+  }
+  el.hidden = !text;
+  if (text) { $('#syncBannerText').textContent = text; $('#syncBannerBtn').textContent = btn; $('#syncBannerBtn').onclick = act; }
+}
+
 function renderSettings() {
   const s = state.settings;
   const setIfIdle = (el, v) => { if (document.activeElement !== el) el.value = v; };
@@ -1416,7 +1437,8 @@ function bind() {
     if (!confirm('Dieses Gerät vom gemeinsamen Haushalt trennen? Die Daten bleiben auf diesem Gerät und in der Cloud erhalten.')) return;
     Sync.disconnect(); render(); toast('Getrennt');
   };
-  Sync.onStatus(() => renderSync());
+  Sync.onStatus(() => { renderSync(); renderSyncBanner(); });
+  setInterval(renderSyncBanner, 60000);
 
   $('#exportJsonBtn').onclick = () => download(`ausgaben-backup-${todayISO()}.json`, JSON.stringify(state, null, 2), 'application/json');
   $('#exportCsvBtn').onclick = exportCsv;
@@ -1454,6 +1476,7 @@ if ((startView === 'subs' && isPersonal()) || (startView === 'konto' && !isPerso
 showView(startView);
 render();
 Sync.init();
+renderSyncBanner();
 loadGate();
 Konto.handleCallback();
 $('#bankReminderBtn').onclick = () => { setMode('personal'); showView('konto'); };

@@ -97,7 +97,8 @@ const Sync = (() => {
     if (!res.ok) {
       let msg = res.status + ' ' + res.statusText;
       try { const j = await res.json(); msg = j.message || j.msg || j.error || msg; } catch (e) { /* egal */ }
-      throw new Error(msg);
+      const err = new Error(msg); err.status = res.status;
+      throw err;
     }
     return res.json();
   }
@@ -231,7 +232,9 @@ const Sync = (() => {
         setStatus('ok', 'Synchronisiert ' + new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }));
       } catch (e) {
         console.warn('Sync-Fehler', e);
-        setStatus('error', navigator.onLine === false ? 'Offline – wird später synchronisiert' : 'Fehler: ' + e.message);
+        const noAccess = e.status === 401 || e.status === 403;
+        setStatus(noAccess ? 'noaccess' : 'error', navigator.onLine === false ? 'Offline – wird später synchronisiert'
+          : noAccess ? 'Kein Zugang – Einladung auf diesem Gerät erneuern' : 'Fehler: ' + e.message);
       } finally {
         running = null;
         if (again) { again = false; syncNow(); }
@@ -385,6 +388,7 @@ const Sync = (() => {
     usesSelf: () => !!(cfg && cfg.url === SELF),
     household: () => (cfg ? cfg.household : ''),
     status: () => status,
+    lastOk: () => (cfg && cfg.lastOk) || '',
     pending: () => (cfg ? Object.keys(cfg.dirty).length : 0),
     onStatus: (fn) => listeners.push(fn),
   };

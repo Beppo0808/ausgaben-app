@@ -846,3 +846,8 @@ ul.month-sum-split li { display: flex; justify-content: space-between; padding: 
 .rd-steps li { margin-bottom: 8px; }
 #recipeEditDialog textarea, #shopImportDialog textarea { width: 100%; font: inherit; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); }
 .due-list li { grid-template-columns: 80px 1fr auto auto; align-items: center; }
+
+/* Hinweis: Abgleich klappt nicht */
+.sync-banner { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 0 14px; padding: 12px 14px; border-radius: 14px;
+  background: #f4d9cc; border: 1px solid #c98a6e; color: var(--text); font-weight: 700; }
+.sync-banner span { flex: 1 1 220px; }
