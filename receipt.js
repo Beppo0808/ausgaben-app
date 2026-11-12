@@ -216,7 +216,7 @@ const Receipt = (() => {
     const head = lines.slice(0, 12);
     const out = { store: '', branch: '' };
     // Logo oben wird oft nicht gelesen → zur Not im ganzen Bon nach dem Laden suchen (z. B. „Mix Markt 191“ im Kundenbeleg)
-    const hit = STORES.find(([, re]) => re.test(head.join(' '))) || STORES.find(([, re]) => re.test(lines.join(' ')));
+    const hit = STORES.find(([, re]) => re.test(head.join(' '))) || STORES.filter(([n]) => !['Netto', 'real', 'Hit', 'Action', 'dm', 'Müller', 'toom'].includes(n)).find(([, re]) => re.test(lines.join(' '))); // mehrdeutige Wörter („Netto“ = Steuer) nur im Kopf
     if (hit) out.store = hit[0];
     else { const l = head.slice(0, 6).find((x) => /[a-zäöü]{3,}/i.test(x) && !/\d{3,}/.test(x)); if (l) out.store = l.slice(0, 40); }
     // Filiale: Straße + PLZ/Ort (gleiche oder nächste Zeile) und ggf. Filial-/Marktnummer
