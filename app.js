@@ -20,7 +20,7 @@ const DEFAULT_CATEGORIES = [
 
 // Händler-Stichwörter → Kategorie (wird durch eigene Korrekturen ergänzt)
 const KEYWORD_RULES = [
-  [/rewe|edeka|aldi|lidl|netto|penny|kaufland|norma|globus|tegut|real\b|bäcker|baecker|backhaus|metzger|denns|alnatura|bio ?company|marktkauf|hit markt|famila|combi|nahkauf/i, 'lebensmittel'],
+  [/rewe|edeka|aldi|lidl|netto|penny|kaufland|norma|globus|tegut|real\b|bäcker|baecker|backhaus|metzger|denns|alnatura|bio ?company|marktkauf|mix ?markt|trinkgut|hit markt|famila|combi|nahkauf/i, 'lebensmittel'],
   [/mc ?donald|burger|starbucks|caf[eé]|coffee|kaffee|restaurant|pizza|döner|doener|kebab|sushi|subway|kfc|vapiano|lieferando|wolt|uber ?eats|bistro|bar\b|imbiss|eis/i, 'restaurant'],
   [/aral|shell|esso|jet\b|total|tankstelle|couche-?tard|circle ?k|westfalen|hem\b|raiffeisen tank|q1\b|orlen|agip|omv|avia|star tankstelle|bft|deutsche bahn|\bdb\b|bahn|bvg|mvg|hvv|vrr|kvb|rmv|flixbus|uber|bolt|free ?now|sixt|parken|parkhaus|apcoa|ladestation|ionity|e\.on drive|enbw/i, 'mobilitaet'],
   [/\bdm\b|dm-drogerie|rossmann|müller|mueller|apotheke|pharmacy|budni|arzt|optik|fielmann/i, 'drogerie'],
@@ -568,7 +568,7 @@ let listMode = 'exp';
 
 // ---------- Läden ----------
 const STORE_RULES = [
-  ['ALDI', /\baldi\b/i], ['LIDL', /\blidl\b/i], ['REWE', /\brewe\b/i], ['EDEKA', /edeka/i], ['Marktkauf', /marktkauf/i],
+  ['Mix Markt', /mix\s*markt/i], ['ALDI', /\baldi\b/i], ['LIDL', /\blidl\b/i], ['REWE', /\brewe\b/i], ['EDEKA', /edeka/i], ['Marktkauf', /marktkauf/i],
   ['Netto', /\bnetto\b(?!\s*\d)/i], ['Penny', /\bpenny\b/i], ['Kaufland', /kaufland/i], ['Norma', /\bnorma\b/i], ['Globus', /globus/i],
   ['HIT', /\bhit\b/i], ['real', /\breal\b/i], ['dm', /\bdm\b|dm-drogerie/i], ['Rossmann', /rossmann/i], ['Müller', /m(ü|ue)ller/i],
   ['Büsch', /b(ü|ue)sch/i], ['denn’s', /denn.?s/i], ['Alnatura', /alnatura/i], ['IKEA', /ikea/i], ['OBI', /\bobi\b/i],

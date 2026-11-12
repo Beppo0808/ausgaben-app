@@ -91,6 +91,15 @@ const Receipt = (() => {
   }
 
   /** Graustufen + Kontrast für die Texterkennung (Scanner-Bilder sind schon aufbereitet → nur Größe anpassen) */
+  function forOcrPlain(src) {
+    let scale = Math.max(0.25, Math.min(2.6, 1500 / src.width, 12000 / src.height));
+    scale = Math.min(scale, Math.sqrt(9e6 / (src.width * src.height)));
+    const c = document.createElement('canvas'); c.width = Math.round(src.width * scale); c.height = Math.round(src.height * scale);
+    const ctx = c.getContext('2d', { willReadFrequently: true });
+    ctx.imageSmoothingQuality = 'high'; ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+    ctx.drawImage(src, 0, 0, c.width, c.height);
+    return c;
+  }
   function forOcr(src, prepared) {
     if (prepared) {
       const sc = Math.max(1, Math.min(2.2, 1300 / src.width));
@@ -132,8 +141,15 @@ const Receipt = (() => {
     const d = ctx.getImageData(0, 0, c.width, c.height); const px = d.data;
     for (let i = 0; i < px.length; i += 4) {
       const g = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
-      let v = (g / Math.max(40, bgd[i])) * 255; // Papier → ~255, Schrift bleibt dunkel
-      v = Math.max(0, Math.min(255, (v - 150) * 1.6 + 150));
+      px[i] = Math.min(255, (g / Math.max(40, bgd[i])) * 255); // Papier → ~255, Schrift bleibt dunkel
+    }
+    const hist = new Uint32Array(256);
+    for (let i = 0; i < px.length; i += 4) hist[px[i] | 0]++;
+    let acc = 0, lo = 0; const n = px.length / 4;
+    for (let v = 0; v < 256; v++) { acc += hist[v]; if (acc > n * 0.015) { lo = v; break; } } // dunkelste 1,5 % = Schrift
+    const hi = 235, span = Math.max(20, hi - lo);
+    for (let i = 0; i < px.length; i += 4) {
+      const v = Math.max(0, Math.min(255, ((px[i] - lo) / span) * 255));
       px[i] = px[i + 1] = px[i + 2] = v;
     }
     ctx.putImageData(d, 0, 0);
@@ -184,7 +200,7 @@ const Receipt = (() => {
   const STORES = [
     ['ALDI SÜD', /aldi\s*s[üu]d/i], ['ALDI Nord', /aldi\s*nord/i], ['ALDI', /aldi/i], ['LIDL', /lidl/i], ['REWE', /rewe/i], ['EDEKA', /edeka/i],
     ['Netto', /netto(?!\s*\d)/i], ['Penny', /penny/i], ['Kaufland', /kaufland/i], ['Norma', /norma/i], ['Globus', /globus/i], ['tegut', /tegut/i],
-    ['Marktkauf', /marktkauf/i], ['real', /\breal\b/i], ['dm', /\bdm[- ]?(drogerie|markt)|\bdm\b/i], ['Rossmann', /rossmann/i], ['Müller', /m[üu]ller/i],
+    ['Marktkauf', /marktkauf/i], ['Mix Markt', /mix\s*markt/i], ['Netto Marken-Discount', /netto\s*marken/i], ['Trinkgut', /trinkgut/i], ['Fressnapf', /fressnapf/i], ['Hit', /\bhit\b/i], ['real', /\breal\b/i], ['dm', /\bdm[- ]?(drogerie|markt)|\bdm\b/i], ['Rossmann', /rossmann/i], ['Müller', /m[üu]ller/i],
     ['denn’s Biomarkt', /denn.?s/i], ['Alnatura', /alnatura/i], ['IKEA', /ikea/i], ['OBI', /\bobi\b/i], ['Hornbach', /hornbach/i],
     ['Bauhaus', /bauhaus/i], ['toom', /toom/i], ['Action', /\baction\b/i], ['Tedi', /tedi/i], ['Apotheke', /apotheke/i],
   ];
@@ -199,7 +215,8 @@ const Receipt = (() => {
   function parseHeader(lines) {
     const head = lines.slice(0, 12);
     const out = { store: '', branch: '' };
-    const hit = STORES.find(([, re]) => re.test(head.join(' ')));
+    // Logo oben wird oft nicht gelesen → zur Not im ganzen Bon nach dem Laden suchen (z. B. „Mix Markt 191“ im Kundenbeleg)
+    const hit = STORES.find(([, re]) => re.test(head.join(' '))) || STORES.find(([, re]) => re.test(lines.join(' ')));
     if (hit) out.store = hit[0];
     else { const l = head.slice(0, 6).find((x) => /[a-zäöü]{3,}/i.test(x) && !/\d{3,}/.test(x)); if (l) out.store = l.slice(0, 40); }
     // Filiale: Straße + PLZ/Ort (gleiche oder nächste Zeile) und ggf. Filial-/Marktnummer
@@ -286,7 +303,7 @@ const Receipt = (() => {
       pendingQty = null;
       result.items.push(it);
     }
-    if (!(result.total > 0) && result.items.length) result.total = round2(result.items.reduce((a, it) => a + it.price, 0));
+    if (!(result.total > 0) && result.items.length) { result.total = round2(result.items.reduce((a, it) => a + it.price, 0)); result.totalGuessed = true; }
     return result;
   }
 
@@ -398,27 +415,29 @@ const Receipt = (() => {
       const pv = $('#rcPreview'); pv.src = URL.createObjectURL(current.blob); pv.hidden = false;
       const w = await getWorker(setProgress);
       setProgress(0.35, 'Lese Bon …');
-      const img = forOcr(color, prepared);
+      const imgs = { plain: forOcrPlain(color), clean: forOcr(color, prepared) };
       // Mehrere Lesarten probieren; die beste ist die, deren Artikel am besten zur Bon-Summe passen
       const score = (r) => {
         const sum = r.items.reduce((a, it) => a + it.price, 0);
-        const off = r.total > 0 ? Math.abs(sum - r.total) / r.total : 1;
-        return r.items.length * 2 - off * 20 + (r.total > 0 ? 3 : 0) + (r.date ? 1 : 0);
+        const real = r.total > 0 && !r.totalGuessed;
+        const off = real ? Math.abs(sum - r.total) / r.total : 1;
+        return r.items.length * 2 - Math.min(off, 1) * 20 + (real ? 6 : 0) + (r.date ? 1 : 0);
       };
       let r = null;
-      for (const [i, psm] of ['3', '6', '4'].entries()) {
-        if (i) setProgress(0.35, `Lese Bon noch einmal anders (${i + 1}/3) …`);
+      const passes = [['plain', '3'], ['clean', '3'], ['plain', '6'], ['clean', '6']];
+      for (const [i, [kind, psm]] of passes.entries()) {
+        if (i) setProgress(0.35, `Lese Bon noch einmal anders (${i + 1}/${passes.length}) …`);
         await w.setParameters({ tessedit_pageseg_mode: psm });
-        const { data } = await w.recognize(img);
+        const { data } = await w.recognize(imgs[kind]);
         const cand = parse(data.text || '');
         if (!r || score(cand) > score(r)) {
           // Kopfdaten (Laden, Datum …) aus der besseren Lesart, fehlende aus der vorigen ergänzen
           if (r) for (const k of ['store', 'branch', 'date', 'time']) if (!cand[k] && r[k]) cand[k] = r[k];
-          if (r && !(cand.total > 0) && r.total > 0) cand.total = r.total;
+          if (r && (cand.totalGuessed || !(cand.total > 0)) && r.total > 0 && !r.totalGuessed) { cand.total = r.total; cand.totalGuessed = false; }
           r = cand;
         } else for (const k of ['store', 'branch', 'date', 'time']) if (!r[k] && cand[k]) r[k] = cand[k];
         const sum = r.items.reduce((a, it) => a + it.price, 0);
-        if (r.total > 0 && r.items.length && Math.abs(sum - r.total) < 0.02) break; // passt genau → fertig
+        if (r.total > 0 && !r.totalGuessed && r.items.length && Math.abs(sum - r.total) < 0.02) break; // passt genau → fertig
       }
       await w.setParameters({ tessedit_pageseg_mode: '3' });
       setProgress(1, '');
