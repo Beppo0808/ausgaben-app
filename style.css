@@ -860,3 +860,64 @@ ul.month-sum-split li { display: flex; justify-content: space-between; padding: 
 #pullRefresh.ready .pr-icon { transform: rotate(180deg); }
 #pullRefresh.busy .pr-icon { animation: prspin .8s linear infinite; }
 @keyframes prspin { from { transform: rotate(0); } to { transform: rotate(360deg); } }
+
+/* ===================== Deutlichere 3D-Optik ===================== */
+:root {
+  --edge: rgba(105, 68, 35, .30);          /* untere Kante erhabener Flächen */
+  --edge-strong: rgba(95, 55, 25, .45);
+  --lift: 0 1px 0 rgba(255, 252, 245, .85) inset, 0 -2px 0 rgba(105, 68, 35, .10) inset, 0 4px 0 -1px var(--edge), 0 12px 22px -12px rgba(70, 40, 15, .50);
+  --lift-sm: 0 1px 0 rgba(255, 252, 245, .9) inset, 0 -2px 0 rgba(105, 68, 35, .12) inset, 0 3px 0 var(--edge), 0 6px 12px -6px rgba(70, 40, 15, .45);
+  --sunk: inset 0 2px 4px rgba(70, 40, 15, .22), inset 0 -1px 0 rgba(255, 252, 245, .7);
+}
+:root[data-theme="dim"] { --edge: rgba(95, 60, 30, .34); }
+
+/* Karten und Kacheln: deutlich abgehoben */
+.card, .kpi, .month-sum, .art-grp, .rc-card, .sh-list, .sp-list, .bank-reminder, .sync-banner {
+  border: 1px solid rgba(110, 75, 40, .22); box-shadow: var(--lift);
+}
+.card { background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 70%, #fffaf2), var(--surface)); }
+
+/* Zeilen in Listen: leicht erhaben */
+.row, .tx, .rec { box-shadow: var(--lift-sm); border: 1px solid rgba(110, 75, 40, .18); }
+
+/* Knöpfe: erhaben, beim Antippen eingedrückt */
+.btn, .tx-add, .tx-mini, .chip, .seg button, .kind-choice label, .store-chip, .sh-check, #rdToList {
+  border: 1px solid rgba(110, 75, 40, .30);
+  box-shadow: var(--lift-sm);
+  transition: transform .06s, box-shadow .06s;
+}
+.btn { background: linear-gradient(180deg, #fbf5ec, var(--surface-2)); }
+.btn:active, .tx-add:active, .tx-mini:active, .chip:active, .seg button:active, .kind-choice label:active, .store-chip:active, .sh-check:active {
+  transform: translateY(3px);
+  box-shadow: inset 0 2px 5px rgba(70, 40, 15, .28), 0 0 0 var(--edge);
+}
+.btn-primary, #rdToList {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 82%, #fff3e6), var(--accent));
+  border-color: var(--accent-deep);
+  box-shadow: 0 1px 0 rgba(255, 240, 225, .55) inset, 0 -2px 0 rgba(60, 25, 5, .22) inset, 0 4px 0 var(--accent-deep), 0 8px 14px -6px rgba(70, 30, 10, .55);
+}
+.btn-primary:active, #rdToList:active { transform: translateY(4px); box-shadow: inset 0 2px 6px rgba(50, 20, 5, .35), 0 0 0 var(--accent-deep); }
+.btn-ghost { background: linear-gradient(180deg, #f8f1e7, #eee5d8); }
+.btn-danger { box-shadow: 0 1px 0 rgba(255, 240, 230, .5) inset, 0 3px 0 rgba(120, 30, 20, .55), 0 6px 12px -6px rgba(70, 20, 10, .45); }
+
+/* Ausgewählt = eingedrückt bzw. hervorgehoben */
+.chip.selected, .seg button[aria-pressed="true"] {
+  box-shadow: inset 0 2px 5px rgba(50, 25, 10, .30), 0 1px 0 rgba(255, 252, 245, .6);
+  transform: translateY(2px);
+}
+.seg { box-shadow: var(--sunk); border: 1px solid rgba(110, 75, 40, .22); }
+.kind-choice label:has(input:checked) { box-shadow: inset 0 2px 6px rgba(50, 25, 10, .22); transform: translateY(2px); border-width: 2px; }
+
+/* Eingabefelder: vertieft */
+input[type="text"], input[type="search"], input[type="number"], input[type="url"], input[type="date"], input[type="month"],
+input[type="datetime-local"], input:not([type]), select, textarea, .shop-add input, #recipeSearch {
+  box-shadow: var(--sunk) !important; border: 1px solid rgba(110, 75, 40, .28) !important;
+}
+
+/* Umschalter Gemeinsam/Persönlich und Leiste unten */
+.mode-switch { box-shadow: var(--sunk), 0 1px 0 rgba(255, 252, 245, .7); border: 1px solid rgba(110, 75, 40, .25); }
+.mode-switch .thumb { box-shadow: 0 1px 0 rgba(255, 240, 225, .5) inset, 0 -2px 0 rgba(40, 20, 5, .25) inset, 0 4px 0 rgba(60, 30, 10, .35), 0 8px 14px -6px rgba(50, 25, 5, .5); }
+.tabbar { box-shadow: 0 1px 0 rgba(255, 252, 245, .9) inset, 0 -2px 0 rgba(105, 68, 35, .10) inset, 0 5px 0 var(--edge), 0 16px 30px -12px rgba(60, 35, 15, .55); }
+.tabbar button.active { box-shadow: inset 0 2px 5px rgba(50, 25, 10, .25); }
+#fab { box-shadow: 0 1px 0 rgba(255, 240, 225, .55) inset, 0 -3px 0 rgba(50, 20, 5, .25) inset, 0 5px 0 var(--accent-deep), 0 12px 20px -6px rgba(60, 25, 5, .6); }
+#fab:active { transform: translateY(4px); box-shadow: inset 0 3px 7px rgba(40, 15, 5, .4), 0 0 0 var(--accent-deep); }
