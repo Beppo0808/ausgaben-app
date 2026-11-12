@@ -435,7 +435,9 @@ const Konto = (() => {
       // üblicher Betrag = häufigster der letzten 6 Buchungen (einzelne Abweichungen, z. B. Verrechnung, zählen nicht)
       const recent = amts.slice(-6), freq = {};
       recent.forEach((a) => { const k = a.toFixed(2); freq[k] = (freq[k] || 0) + 1; });
-      const usual = +Object.entries(freq).sort((a, b) => b[1] - a[1] || +b[0] - +a[0])[0][0];
+      let usual = +Object.entries(freq).sort((a, b) => b[1] - a[1] || +b[0] - +a[0])[0][0];
+      // dauerhaft geändert (z. B. neuer Dauerauftrag): die letzten zwei Buchungen gleich → neuer Betrag
+      if (amts.length >= 2 && Math.abs(amts[amts.length - 1] - amts[amts.length - 2]) < 0.005) usual = amts[amts.length - 1];
       const text = `${latest.name} ${latest.purpose}`;
       const gi = groupInfo(latest);
       const hint = HINTS.find(([re]) => re.test(gi.agg ? gi.inner : text));
