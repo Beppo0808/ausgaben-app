@@ -272,6 +272,19 @@ const Konto = (() => {
     return 'month';
   }
 
+  /** Abgehobenes Bargeld eines Monats (Geldautomat oder Bargeld an der Kasse) – nur dieses Gerät */
+  const ATM = /bargeldausz|bargeldauszahlung|geldautomat|\bga\s+\d|auszahlung\s+ga|cash\s?withdraw/i;
+  function cashForMonth(y, m) {
+    const key = monthKey(y, m);
+    let sum = 0;
+    for (const t of data.tx) {
+      if (!t.date.startsWith(key) || t.amount >= 0) continue;
+      if (t.splits) sum += t.splits.filter((p) => p.kind === 'cash').reduce((a, p) => a + p.amount, 0);
+      else if (t.cashAll || (ATM.test(`${t.name} ${t.purpose}`) && !t.linked && !t.sub && !/bargeldausz\.?\s*\d/i.test(t.purpose || ''))) sum += Math.abs(t.amount);
+    }
+    return Math.round(sum * 100) / 100;
+  }
+
   /** Kategorie, die ihr bei einer gleichen Buchung schon festgelegt habt – sonst keine */
   function learnedCat(t) {
     const k = groupKey(t);
@@ -281,7 +294,7 @@ const Konto = (() => {
   // ---------- Buchung aufteilen (z. B. Einkauf + Bargeld) ----------
   let txSplits = [], txCashHint = 0;
   const num2 = (s) => Math.round(parseFloat(String(s).replace(/\./g, '').replace(',', '.')) * 100) / 100;
-  const SPLIT_KINDS = { personal: '🔒 Nur für mich', shared: '👫 Gemeinsam', cash: '💵 Bargeld abgehoben' };
+  const SPLIT_KINDS = { cash: '💵 Bargeld – erst mal meins', personal: '🔒 Nur für mich', shared: '👫 Gemeinsam' };
   function drawSplits() {
     const on = txSplits.length > 0;
     $('#txSplit').hidden = !on; $('#txSplitBtn').hidden = on;
@@ -1195,5 +1208,5 @@ const Konto = (() => {
     };
   }
 
-  return { matchReceipts, reminder, render, parseStatement, detect, monthSummary, handleCallback, autoRefresh, refresh, setBankToken, bankToken: () => bankCfg().token || '', _data: () => data };
+  return { cashForMonth, matchReceipts, reminder, render, parseStatement, detect, monthSummary, handleCallback, autoRefresh, refresh, setBankToken, bankToken: () => bankCfg().token || '', _data: () => data };
 })();

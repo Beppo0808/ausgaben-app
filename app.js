@@ -345,7 +345,11 @@ function renderOverview() {
     const received = round2(tr.filter((t) => t.to === me).reduce((a, t) => a + t.amount, 0));
     const spentShared = sum(mineItems.filter((e) => !e.private && !e.virtual));
     const spentFixed = sum(mineItems.filter((e) => e.virtual && !e.private));
-    const spentPrivate = sum(mineItems.filter((e) => e.private));
+    // Bargeld: zählt als eigene Ausgabe, bis es (als „💵 Bar bezahlt“) ausgegeben und zugeordnet ist
+    const withdrawn = typeof Konto !== 'undefined' ? Konto.cashForMonth(viewY, viewM) : 0;
+    const cashSpent = sum(mineItems.filter((e) => e.cash));
+    const cashOpen = round2(Math.max(0, withdrawn - cashSpent));
+    const spentPrivate = round2(sum(mineItems.filter((e) => e.private)) + cashOpen);
     const household = round2(spentShared + spentFixed + given - received);
 
     $('#kpiLabel1').textContent = 'Meine Ausgaben gesamt';
@@ -356,7 +360,7 @@ function renderOverview() {
     $('#kpiASub').textContent = given ? `inkl. Haushaltsgeld ${fmt0(given)}` : '';
     $('#kpiLabel3').textContent = '🔒 Privat';
     $('#kpiB').textContent = fmt(spentPrivate);
-    $('#kpiBSub').textContent = '';
+    $('#kpiBSub').textContent = withdrawn ? `inkl. Bargeld ${fmt0(cashOpen)} (noch nicht zugeordnet)` : '';
 
     const kv = (label, val) => `<li><span>${label}</span><b>${val}</b></li>`;
     $('#meContrib').innerHTML = [
@@ -365,6 +369,9 @@ function renderOverview() {
       given ? kv('💶 Haushaltsgeld gezahlt', '+ ' + fmt(given)) : '',
       received ? kv('💶 Haushaltsgeld erhalten', '− ' + fmt(received)) : '',
       kv('<b>Mein Anteil am Haushalt</b>', fmt(household)),
+      withdrawn ? kv('💵 Bargeld abgehoben', fmt(withdrawn)) : '',
+      withdrawn ? kv('💵 davon bar ausgegeben (eingetragen)', '− ' + fmt(Math.min(cashSpent, withdrawn))) : '',
+      withdrawn ? kv('💵 Bargeld noch nicht zugeordnet (zählt privat)', fmt(cashOpen)) : '',
     ].join('');
     $('#dailyTitle').textContent = 'Meine Ausgaben pro Tag';
     $('#catTitle').textContent = 'Meine Kategorien';
