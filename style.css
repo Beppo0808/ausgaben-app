@@ -851,3 +851,12 @@ ul.month-sum-split li { display: flex; justify-content: space-between; padding: 
 .sync-banner { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 0 14px; padding: 12px 14px; border-radius: 14px;
   background: #f4d9cc; border: 1px solid #c98a6e; color: var(--text); font-weight: 700; }
 .sync-banner span { flex: 1 1 220px; }
+
+/* Nach unten ziehen zum Aktualisieren */
+#pullRefresh { position: fixed; top: calc(env(safe-area-inset-top) + 8px); left: 50%; transform: translate(-50%, -60px); opacity: 0; z-index: 60;
+  display: flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 99px; background: var(--surface); border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm); font-weight: 700; font-size: .9rem; color: var(--text); pointer-events: none; }
+#pullRefresh .pr-icon { display: inline-block; transition: transform .2s; }
+#pullRefresh.ready .pr-icon { transform: rotate(180deg); }
+#pullRefresh.busy .pr-icon { animation: prspin .8s linear infinite; }
+@keyframes prspin { from { transform: rotate(0); } to { transform: rotate(360deg); } }
