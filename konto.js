@@ -365,13 +365,16 @@ const Konto = (() => {
     const dropExp = () => { if (exp) { if (exp.source === 'bank') state.expenses = state.expenses.filter((e) => e.id !== exp.id); delete t.linked; } };
     const linkTo = (id) => { t.sub = id; if (gk) { data.links[gk] = id; delete data.dismissed[gk]; } dropExp(); };
     if (subSel === '__new') {
+      // Direkt anlegen – alles Nötige steht schon in diesem Fenster (ändern geht später unter „Fixkosten“)
       const shared = kind === 'fixshared';
-      write(); $('#txDialog').close(); txEditing = null;
       const iv = f.interval.value || 'month';
-      openSubDialog(null, { type: 'fixed', name: label || orig, amount: Math.abs(t.amount), interval: iv, spread: iv !== 'month', category: txCat || 'abos', subcat: txSubcat,
-        start: t.date.slice(0, 7), payer: state.settings.me, private: !shared, via: /paypal/i.test(`${t.name} ${t.purpose}`) ? 'PayPal' : '' }, (id) => {
-        linkTo(id); write(); save(); window.render(); toast(shared ? '🏠 Gemeinsame Fixkosten angelegt ✓' : '🔒 Private Fixkosten angelegt ✓');
-      });
+      const sub = { id: uid(), type: 'fixed', name: (label || orig || 'Fixkosten').slice(0, 60), amount: Math.abs(t.amount), interval: iv, spread: iv !== 'month',
+        category: txCat || 'abos', subcat: txSubcat || '', start: t.date.slice(0, 7), end: '', payer: state.settings.me, to: '',
+        private: !shared, via: /paypal/i.test(`${t.name} ${t.purpose}`) ? 'PayPal' : '' };
+      state.subs.push(sub);
+      linkTo(sub.id);
+      write(); save(); $('#txDialog').close(); txEditing = null; window.render();
+      toast(`${shared ? '🏠 Gemeinsame' : '🔒 Private'} Fixkosten „${sub.name}“ angelegt (${INTERVALS[iv]}) ✓`);
       return;
     }
     if (subSel) {
