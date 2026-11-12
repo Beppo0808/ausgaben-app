@@ -547,7 +547,14 @@ const Konto = (() => {
       const s = await call('session', { code });
       const conn = { session_id: s.session_id, bank: s.bank || pending.bank, valid_until: s.valid_until, created: new Date().toISOString(), accounts: [] };
       for (const a of s.accounts || []) {
-        const accId = 'eb-' + a.uid;
+        let accId = 'eb-' + a.uid;
+        if (a.iban) { // dieselbe IBAN schon verbunden (z. B. Zugriff erneuert)? → bisheriges Konto weiterführen
+          for (const oc of connections()) {
+            const i = oc.accounts.findIndex((x) => x.iban === a.iban);
+            if (i > -1) { accId = oc.accounts[i].accId; oc.accounts.splice(i, 1); }
+          }
+          data.bank.connections = connections().filter((oc) => oc.accounts.length);
+        }
         const short = a.iban ? ' ··' + a.iban.slice(-4) : '';
         if (!data.accounts.some((x) => x.id === accId)) data.accounts.push({ id: accId, name: `${conn.bank}${short}` });
         conn.accounts.push({ uid: a.uid, accId, name: a.name, iban: a.iban, currency: a.currency });
@@ -575,35 +582,57 @@ const Konto = (() => {
             const list = (b.balances || []).slice().sort((x, y) => (BAL_ORDER.indexOf(x.type) + 99) % 99 - (BAL_ORDER.indexOf(y.type) + 99) % 99);
             if (list[0]) { a.balance = list[0].amount; a.balanceCurrency = list[0].currency; a.balanceDate = list[0].date; }
             const carry = {}; // „im Haushalt übernommen“-Markierungen behalten
-            if (a.idv !== 2) { // ältere Kennungen konnten bei manchen Banken gleiche Buchungen zusammenlegen → einmal komplett neu holen
+            const ck = (t) => `${t.date}|${t.amount}|${t.name}|${t.purpose}`;
+            if (!a.idv) { // ganz alte Kennungen konnten gleiche Buchungen zusammenlegen → einmal komplett neu holen
               const pre = `eb-${a.uid.slice(0, 8)}-`;
-              data.tx.forEach((t) => { if (String(t.id).startsWith(pre) && t.linked) carry[`${t.date}|${t.amount}|${t.name}|${t.purpose}`] = t.linked; });
+              data.tx.forEach((t) => { if (String(t.id).startsWith(pre) && t.linked) carry[ck(t)] = t.linked; });
               data.tx = data.tx.filter((t) => !String(t.id).startsWith(pre));
               delete a.lastDate;
             }
-            const from = new Date(a.lastDate ? new Date(a.lastDate + 'T12:00').getTime() - 10 * 864e5 : Date.now() - 89 * 864e5);
-            let next = null, pages = 0;
-            const existing = new Set(data.tx.map((t) => t.id));
-            const seen = {};
-            do {
-              const r = await call('transactions', { account: a.uid, date_from: from.toISOString().slice(0, 10), continuation_key: next || undefined });
-              for (const t of r.transactions || []) {
-                if (t.status && t.status !== 'BOOK') continue; // nur gebuchte Umsätze (vorgemerkte ändern sich noch)
-                if (!/^\d{4}-\d{2}-\d{2}$/.test(t.date) || !t.amount) continue;
-                // Kennung aus allen Angaben – die Referenz der Bank allein ist nicht immer eindeutig (z. B. „NONREF“)
-                const base = hash(`${t.id}|${t.date}|${t.amount}|${t.name}|${t.purpose}`);
-                seen[base] = (seen[base] || 0) + 1;
-                const id = `eb2-${a.uid.slice(0, 8)}-${base}-${seen[base]}`;
-                if (existing.has(id)) continue;
-                const row = { id, account: a.accId, date: t.date, amount: t.amount, name: String(t.name || '').slice(0, 120), purpose: String(t.purpose || '').slice(0, 300) };
-                const lk = carry[`${row.date}|${row.amount}|${row.name}|${row.purpose}`]; if (lk) row.linked = lk;
-                data.tx.push(row);
-                existing.add(id); added++;
-                if (!a.lastDate || t.date > a.lastDate) a.lastDate = t.date;
-              }
-              next = r.next; pages++;
-            } while (next && pages < 25);
-            a.fetched = new Date().toISOString(); a.idv = 2;
+            // Direkt nach der Anmeldung bei der Bank (TAN) darf ein ganzes Jahr abgerufen werden, danach nur 90 Tage.
+            const fresh = conn.created && Date.now() - new Date(conn.created).getTime() < 30 * 60e3;
+            const fromMs = fresh ? Date.now() - 365 * 864e5
+              : a.lastDate ? new Date(a.lastDate + 'T12:00').getTime() - 30 * 864e5 // 30 Tage Überlappung: spät gebuchte Umsätze nicht verpassen
+                : Date.now() - 89 * 864e5;
+            // Erst ALLE Seiten holen – nur wenn alles geklappt hat, wird übernommen (keine Lücken bei Abbruch)
+            const fetchAll = async (fromIso) => {
+              const rows = []; let next = null, pages = 0;
+              do {
+                const r = await call('transactions', { account: a.uid, date_from: fromIso, continuation_key: next || undefined });
+                for (const t of r.transactions || []) {
+                  if (t.status && t.status !== 'BOOK') continue; // nur gebuchte Umsätze (vorgemerkte ändern sich noch)
+                  if (!/^\d{4}-\d{2}-\d{2}$/.test(t.date) || !t.amount) continue;
+                  rows.push({ account: a.accId, date: t.date, amount: t.amount, name: String(t.name || '').slice(0, 120), purpose: String(t.purpose || '').slice(0, 300) });
+                }
+                next = r.next; pages++;
+              } while (next && pages < 400);
+              if (next) throw new Error('Zu viele Seiten – bitte erneut „Aktualisieren“');
+              return rows;
+            };
+            let rows;
+            try { rows = await fetchAll(new Date(fromMs).toISOString().slice(0, 10)); }
+            catch (e) {
+              if (!fresh || /expired|abgelaufen|revoked|EXPIRED|SESSION/i.test(e.message)) throw e;
+              rows = await fetchAll(new Date(Date.now() - 89 * 864e5).toISOString().slice(0, 10)); // Bank erlaubt kein ganzes Jahr
+              toast('ℹ️ Die Bank liefert nur die letzten 90 Tage');
+            }
+            // Abgleich über den Inhalt (Datum, Betrag, Name, Zweck) – zwei gleiche Buchungen am selben Tag bleiben beide erhalten
+            const have = {};
+            data.tx.forEach((t) => { if (t.account === a.accId) have[ck(t)] = (have[ck(t)] || 0) + 1; });
+            const got = {};
+            let newest = a.lastDate || '';
+            for (const row of rows) {
+              const k = ck(row);
+              got[k] = (got[k] || 0) + 1;
+              if (row.date > newest) newest = row.date;
+              if (got[k] <= (have[k] || 0)) continue;
+              row.id = `eb3-${a.accId.slice(3, 11)}-${hash(k)}-${got[k]}`;
+              if (carry[k]) row.linked = carry[k];
+              data.tx.push(row); added++;
+            }
+            if (newest) a.lastDate = newest;
+            if (rows.length) { const oldest = rows.reduce((m, r) => (r.date < m ? r.date : m), rows[0].date); if (!a.since || oldest < a.since) a.since = oldest; }
+            a.fetched = new Date().toISOString(); a.idv = 3;
           } catch (e) {
             problems++;
             if (/expired|abgelaufen|consent|revoked|EXPIRED|SESSION/i.test(e.message)) conn.expired = true;
@@ -657,7 +686,7 @@ const Konto = (() => {
       return `<div class="bank-conn">
         <div class="bank-head"><b>${esc(c.bank)}</b><button class="tx-mini" data-disc="${ci}">Trennen</button></div>
         ${c.accounts.map((a) => `<div class="bank-acc">
-          <div><div class="bank-name">${esc(a.name || 'Konto')}</div><div class="muted">${a.iban ? esc(a.iban.slice(0, 4) + ' •••• ' + a.iban.slice(-4)) : ''}</div></div>
+          <div><div class="bank-name">${esc(a.name || 'Konto')}</div><div class="muted">${a.iban ? esc(a.iban.slice(0, 4) + ' •••• ' + a.iban.slice(-4)) : ''}${a.since ? ' · Umsätze seit ' + esc(a.since.split('-').reverse().join('.')) : ''}</div></div>
           <div class="bank-bal ${a.balance < 0 ? 'neg' : ''}">${a.balance !== undefined ? fmt(a.balance) : '–'}</div>
         </div>`).join('')}
         <div class="muted">${until ? 'Zugriff gültig bis ' + esc(until) : ''}</div>${warn}
