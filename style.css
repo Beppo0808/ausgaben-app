@@ -961,3 +961,78 @@ input[type="datetime-local"], input:not([type]), select, textarea, .shop-add inp
 .card, .day-group, .sh-list, .sp-list, .art-grp { contain: layout paint; }
 .day-group, .rc-card, .art-grp { content-visibility: auto; contain-intrinsic-size: auto 240px; }
 html, body { -webkit-overflow-scrolling: touch; overscroll-behavior-y: none; }
+
+/* ===================== Echte Tasten (stark haptisch) ===================== */
+:root {
+  --key-top: #fffaf2; --key-bot: #e6dccd; --key-edge: #b9a68d; --key-edge-dark: #9c8569;
+}
+.btn, .tx-add, .tx-mini, .chip, .store-chip, .seg button, .av-pick, .scan-btn, .kind-choice label, .sh-check {
+  position: relative;
+  background: linear-gradient(180deg, var(--key-top) 0%, #f4ecdf 45%, var(--key-bot) 100%) !important;
+  border: 1px solid var(--key-edge) !important;
+  border-bottom-color: var(--key-edge-dark) !important;
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, .95),      /* Lichtkante oben */
+    inset 0 -3px 4px rgba(120, 85, 50, .18),      /* Wölbung unten */
+    0 5px 0 var(--key-edge),                      /* dicke Tastenkante */
+    0 6px 0 var(--key-edge-dark),
+    0 12px 16px -6px rgba(60, 35, 15, .45) !important;  /* Schatten auf dem Tisch */
+  margin-bottom: 6px;
+  transition: transform .05s ease-out, box-shadow .05s ease-out !important;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn:active, .tx-add:active, .tx-mini:active, .chip:active, .store-chip:active, .seg button:active, .av-pick:active, .scan-btn:active, .kind-choice label:active, .sh-check:active {
+  transform: translateY(5px) !important;
+  box-shadow:
+    inset 0 3px 6px rgba(90, 55, 25, .35),
+    inset 0 -1px 0 rgba(255, 255, 255, .5),
+    0 1px 0 var(--key-edge-dark),
+    0 2px 4px -2px rgba(60, 35, 15, .4) !important;
+}
+/* Hauptknöpfe in Akzentfarbe */
+.btn-primary, #rdToList, #fab {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 65%, #fff1e2) 0%, var(--accent) 55%, color-mix(in srgb, var(--accent) 85%, #3a1a08) 100%) !important;
+  border-color: var(--accent-deep) !important; color: #fff !important;
+  text-shadow: 0 1px 1px rgba(50, 20, 5, .45);
+  box-shadow:
+    inset 0 2px 0 rgba(255, 235, 215, .7),
+    inset 0 -3px 5px rgba(50, 20, 5, .30),
+    0 5px 0 var(--accent-deep),
+    0 6px 0 color-mix(in srgb, var(--accent-deep) 75%, #000),
+    0 13px 18px -6px rgba(60, 25, 5, .55) !important;
+}
+.btn-primary:active, #rdToList:active, #fab:active {
+  transform: translateY(5px) !important;
+  box-shadow: inset 0 4px 8px rgba(40, 15, 3, .45), 0 1px 0 var(--accent-deep), 0 2px 4px -2px rgba(40, 15, 3, .5) !important;
+}
+.btn-danger { color: #a3301a !important; }
+/* Gewählte Tasten bleiben „eingerastet“ (gedrückt) */
+.chip.selected, .seg button[aria-pressed="true"], .kind-choice label:has(input:checked) {
+  transform: translateY(4px);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 18%, #efe4d4), color-mix(in srgb, var(--accent) 10%, #f6efe4)) !important;
+  border-color: var(--accent-deep) !important;
+  box-shadow: inset 0 3px 7px rgba(70, 35, 10, .35), inset 0 -1px 0 rgba(255,255,255,.6), 0 2px 0 var(--accent-deep) !important;
+  margin-bottom: 6px;
+}
+/* Umschalter Gemeinsam/Persönlich: Schiene vertieft, Schieber als dicke Taste */
+.mode-switch { background: linear-gradient(180deg, #d9cdbc, #e8dfd1) !important; box-shadow: inset 0 3px 7px rgba(60, 35, 15, .35), inset 0 -1px 0 rgba(255,255,255,.7) !important; }
+.mode-switch .thumb {
+  box-shadow: inset 0 2px 0 rgba(255,235,215,.6), inset 0 -3px 5px rgba(40,15,3,.3), 0 4px 0 var(--accent-deep), 0 10px 14px -5px rgba(50,25,5,.55) !important;
+}
+/* Leiste unten: Tasten wie auf einer Konsole */
+.tabbar button { border-radius: 16px; margin: 2px; transition: transform .05s, box-shadow .05s; }
+.tabbar button:active { transform: translateY(3px); }
+.tabbar button.active {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 20%, #efe4d4), color-mix(in srgb, var(--accent) 12%, #f6efe4)) !important;
+  box-shadow: inset 0 3px 7px rgba(70, 35, 10, .32), inset 0 -1px 0 rgba(255,255,255,.6) !important;
+}
+/* Eingabefelder: deutlich eingelassen */
+input[type="text"], input[type="search"], input[type="number"], input[type="date"], input[type="month"], input[type="datetime-local"], input:not([type]), select, textarea {
+  background: linear-gradient(180deg, #e9dfd1, #f3ecdf) !important;
+  box-shadow: inset 0 3px 6px rgba(70, 40, 15, .28), inset 0 -1px 0 rgba(255, 255, 255, .8) !important;
+}
+/* Karten: wie aufgelegte Tafeln mit Kante */
+.card, .kpi, .month-sum {
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, .8), 0 4px 0 #cdbda6, 0 14px 22px -12px rgba(60, 35, 15, .5) !important;
+  border: 1px solid #d8c9b3 !important;
+}
