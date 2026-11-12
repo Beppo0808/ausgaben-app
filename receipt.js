@@ -98,15 +98,43 @@ const Receipt = (() => {
       const x = c.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(src, 0, 0, c.width, c.height);
       return c;
     }
-    const scale = Math.min(1, 1800 / Math.max(src.width, src.height));
+    // Auf gut lesbare Schriftgröße bringen: Breite ~1500 px (schmale, lange Bons werden vergrößert statt verkleinert),
+    // höchstens ~9 Mio. Bildpunkte, damit das iPhone nicht an den Speicher stößt
+    let scale = Math.max(0.25, Math.min(2.6, 1500 / src.width, 12000 / src.height));
+    scale = Math.min(scale, Math.sqrt(9e6 / (src.width * src.height)));
     const c = document.createElement('canvas'); c.width = Math.round(src.width * scale); c.height = Math.round(src.height * scale);
     const ctx = c.getContext('2d', { willReadFrequently: true });
+    ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(src, 0, 0, c.width, c.height);
+    // Hintergrund (Papier inkl. Schatten/Knicke) grob schätzen und herausrechnen → gleichmäßig weißes Papier, dunkle Schrift
+    const bw = Math.max(8, Math.round(c.width / 28)), bh = Math.max(8, Math.round(c.height / 28));
+    const small = document.createElement('canvas'); small.width = bw; small.height = bh;
+    const sctx = small.getContext('2d', { willReadFrequently: true });
+    sctx.imageSmoothingQuality = 'high'; sctx.drawImage(c, 0, 0, bw, bh);
+    // „Maximum“-Filter auf der kleinen Karte: Schrift soll den Papierhintergrund nicht abdunkeln
+    const sd = sctx.getImageData(0, 0, bw, bh), sp = sd.data, gray = new Float32Array(bw * bh);
+    for (let i = 0; i < bw * bh; i++) gray[i] = 0.299 * sp[i * 4] + 0.587 * sp[i * 4 + 1] + 0.114 * sp[i * 4 + 2];
+    const bgSmall = new Float32Array(bw * bh);
+    for (let y = 0; y < bh; y++) for (let x = 0; x < bw; x++) {
+      let m = 0;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const yy = Math.min(bh - 1, Math.max(0, y + dy)), xx = Math.min(bw - 1, Math.max(0, x + dx));
+        m = Math.max(m, gray[yy * bw + xx]);
+      }
+      bgSmall[y * bw + x] = m;
+    }
+    for (let i = 0; i < bw * bh; i++) { sp[i * 4] = sp[i * 4 + 1] = sp[i * 4 + 2] = bgSmall[i]; }
+    sctx.putImageData(sd, 0, 0);
+    const bgc = document.createElement('canvas'); bgc.width = c.width; bgc.height = c.height;
+    const bctx = bgc.getContext('2d', { willReadFrequently: true });
+    bctx.imageSmoothingQuality = 'high'; bctx.drawImage(small, 0, 0, c.width, c.height);
+    const bgd = bctx.getImageData(0, 0, c.width, c.height).data;
     const d = ctx.getImageData(0, 0, c.width, c.height); const px = d.data;
     for (let i = 0; i < px.length; i += 4) {
-      let g = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
-      g = Math.max(0, Math.min(255, (g - 128) * 1.5 + 140));
-      px[i] = px[i + 1] = px[i + 2] = g;
+      const g = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
+      let v = (g / Math.max(40, bgd[i])) * 255; // Papier → ~255, Schrift bleibt dunkel
+      v = Math.max(0, Math.min(255, (v - 150) * 1.6 + 150));
+      px[i] = px[i + 1] = px[i + 2] = v;
     }
     ctx.putImageData(d, 0, 0);
     return c;
@@ -239,6 +267,14 @@ const Receipt = (() => {
         continue;
       }
       if (SKIP.test(l)) continue;
+      const inl = l.match(/^(.*?[a-zäöü]{2,}.*?)\s+(\d{1,3}\s?[,.]\s?\d{2})\s*(?:€|eur|e)?\s*[x×*]\s*(\d{1,3})\b(?:\s+(-?\d{1,4}\s?[,.]\s?\d{2}))?/i);
+      if (inl) {
+        const unit = num(inl[2]), qty = num(inl[3]);
+        const total = inl[4] ? num(inl[4]) : NaN;
+        const price = Number.isFinite(total) && Math.abs(total - unit * qty) < 0.05 ? total : round2(unit * qty);
+        const name = inl[1].replace(/[\s.:*]+$/, '').trim();
+        if (unit > 0 && qty > 0 && qty < 100 && price < 999) { result.items.push({ name: name.slice(0, 60), price: round2(price), qty, unit, unitLabel: '' }); pendingQty = null; continue; }
+      }
       const m = l.match(PRICE_END);
       if (!m) continue;
       const name = l.slice(0, m.index).replace(/\s+\d+([,.]\d+)?\s*(stk|st|x|×)\s*[\d,.]+\s*$/i, '').replace(/[\s.:*]+$/, '').trim();
