@@ -85,7 +85,10 @@
 
     <!-- Ausgaben -->
     <section id="view-list" class="view" aria-label="Ausgaben">
-      <button class="btn btn-scan" id="scanBtnList">📷 Kassenbon scannen</button>
+      <div class="scan-choice">
+        <button class="btn btn-scan" id="scanBtnList">📷 Kassenbon scannen</button>
+        <button class="btn btn-scan" id="bonFileBtn">📄 Bon als Bild / PDF</button>
+      </div>
       <div class="seg" id="listMode">
         <button type="button" data-v="exp" aria-pressed="true">🧾 Einkäufe</button>
         <button type="button" data-v="art" aria-pressed="false">🥛 Artikel &amp; Preise</button>

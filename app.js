@@ -1349,6 +1349,7 @@ function bind() {
   $('#cancelExpenseBtn').onclick = () => $('#expenseDialog').close();
   // Kassenbon
   $('#scanBtnList').onclick = () => Receipt.startScan();
+  $('#bonFileBtn').onclick = () => Receipt.open(); // Foto aus der Mediathek, Screenshot oder PDF (z. B. aus „Dateien“ → Dokumente scannen)
   $('#scanBtnDialog').onclick = () => { $('#expenseDialog').close(); Receipt.startScan(); };
   const editItems = () => {
     const e = state.expenses.find((x) => x.id === editingId);
