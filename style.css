@@ -940,3 +940,12 @@ input[type="datetime-local"], input:not([type]), select, textarea, .shop-add inp
 
 .scan-choice { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
 .scan-choice .btn-scan { margin: 0; width: 100%; font-size: .98rem; padding-left: 8px; padding-right: 8px; }
+
+/* Buchung aufteilen */
+.split-box { margin: 4px 0 12px; }
+.split-list { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 10px; }
+.split-list li { display: grid; grid-template-columns: 90px 1fr auto; gap: 6px; padding: 10px; border-radius: 14px; background: var(--surface-2); border: 1px solid rgba(110,75,40,.22); box-shadow: var(--lift-sm); }
+.split-list li .sp-kind-in, .split-list li .sp-cat-in { grid-column: 1 / -1; }
+.split-list li .sp-del { grid-row: 1; grid-column: 3; }
+.split-list input, .split-list select { padding: 9px 10px; border-radius: 10px; font: inherit; background: var(--surface); color: var(--text); min-width: 0; }
+#txSplitSum.warn { color: #9a3b1f; font-weight: 700; }

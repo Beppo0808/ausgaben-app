@@ -218,6 +218,13 @@ const Konto = (() => {
     $('#txUnlink').hidden = !(exp && exp.source !== 'bank');
     $('#txUnlink').onclick = () => { delete t.linked; t.noMatch = true; write(); $('#txDialog').close(); txEditing = null; render(); toast('Zuordnung gelöst'); };
     syncTxSub();
+    txSplits = Array.isArray(t.splits) ? t.splits.map((x) => ({ ...x })) : [];
+    const cashM = `${t.name} ${t.purpose}`.match(/bargeld\w*\.?\s*(\d{1,4}[,.]\d{2})/i);
+    const cashAmt = cashM ? num2(cashM[1]) : 0;
+    txCashHint = cashAmt > 0 && cashAmt < Math.abs(t.amount) ? cashAmt : 0;
+    $('#txSplitHint').hidden = !txCashHint || txSplits.length;
+    $('#txSplitHint').textContent = txCashHint ? `💵 Erkannt: ${fmt(txCashHint)} Bargeld abgehoben – tippe auf „Betrag aufteilen“.` : '';
+    drawSplits();
     $('#txDialog').showModal();
   }
   /**
@@ -227,7 +234,7 @@ const Konto = (() => {
   function matchReceipts() {
     const me = state.settings.me;
     const used = new Set(data.tx.filter((t) => t.linked).map((t) => t.linked));
-    const cands = state.expenses.filter((e) => !used.has(e.id) && e.source !== 'bank' && (e.private || e.person === me) && e.amount > 0);
+    const cands = state.expenses.filter((e) => !used.has(e.id) && e.source !== 'bank' && !e.cash && (e.private || e.person === me) && e.amount > 0);
     if (!cands.length) return false;
     const day = (d) => new Date(d + 'T12:00').getTime() / 864e5;
     const shop = (x) => (typeof storeOf === 'function' ? storeOf(x) : String(x || '').toLowerCase());
@@ -271,6 +278,67 @@ const Konto = (() => {
     const c = k && data.catRules ? data.catRules[k] : '';
     return c && state.categories.some((x) => x.id === c) ? c : '';
   }
+  // ---------- Buchung aufteilen (z. B. Einkauf + Bargeld) ----------
+  let txSplits = [], txCashHint = 0;
+  const num2 = (s) => Math.round(parseFloat(String(s).replace(/\./g, '').replace(',', '.')) * 100) / 100;
+  const SPLIT_KINDS = { personal: '🔒 Nur für mich', shared: '👫 Gemeinsam', cash: '💵 Bargeld abgehoben' };
+  function drawSplits() {
+    const on = txSplits.length > 0;
+    $('#txSplit').hidden = !on; $('#txSplitBtn').hidden = on;
+    $('#txKindField').hidden = on; $('#txSubRow').hidden = on || $('#txSubRow').hidden; $('#txIvRow').hidden = on || $('#txIvRow').hidden;
+    if (!on) return;
+    const cats = '<option value="">Kategorie …</option>' + state.categories.map((c) => `<option value="${esc(c.id)}">${esc(c.emoji)} ${esc(c.name)}</option>`).join('');
+    $('#txSplitList').innerHTML = txSplits.map((p, i) => `<li data-i="${i}">
+      <input class="sp-amt-in" inputmode="decimal" value="${p.amount ? String(p.amount).replace('.', ',') : ''}" placeholder="0,00" aria-label="Betrag">
+      <input class="sp-label-in" value="${esc(p.label || '')}" placeholder="Bezeichnung" aria-label="Bezeichnung">
+      <select class="sp-kind-in">${Object.entries(SPLIT_KINDS).map(([v, l]) => `<option value="${v}" ${p.kind === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
+      <select class="sp-cat-in" ${p.kind === 'cash' ? 'hidden' : ''}>${cats.replace(`value="${esc(p.cat || '')}"`, `value="${esc(p.cat || '')}" selected`)}</select>
+      ${txSplits.length > 2 ? '<button type="button" class="sh-del sp-del" aria-label="Teil entfernen">✕</button>' : ''}</li>`).join('');
+    const total = Math.abs(txEditing.amount), sum = Math.round(txSplits.reduce((s, p) => s + (p.amount || 0), 0) * 100) / 100;
+    const rest = Math.round((total - sum) * 100) / 100;
+    $('#txSplitSum').textContent = Math.abs(rest) < 0.005 ? `✓ Summe passt: ${fmt(total)}` : `⚠️ Noch ${fmt(rest)} offen (Buchung: ${fmt(total)})`;
+    $('#txSplitSum').classList.toggle('warn', Math.abs(rest) >= 0.005);
+  }
+  function readSplits() {
+    $$('#txSplitList li').forEach((li) => {
+      const p = txSplits[+li.dataset.i];
+      p.amount = num2(li.querySelector('.sp-amt-in').value) || 0;
+      p.label = li.querySelector('.sp-label-in').value.trim().slice(0, 60);
+      p.kind = li.querySelector('.sp-kind-in').value;
+      p.cat = p.kind === 'cash' ? '' : li.querySelector('.sp-cat-in').value;
+    });
+  }
+  function startSplit() {
+    const total = Math.abs(txEditing.amount);
+    const name = (txEditing.label || txEditing.name || 'Einkauf').slice(0, 40);
+    txSplits = txCashHint
+      ? [{ amount: Math.round((total - txCashHint) * 100) / 100, label: name, kind: 'shared', cat: txCat || '' }, { amount: txCashHint, label: 'Bargeld', kind: 'cash', cat: '' }]
+      : [{ amount: total, label: name, kind: 'shared', cat: txCat || '' }, { amount: 0, label: '', kind: 'personal', cat: '' }];
+    $('#txSplitHint').hidden = true;
+    drawSplits();
+  }
+  /** Aufgeteilte Buchung speichern: gemeinsame Teile werden Haushaltsausgaben, Bargeld zählt nicht */
+  function saveSplits(t) {
+    readSplits();
+    const parts = txSplits.filter((p) => p.amount > 0);
+    const total = Math.abs(t.amount), sum = Math.round(parts.reduce((s, p) => s + p.amount, 0) * 100) / 100;
+    if (Math.abs(total - sum) >= 0.005) { toast(`Die Teile ergeben ${fmt(sum)}, die Buchung ist ${fmt(total)}`); return false; }
+    // bisherige Zuordnungen dieser Buchung lösen
+    (t.splitExp || []).forEach((id) => { state.expenses = state.expenses.filter((e) => e.id !== id || e.source !== 'bank'); });
+    if (t.linked) { const old = state.expenses.find((e) => e.id === t.linked); if (old && old.source === 'bank') state.expenses = state.expenses.filter((e) => e.id !== old.id); delete t.linked; }
+    if (t.sub) delete t.sub;
+    t.splitExp = [];
+    parts.filter((p) => p.kind === 'shared').forEach((p) => {
+      const e = { id: uid(), created: new Date().toISOString(), source: 'bank', amount: p.amount, merchant: p.label || (t.name || 'Kontobuchung').slice(0, 60),
+        category: p.cat || 'sonstiges', date: t.date, person: state.settings.me, note: 'Teil einer Kontobuchung', private: false };
+      state.expenses.push(e); t.splitExp.push(e.id);
+    });
+    t.splits = parts;
+    write(); save(); $('#txDialog').close(); txEditing = null; window.render();
+    toast('✂️ Aufgeteilt gespeichert');
+    return true;
+  }
+
   let txCurSub = null;
   const txKind = () => ($('#txForm').querySelector('input[name=kind]:checked') || {}).value || 'personal';
   /** Auswahl der Fixkosten nur zeigen, wenn „Fixkosten gemeinsam/privat“ gewählt ist – passend gefiltert */
@@ -356,6 +424,11 @@ const Konto = (() => {
       }
     }
     if (txCat && label) learnRule(label, txCat);
+    if (txSplits.length) { saveSplits(t); return; }
+    if (t.splits) { // Aufteilung wurde aufgehoben
+      (t.splitExp || []).forEach((id) => { state.expenses = state.expenses.filter((e) => e.id !== id || e.source !== 'bank'); });
+      delete t.splits; delete t.splitExp;
+    }
     let exp = t.linked ? state.expenses.find((e) => e.id === t.linked) : null;
     // Abo-Zuordnung: Buchung zählt dann über das Abo (kein zusätzlicher Haushaltseintrag)
     const gk = groupKey(t);
@@ -992,6 +1065,11 @@ const Konto = (() => {
     $('#kontoMore').onclick = () => { kontoLimit += 300; render(); };
     $('#txForm').addEventListener('submit', saveTx);
     $('#txKind').addEventListener('change', syncTxSub);
+    $('#txSplitBtn').onclick = startSplit;
+    $('#txSplitOff').onclick = () => { txSplits = []; $('#txKindField').hidden = false; syncTxSub(); drawSplits(); };
+    $('#txSplitAdd').onclick = () => { readSplits(); const rest = Math.round((Math.abs(txEditing.amount) - txSplits.reduce((s, p) => s + (p.amount || 0), 0)) * 100) / 100; txSplits.push({ amount: Math.max(0, rest), label: '', kind: 'personal', cat: '' }); drawSplits(); };
+    $('#txSplitList').addEventListener('change', () => { readSplits(); drawSplits(); });
+    $('#txSplitList').addEventListener('click', (e) => { const d = e.target.closest('.sp-del'); if (!d) return; readSplits(); txSplits.splice(+d.closest('li').dataset.i, 1); drawSplits(); });
     $('#txSub').addEventListener('change', () => { $('#txIvRow').hidden = $('#txSub').value !== '__new'; });
     $('#txCatSel').addEventListener('change', onTxCat);
     $('#txSubcatSel').addEventListener('change', onTxSubcat);
@@ -1074,7 +1152,8 @@ const Konto = (() => {
         if (t.amount < 0) {
           const gk = groupKey(t);
           const sb = (gk && linkedSub(gk)) || (t.sub && state.subs.find((x) => x.id === t.sub)) || null;
-          if (sb) tags.push(sb.type === 'transfer' ? '💶 Haushaltsgeld' : `${sb.private ? '🔒' : '👫'} ${esc(sb.name)}`);
+          if (t.splits) tags.push('✂️ ' + t.splits.map((p) => `${fmt(p.amount)} ${p.kind === 'cash' ? '💵 Bargeld' : p.kind === 'shared' ? '👫 ' + esc(p.label) : '🔒 ' + esc(p.label || 'privat')}`).join(' · '));
+          else if (sb) tags.push(sb.type === 'transfer' ? '💶 Haushaltsgeld' : `${sb.private ? '🔒' : '👫'} ${esc(sb.name)}`);
           else if (t.linked && expIds.has(t.linked)) {
             const le = state.expenses.find((e) => e.id === t.linked);
             tags.push(le.receipt ? `🧾 Bon ${esc(le.merchant)}${le.private ? '' : ' · 👫 gemeinsam'}` : le.source === 'bank' ? '👫 im Haushalt' : `📲 ${esc(le.merchant)}${le.private ? '' : ' · 👫 gemeinsam'}`);

@@ -467,6 +467,7 @@
         <label class="field">Person <select name="person"></select></label>
       </div>
       <label class="field">Notiz <input type="text" name="note" autocomplete="off"></label>
+      <label class="check"><input type="checkbox" name="cash"> 💵 Bar bezahlt (z. B. von abgehobenem Bargeld)</label>
       <label class="check"><input type="checkbox" name="private"> 🔒 Privat – nur auf meinem Gerät, wird nicht geteilt</label>
       <div id="expItems" hidden>
         <div class="card-head"><h2 class="small-h">🧾 Artikel</h2><button type="button" class="btn btn-ghost btn-sm" id="expItemsEdit">Bearbeiten</button></div>
@@ -501,7 +502,17 @@
       <label class="field" id="txSubcatRow" hidden>Genauer
         <select id="txSubcatSel"></select>
       </label>
-      <div class="field">Wie zählt diese Buchung?
+      <div class="split-box">
+        <button type="button" class="btn btn-ghost btn-sm" id="txSplitBtn">✂️ Betrag aufteilen</button>
+        <p class="hint" id="txSplitHint" hidden></p>
+        <div id="txSplit" hidden>
+          <p class="hint">Z. B. Einkauf + Bargeld am selben Kassenbeleg. Bargeld zählt nicht als Ausgabe – was du davon bar bezahlst, trägst du mit <b>＋</b> als Ausgabe ein (Haken „💵 Bar bezahlt“).</p>
+          <ul class="split-list" id="txSplitList"></ul>
+          <div class="btn-row"><button type="button" class="btn btn-sm" id="txSplitAdd">＋ Teil</button><button type="button" class="btn btn-ghost btn-sm" id="txSplitOff">Nicht aufteilen</button></div>
+          <p class="hint" id="txSplitSum"></p>
+        </div>
+      </div>
+      <div class="field" id="txKindField">Wie zählt diese Buchung?
         <div class="kind-choice" id="txKind">
           <label><input type="radio" name="kind" value="personal"><span><b>🔒 Nur für mich</b><small>einmalige Ausgabe, z. B. eigener Einkauf</small></span></label>
           <label><input type="radio" name="kind" value="shared"><span><b>👫 Gemeinsame Ausgabe</b><small>einmalig, z. B. Einkauf für den Haushalt</small></span></label>

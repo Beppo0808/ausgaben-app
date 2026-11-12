@@ -775,7 +775,7 @@ function renderList() {
       const sub = [personTag(e.person), esc(timeOf(e)), e.branch ? '📍 ' + esc(e.branch) : '', esc(c.name), esc(e.note)].filter(Boolean).join(' · ');
       const itemHits = q && e.items ? e.items.filter((it) => it.name.toLowerCase().includes(q)).slice(0, 3) : [];
       const hitLine = itemHits.length ? `<div class="sub hit">🔎 ${itemHits.map((it) => `${esc(it.name)} ${fmt(it.price)}`).join(' · ')}</div>` : '';
-      const badge = (e.private ? '<span class="badge badge-private">🔒 privat</span>' : '') + (e.source === 'wallet' ? '<span class="badge">📲 Handy</span>' : '') + (e.items && e.items.length ? `<span class="badge">🧾 ${e.items.length}</span>` : '');
+      const badge = (e.private ? '<span class="badge badge-private">🔒 privat</span>' : '') + (e.cash ? '<span class="badge">💵 bar</span>' : '') + (e.source === 'wallet' ? '<span class="badge">📲 Handy</span>' : '') + (e.items && e.items.length ? `<span class="badge">🧾 ${e.items.length}</span>` : '');
       return `<li class="row ${e.virtual ? 'virtual' : ''}" data-id="${esc(e.id)}">
         <span class="emoji">${esc(c.emoji)}</span>
         <span class="main"><div class="title">${esc(e.merchant || c.name)}${badge}</div><div class="sub">${sub}</div>${hitLine}</span>
@@ -1055,6 +1055,7 @@ function openExpenseDialog(exp) {
   f.date.value = exp ? exp.date : (isCurrent ? todayISO() : `${monthKey(viewY, viewM)}-01`);
   f.note.value = exp ? exp.note || '' : '';
   f.private.checked = exp ? !!exp.private : isPersonal();
+  f.cash.checked = !!(exp && exp.cash);
   f.person.innerHTML = state.settings.persons.map((p) => `<option>${esc(p)}</option>`).join('');
   f.person.value = exp ? exp.person : state.settings.me;
   chosenCat = exp ? exp.category : null;
@@ -1084,7 +1085,7 @@ function saveExpenseFromForm() {
   const merchant = f.merchant.value.trim();
   const category = chosenCat || guessCategory(merchant);
   if (chosenCat && merchant) learnRule(merchant, chosenCat);
-  const data = { amount, merchant, category, date: f.date.value || todayISO(), person: f.person.value, note: f.note.value.trim(), private: f.private.checked };
+  const data = { amount, merchant, category, date: f.date.value || todayISO(), person: f.person.value, note: f.note.value.trim(), private: f.private.checked, cash: f.cash.checked || undefined };
   if (editingId) {
     const e = state.expenses.find((x) => x.id === editingId);
     Object.assign(e, data);
