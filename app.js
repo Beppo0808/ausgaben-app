@@ -71,6 +71,20 @@ if (!state.settings.addedKredite) {
   }
   state.settings.addedKredite = true;
 }
+if (!state.settings.addedSubcats) {
+  const defaults = {
+    kredite: ['Auto', 'Haus / Wohnung', 'Ratenkauf', 'Sonstiger Kredit'],
+    mobilitaet: ['Tanken', 'Werkstatt', 'Kfz-Versicherung', 'Kfz-Steuer', 'Parken', 'Bus & Bahn'],
+    wohnen: ['Miete', 'Strom', 'Gas / Heizung', 'Wasser', 'Internet & Telefon', 'Rundfunkbeitrag'],
+    abos: ['Streaming', 'Musik', 'Handy', 'Software & Cloud', 'Zeitschriften', 'Versicherung'],
+    drogerie: ['Apotheke', 'Arzt', 'Drogerie', 'Optiker'],
+    lebensmittel: ['Supermarkt', 'Bäcker', 'Metzger', 'Getränke', 'Markt'],
+    freizeit: ['Ausflüge', 'Sport', 'Hobby', 'Kultur'],
+    shopping: ['Kleidung', 'Haushalt & Deko', 'Elektronik', 'Geschenke'],
+  };
+  state.categories.forEach((c) => { if (defaults[c.id] && !(Array.isArray(c.subs) && c.subs.length)) c.subs = defaults[c.id]; });
+  state.settings.addedSubcats = true;
+}
 function save() {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
   catch (e) { toast('⚠️ Speichern fehlgeschlagen – Speicher voll oder privat?'); }
@@ -1007,6 +1021,7 @@ function syncSubType() {
   if (t && !f.name.value) f.name.placeholder = 'z. B. Haushaltsgeld';
 }
 /** sub: vorhandener Eintrag; preset: Vorbelegung (z. B. aus „Mein Konto“); onSaved(id): Rückmeldung */
+let subPresetSubcat = '';
 function openSubDialog(sub, preset = null, onSaved = null) {
   const f = $('#subForm');
   const v = sub || preset || {};
@@ -1024,6 +1039,7 @@ function openSubDialog(sub, preset = null, onSaved = null) {
   f.via.value = v.via || '';
   f.spread.checked = v.spread !== undefined ? !!v.spread : false;
   f.private.checked = !!v.private;
+  subPresetSubcat = v.subcat || '';
   f.payer.innerHTML = '<option value="">Gemeinsam / Gemeinschaftskonto</option>' + persons.map((p) => `<option>${esc(p)}</option>`).join('');
   f.payer.value = v.payer !== undefined ? v.payer : '';
   f.to.innerHTML = persons.map((p) => `<option>${esc(p)}</option>`).join('');
@@ -1271,7 +1287,7 @@ function bind() {
     const data = { type, name: f.name.value.trim() || (type === 'transfer' ? 'Haushaltsgeld' : ''), amount, interval: f.interval.value,
       category: f.category.value, start: f.start.value, end: f.end.value || '', payer: f.payer.value, to: type === 'transfer' ? f.to.value : '',
       via: f.via.value, spread: type !== 'transfer' && f.interval.value !== 'month' && f.spread.checked,
-      private: type !== 'transfer' && f.private.checked };
+      private: type !== 'transfer' && f.private.checked, subcat: subPresetSubcat || (editingSubId ? (state.subs.find((s) => s.id === editingSubId) || {}).subcat : '') || '' };
     if (data.private) data.payer = state.settings.me;
     if (!data.name) { toast('Bitte einen Namen eingeben, z. B. Miete'); return; }
     if (type === 'transfer' && (!data.payer || data.payer === data.to)) { toast('Bitte „Von“ und „An“ (zwei verschiedene Personen) wählen'); return; }

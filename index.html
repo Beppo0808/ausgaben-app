@@ -442,9 +442,12 @@
       <label class="field">Bezeichnung
         <input type="text" name="label" autocomplete="off" placeholder="z. B. Tanken Circle K">
       </label>
-      <div class="field">Kategorie <span class="muted">(nochmal antippen = abwählen)</span>
-        <div class="chips" id="txChips"></div>
-      </div>
+      <label class="field">Kategorie
+        <select id="txCatSel"></select>
+      </label>
+      <label class="field" id="txSubcatRow" hidden>Genauer
+        <select id="txSubcatSel"></select>
+      </label>
       <div class="field">Wie zählt diese Buchung?
         <div class="kind-choice" id="txKind">
           <label><input type="radio" name="kind" value="personal"><span><b>🔒 Nur für mich</b><small>einmalige Ausgabe, z. B. eigener Einkauf</small></span></label>

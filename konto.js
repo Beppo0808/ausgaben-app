@@ -196,7 +196,8 @@ const Konto = (() => {
     f.label.value = t.label || (exp && exp.merchant) || (t.name || t.purpose || '').slice(0, 60);
     // Keine Vermutung: nur was ihr selbst festgelegt habt (direkt oder bei einer gleichen Buchung)
     txCat = t.cat !== undefined ? t.cat : exp ? exp.category : learnedCat(t);
-    drawTxChips();
+    txSubcat = t.subcat !== undefined ? t.subcat : exp && exp.subcat ? exp.subcat : learnedSubcat(t, txCat);
+    drawTxCats();
     const gk = groupKey(t);
     const cur = (gk && linkedSub(gk)) || (t.sub && state.subs.find((x) => x.id === t.sub)) || null;
     txCurSub = cur && !isTransfer(cur) ? cur : null;
@@ -268,11 +269,54 @@ const Konto = (() => {
     const want = txCurSub && !!txCurSub.private === priv ? txCurSub.id : prev;
     f.sub.value = list.some((x) => x.id === want) ? want : '__new';
   }
-  function drawTxChips() {
-    const box = $('#txChips');
-    box.innerHTML = state.categories.map((c) =>
-      `<button type="button" class="chip ${c.id === txCat ? 'selected' : ''}" data-id="${esc(c.id)}">${esc(c.emoji)} ${esc(c.name)}</button>`).join('');
-    $$('.chip', box).forEach((ch) => ch.addEventListener('click', () => { txCat = txCat === ch.dataset.id ? '' : ch.dataset.id; drawTxChips(); }));
+  let txSubcat = '';
+  /** Kategorie als aufklappbare Liste (+ neu anlegen), darunter „Genauer“ mit Unterkategorien (+ neu, abwählbar) */
+  function drawTxCats() {
+    const cs = $('#txCatSel'), ss = $('#txSubcatSel');
+    cs.innerHTML = '<option value="">— keine Kategorie —</option>'
+      + state.categories.map((c) => `<option value="${esc(c.id)}">${esc(c.emoji)} ${esc(c.name)}</option>`).join('')
+      + '<option value="__new">＋ Neue Kategorie …</option>';
+    cs.value = state.categories.some((c) => c.id === txCat) ? txCat : '';
+    const cat = state.categories.find((c) => c.id === txCat);
+    $('#txSubcatRow').hidden = !cat;
+    if (!cat) { txSubcat = ''; return; }
+    const subs = Array.isArray(cat.subs) ? cat.subs : [];
+    ss.innerHTML = '<option value="">— keine —</option>'
+      + subs.map((x) => `<option value="${esc(x)}">${esc(x)}</option>`).join('')
+      + `<option value="__new">＋ Neu bei „${esc(cat.name)}“ …</option>`
+      + (txSubcat && subs.includes(txSubcat) ? `<option value="__del">🗑 „${esc(txSubcat)}“ aus der Liste löschen</option>` : '');
+    ss.value = subs.includes(txSubcat) ? txSubcat : '';
+  }
+  function onTxCat() {
+    const cs = $('#txCatSel');
+    if (cs.value === '__new') {
+      const name = (prompt('Name der neuen Kategorie (z. B. „Hund“, „Geschenke“):') || '').trim().slice(0, 40);
+      if (name) {
+        let c = state.categories.find((x) => x.name.toLowerCase() === name.toLowerCase());
+        if (!c) { c = { id: uid(), name, emoji: '🏷️', budget: 0, subs: [] }; state.categories.push(c); save(); toast('Kategorie angelegt ✓ (Symbol änderbar unter Einstellungen)'); }
+        txCat = c.id;
+      }
+    } else txCat = cs.value;
+    txSubcat = '';
+    drawTxCats();
+  }
+  function onTxSubcat() {
+    const ss = $('#txSubcatSel');
+    const cat = state.categories.find((c) => c.id === txCat);
+    if (!cat) return;
+    cat.subs = Array.isArray(cat.subs) ? cat.subs : [];
+    if (ss.value === '__new') {
+      const name = (prompt(`Neue Unterkategorie bei „${cat.name}“ (z. B. „Auto“):`) || '').trim().slice(0, 40);
+      if (name) { if (!cat.subs.some((x) => x.toLowerCase() === name.toLowerCase())) { cat.subs.push(name); save(); } txSubcat = cat.subs.find((x) => x.toLowerCase() === name.toLowerCase()); }
+    } else if (ss.value === '__del') {
+      if (confirm(`„${txSubcat}“ aus der Liste bei „${cat.name}“ löschen?\n(Bereits zugeordnete Buchungen behalten den Namen.)`)) { cat.subs = cat.subs.filter((x) => x !== txSubcat); save(); txSubcat = ''; }
+    } else txSubcat = ss.value;
+    drawTxCats();
+  }
+  function learnedSubcat(t, cat) {
+    const k = groupKey(t);
+    const r = k && data.subcatRules ? data.subcatRules[k] : null;
+    return r && r.cat === cat ? r.sub : '';
   }
   function saveTx(ev) {
     ev.preventDefault();
@@ -282,9 +326,14 @@ const Konto = (() => {
     const orig = (t.name || t.purpose || '').slice(0, 60);
     if (label && label !== orig) t.label = label; else delete t.label;
     t.cat = txCat;
+    if (txSubcat) t.subcat = txSubcat; else delete t.subcat;
     { // merken: gleiche Buchungen (gleicher Empfänger bzw. gleicher Händler über PayPal …) künftig genauso einsortieren
       const lk = groupKey(t);
-      if (lk) { data.catRules = data.catRules || {}; if (txCat) data.catRules[lk] = txCat; else delete data.catRules[lk]; }
+      if (lk) {
+        data.catRules = data.catRules || {}; data.subcatRules = data.subcatRules || {};
+        if (txCat) data.catRules[lk] = txCat; else delete data.catRules[lk];
+        if (txCat && txSubcat) data.subcatRules[lk] = { cat: txCat, sub: txSubcat }; else delete data.subcatRules[lk];
+      }
     }
     if (txCat && label) learnRule(label, txCat);
     let exp = t.linked ? state.expenses.find((e) => e.id === t.linked) : null;
@@ -298,7 +347,7 @@ const Konto = (() => {
     if (subSel === '__new') {
       const shared = kind === 'fixshared';
       write(); $('#txDialog').close(); txEditing = null;
-      openSubDialog(null, { type: 'fixed', name: label || orig, amount: Math.abs(t.amount), interval: 'month', category: txCat || 'abos',
+      openSubDialog(null, { type: 'fixed', name: label || orig, amount: Math.abs(t.amount), interval: 'month', category: txCat || 'abos', subcat: txSubcat,
         start: t.date.slice(0, 7), payer: state.settings.me, private: !shared, via: /paypal/i.test(`${t.name} ${t.purpose}`) ? 'PayPal' : '' }, (id) => {
         linkTo(id); write(); save(); window.render(); toast(shared ? '🏠 Gemeinsame Fixkosten angelegt ✓' : '🔒 Private Fixkosten angelegt ✓');
       });
@@ -320,11 +369,11 @@ const Konto = (() => {
     }
     if (kind === 'shared') {
       const cat = txCat || 'sonstiges';
-      if (exp && exp.source !== 'bank') { exp.private = false; if (txCat) exp.category = txCat; } // Bon/Handy-Einkauf: nur freigeben
-      else if (exp) { exp.merchant = label || orig; exp.category = cat; }
+      if (exp && exp.source !== 'bank') { exp.private = false; if (txCat) { exp.category = txCat; exp.subcat = txSubcat || undefined; } } // Bon/Handy-Einkauf: nur freigeben
+      else if (exp) { exp.merchant = label || orig; exp.category = cat; exp.subcat = txSubcat || undefined; }
       else {
         exp = { id: uid(), created: new Date().toISOString(), source: 'bank', amount: Math.abs(t.amount), merchant: label || orig || 'Kontobuchung',
-          category: cat, date: t.date, person: state.settings.me, note: '', private: false };
+          category: cat, subcat: txSubcat || undefined, date: t.date, person: state.settings.me, note: '', private: false };
         state.expenses.push(exp); t.linked = exp.id;
       }
       toast('✓ Gemeinsame Ausgabe');
@@ -919,6 +968,8 @@ const Konto = (() => {
     $('#kontoMore').onclick = () => { kontoLimit += 300; render(); };
     $('#txForm').addEventListener('submit', saveTx);
     $('#txKind').addEventListener('change', syncTxSub);
+    $('#txCatSel').addEventListener('change', onTxCat);
+    $('#txSubcatSel').addEventListener('change', onTxSubcat);
     $('#addPrivSubBtn').onclick = () => openSubDialog(null, { type: 'fixed', private: true, payer: state.settings.me, category: 'abos', interval: 'month' });
     $('#privSubsList').addEventListener('click', (e) => { const li = e.target.closest('[data-sub]'); if (li) openSubDialog(state.subs.find((x) => x.id === li.dataset.sub)); });
     $('#txCancel').onclick = () => { $('#txDialog').close(); txEditing = null; };
@@ -992,7 +1043,8 @@ const Konto = (() => {
       if (!t.pending) {
         const own = t.cat !== undefined, cid = own ? t.cat : learnedCat(t);
         const cat = cid ? state.categories.find((c) => c.id === cid) : null;
-        if (cat) tags.push(`${esc(cat.emoji)} ${esc(cat.name)}${own ? '' : ' <span class="sp-auto">(automatisch)</span>'}`);
+        const sc = own ? t.subcat : learnedSubcat(t, cid);
+        if (cat) tags.push(`${esc(cat.emoji)} ${esc(cat.name)}${sc ? ' › ' + esc(sc) : ''}${own ? '' : ' <span class="sp-auto">(automatisch)</span>'}`);
         if (t.label) tags.push(`„${esc(t.label)}“`);
         if (t.amount < 0) {
           const gk = groupKey(t);
