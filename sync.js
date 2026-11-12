@@ -54,7 +54,7 @@ const Sync = (() => {
   function items() {
     const m = {};
     state.expenses.forEach((e) => { if (!e.private) m['expense:' + e.id] = e; }); // private Ausgaben bleiben auf dem Gerät
-    state.subs.forEach((s) => { m['sub:' + s.id] = s; });
+    state.subs.forEach((s) => { if (!s.private) m['sub:' + s.id] = s; }); // private Abos bleiben auf dem Gerät
     state.categories.forEach((c) => { m['category:' + c.id] = c; });
     const { me, income, ...shared } = state.settings; // Gerät-Besitzer und eigenes Einkommen bleiben lokal
     m['settings:main'] = shared;

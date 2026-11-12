@@ -65,6 +65,11 @@
         <p class="hint" id="whoOpen"></p>
       </div>
 
+      <div class="card" id="storeCard">
+        <div class="card-head"><h2>🏪 Wo eingekauft?</h2><span class="muted">diesen Monat · antippen für Details</span></div>
+        <ul class="rows" id="storeList"></ul>
+      </div>
+
       <div class="card card-private only-personal" id="meCard">
         <div class="card-head"><h2>🧺 Mein Beitrag zum Haushalt</h2><span class="muted">diesen Monat</span></div>
         <ul class="kv" id="meContrib"></ul>
@@ -186,6 +191,13 @@
           </ol>
           <p class="hint">Funktioniert mit Sparkasse, Volksbank, ING, DKB, comdirect, Commerzbank, Postbank, N26 u. a. Mehrfach importieren ist kein Problem – doppelte Buchungen werden erkannt.</p>
         </div>
+      </div>
+
+      <div class="card card-private" id="privSubsCard">
+        <div class="card-head"><h2>🔒 Meine Abos &amp; Verträge</h2><span class="muted" id="privSubsTotal"></span></div>
+        <p class="hint">Nur für dich – zum Beispiel dein eigenes Handy, Spotify oder Fitnessstudio. Gemeinsame Abos (z. B. Netflix für euch beide) gehören zu den Fixkosten.</p>
+        <ul class="rows" id="privSubsList"></ul>
+        <button class="btn" id="addPrivSubBtn">+ Privates Abo</button>
       </div>
 
       <div class="card" id="kontoRecurringCard" hidden>
@@ -421,8 +433,12 @@
       <div class="field">Kategorie <span class="muted">(nochmal antippen = abwählen)</span>
         <div class="chips" id="txChips"></div>
       </div>
-      <label class="check"><input type="checkbox" name="household"> 👫 Auch in der gemeinsamen Ansicht zeigen (als Ausgabe im Haushalt)</label>
-      <p class="hint">Ohne Haken bleibt die Buchung nur hier in deiner persönlichen Ansicht.</p>
+      <label class="field">Gehört zu Abo / Vertrag
+        <select name="sub" id="txSub"></select>
+      </label>
+      <p class="hint" id="txSubHint">Z. B. PayPal-Abbuchungen: hier Netflix, Spotify … zuordnen. Künftige gleiche Abbuchungen werden automatisch zugeordnet.</p>
+      <label class="check" id="txHouseholdRow"><input type="checkbox" name="household"> 👫 Gemeinsame Ausgabe (auch in der gemeinsamen Ansicht zeigen)</label>
+      <p class="hint" id="txHouseholdHint">Ohne Haken bleibt die Buchung nur hier in deiner persönlichen Ansicht.</p>
       <div class="dialog-actions">
         <span class="spacer"></span>
         <button type="button" class="btn btn-ghost" id="txCancel">Abbrechen</button>
@@ -464,6 +480,7 @@
         </select>
       </label>
       <label class="check" id="subSpreadRow"><input type="checkbox" name="spread"> Auf die Monate umlegen (z. B. 120 € im Jahr = 10 € pro Monat in der Übersicht)</label>
+      <label class="check only-fixed" id="subPrivateRow"><input type="checkbox" name="private"> 🔒 Privat – nur meine eigene Ausgabe (z. B. eigenes Abo), Ute/Partner sieht sie nicht</label>
       <div class="dialog-actions">
         <button type="button" class="btn btn-danger" id="deleteSubBtn">Löschen</button>
         <span class="spacer"></span>

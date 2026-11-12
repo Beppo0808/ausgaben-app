@@ -193,10 +193,10 @@ function subsForMonth(y, m) {
   return state.subs
     .filter((s) => !isTransfer(s) && (spreadActive(s) || (!s.spread && subActive(s, key))))
     .map((s) => spreadActive(s) ? ({
-      id: 'sub-' + s.id, subId: s.id, virtual: true, date: `${key}-01`, amount: round2(perMonth(s)),
+      id: 'sub-' + s.id, subId: s.id, virtual: true, private: !!s.private, date: `${key}-01`, amount: round2(perMonth(s)),
       merchant: s.name, category: s.category, person: s.payer || '', note: `umgelegt (${fmt(s.amount)} ${INTERVALS[s.interval]})`,
     }) : ({
-      id: 'sub-' + s.id, subId: s.id, virtual: true, date: `${key}-01`, amount: s.amount,
+      id: 'sub-' + s.id, subId: s.id, virtual: true, private: !!s.private, date: `${key}-01`, amount: s.amount,
       merchant: s.name, category: s.category, person: s.payer || '', note: INTERVALS[s.interval] || 'monatlich',
     }));
 }
@@ -306,7 +306,7 @@ function renderOverview() {
     const given = round2(tr.filter((t) => t.payer === me).reduce((a, t) => a + t.amount, 0));
     const received = round2(tr.filter((t) => t.to === me).reduce((a, t) => a + t.amount, 0));
     const spentShared = sum(mineItems.filter((e) => !e.private && !e.virtual));
-    const spentFixed = sum(mineItems.filter((e) => e.virtual));
+    const spentFixed = sum(mineItems.filter((e) => e.virtual && !e.private));
     const spentPrivate = sum(mineItems.filter((e) => e.private));
     const household = round2(spentShared + spentFixed + given - received);
 
@@ -333,6 +333,7 @@ function renderOverview() {
     $('#catSubtitle').textContent = 'privat + von mir bezahlt';
     renderDailyChart(mineItems.filter((e) => !e.virtual), dim, isCurrent ? now.getDate() : dim);
     renderCatBars(mineItems, true);
+    renderStores(mineItems);
     return;
   }
 
@@ -362,6 +363,7 @@ function renderOverview() {
   $('#catSubtitle').textContent = 'diesen Monat';
   renderDailyChart(dailyList, dim, isCurrent ? now.getDate() : dim);
   renderCatBars(items, true);
+  renderStores(items);
 }
 
 function renderWhoPaid(items) {
@@ -518,6 +520,72 @@ function renderCatBars(items, noBudget = false) {
 }
 
 let listMode = 'exp';
+
+// ---------- Läden ----------
+const STORE_RULES = [
+  ['ALDI', /\baldi\b/i], ['LIDL', /\blidl\b/i], ['REWE', /\brewe\b/i], ['EDEKA', /edeka/i], ['Marktkauf', /marktkauf/i],
+  ['Netto', /\bnetto\b(?!\s*\d)/i], ['Penny', /\bpenny\b/i], ['Kaufland', /kaufland/i], ['Norma', /\bnorma\b/i], ['Globus', /globus/i],
+  ['HIT', /\bhit\b/i], ['real', /\breal\b/i], ['dm', /\bdm\b|dm-drogerie/i], ['Rossmann', /rossmann/i], ['Müller', /m(ü|ue)ller/i],
+  ['Büsch', /b(ü|ue)sch/i], ['denn’s', /denn.?s/i], ['Alnatura', /alnatura/i], ['IKEA', /ikea/i], ['OBI', /\bobi\b/i],
+  ['Hornbach', /hornbach/i], ['Bauhaus', /bauhaus/i], ['toom', /\btoom\b/i], ['Action', /\baction\b/i], ['TEDi', /\btedi\b/i],
+  ['Apotheke', /apotheke/i], ['Amazon', /amazon|amzn/i], ['Tankstelle', /aral|shell|esso|\bjet\b|tankstelle|couche-?tard|circle ?k|westfalen|\bhem\b|orlen|\btotal\b/i],
+  ['McDonald’s', /mc ?donald/i], ['Bäckerei', /b(ä|ae)ckerei|backhaus|\bbäcker/i],
+];
+/** Ladenname vereinheitlichen: „MARKTKAUF RATINGEN“ → „Marktkauf“, „BUESCH FIL. 316“ → „Büsch“ */
+function storeOf(merchant) {
+  const m = String(merchant || '').trim();
+  if (!m) return 'Ohne Laden';
+  const hit = STORE_RULES.find(([, re]) => re.test(m));
+  if (hit) return hit[0];
+  const clean = m.replace(/\b(fil(iale)?\.?|nr\.?|markt)\s*\d+.*$/i, '').replace(/\s+\d[\d\s./-]*$/, '').replace(/\s+/g, ' ').trim() || m;
+  return clean.length > 2 && clean === clean.toUpperCase() ? clean.charAt(0) + clean.slice(1).toLowerCase() : clean;
+}
+function renderStores(items) {
+  const by = new Map();
+  items.filter((e) => !e.virtual).forEach((e) => {
+    const k = storeOf(e.merchant);
+    const s = by.get(k) || { sum: 0, n: 0 };
+    s.sum += e.amount; s.n++; by.set(k, s);
+  });
+  const rows = [...by.entries()].sort((a, b) => b[1].sum - a[1].sum);
+  $('#storeCard').hidden = !rows.length;
+  $('#storeList').innerHTML = rows.map(([k, s]) => `<li class="row" data-store="${esc(k)}"><span class="emoji">🏪</span>
+    <span class="main"><div class="title">${esc(k)}</div><div class="sub">${s.n} ${s.n === 1 ? 'Einkauf' : 'Einkäufe'}</div></span>
+    <span class="amount">${fmt(round2(s.sum))}</span></li>`).join('');
+  $$('#storeList .row').forEach((li) => li.addEventListener('click', () => {
+    listMode = 'exp'; $('#searchInput').value = ''; showView('list'); storeFilter = li.dataset.store; renderList();
+  }));
+}
+let storeFilter = '';
+
+// ---------- Artikel-Gruppen (Unterkategorien beim Einkauf) ----------
+const ITEM_GROUPS = [
+  ['pfand', '♻️ Pfand', /pfand|leergut/i],
+  ['butter', '🧈 Butter & Margarine', /butter(?!milch|keks)|margarine|\bmarg\b|\brama\b|kerrygold|halbfett/i],
+  ['kaese', '🧀 Käse', /k(ä|ae)se|gouda|emmentaler|mozzarella|\bfeta\b|camembert|parmesan|\bbrie\b|edamer|tilsiter|cheddar|bergk/i],
+  ['milch', '🥛 Milch & Milchprodukte', /milch|joghurt|jogh|quark|sahne|schmand|kefir|\bskyr\b|pudding|creme fraiche|cr(è|e)me|h-milch|\bvollm|frischm/i],
+  ['eier', '🥚 Eier', /\beier\b|\beier\s|freiland|bodenhalt/i],
+  ['wurst', '🥓 Wurst & Aufschnitt', /wurst|salami|schinken|aufschn|lyoner|mortadella|w(ü|ue)rstchen|wiener|leberw|mettw|cervelat|bacon|\bspeck\b|fleischw|krakauer|bierschinken/i],
+  ['fleisch', '🥩 Fleisch & Geflügel', /fleisch|\bhack|schnitzel|steak|filet|braten|gulasch|h(ä|ae)hnchen|haehn|\bhuhn|\bpute|kotelett|\brind|schwein|geschn|nacken|br(u|ü)st|keule|frikadell/i],
+  ['fisch', '🐟 Fisch', /fisch|lachs|thunf|hering|forelle|garnel|seelachs|matjes|scampi|kabeljau/i],
+  ['brot', '🍞 Brot & Backwaren', /brot|br(ö|oe)tchen|toast|baguette|croissant|semmel|laugen|brezel|kuchen|berliner|ciabatta|wraps?\b|zwieback/i],
+  ['obst', '🍎 Obst & Gemüse', /apfel|(ä|ae)pfel|banane|birne|traube|orange|mandarine|clementine|zitrone|beere|kiwi|mango|melone|tomate|gurke|paprika|salat|kartoffel|zwiebel|m(ö|oe)hre|karotte|kohl|brokkoli|zucchini|pilz|champignon|lauch|knoblauch|avocado|obst|gem(ü|ue)se|radieschen|spinat|ingwer|porree|sellerie/i],
+  ['tk', '❄️ Tiefkühl', /\btk\b|tiefk|pizza|\beis\b|eiscreme|pommes|fischst/i],
+  ['suess', '🍫 Süßes & Snacks', /schoko|chips|keks|riegel|gummi|bonbon|s(ü|ue)(ß|ss)|praline|waffel|cracker|n(ü|ue)sse|erdnuss|flips|popcorn|kaugummi|haribo|milka|ritter sport|nutella/i],
+  ['getraenke', '🥤 Getränke', /wasser|saft|\bcola\b|limo|\bbier\b|\bwein\b|sekt|kaffee|\btee\b|getr(ä|ae)nk|schorle|sprudel|fanta|sprite|energy|pils|radler|smoothie|eistee|espresso|kapseln|pads/i],
+  ['vorrat', '🥫 Vorrat & Konserven', /nudel|spaghetti|penne|fusilli|\breis\b|mehl|zucker|\bsalz\b|(ö|oe)l\b|essig|konserve|\bdose\b|so(ß|ss)e|sauce|ketchup|senf|mayo|m(ü|ue)sli|haferfl|cornflakes|honig|marmelade|konfit|aufstrich|gew(ü|ue)rz|br(ü|ue)he|suppe|linsen|bohnen|mais|erbsen|tomatenmark|passata/i],
+  ['haushalt', '🧽 Haushalt & Reinigung', /sp(ü|ue)l|wasch|reinig|putz|m(ü|ue)llbeutel|alufolie|frischhalte|schwamm|toilett|klopapier|k(ü|ue)chenrolle|weichsp|entkalk|backpapier|tabs\b|allzweck|glasrein|wc[- ]/i],
+  ['pflege', '🧴 Körperpflege & Gesundheit', /zahnpast|zahnb(ü|ue)rst|zahncreme|shampoo|sp(ü|ue)lung|duschgel|\bdeo|seife|creme|lotion|rasier|windel|tampon|binde|taschent|pflaster|vitamin|tablett|kosmet|watte/i],
+  ['tier', '🐾 Tierbedarf', /katze|\bhund|tierfutter|whiskas|felix|frolic|pedigree|sheba|katzenstreu/i],
+];
+const GROUP_LABEL = Object.fromEntries(ITEM_GROUPS.map(([id, label]) => [id, label]).concat([['sonst', '📦 Sonstiges']]));
+function itemGroup(name) {
+  const k = 'grp:' + normItem(name);
+  if (state.rules[k] && GROUP_LABEL[state.rules[k]]) return state.rules[k];
+  const g = ITEM_GROUPS.find(([, , re]) => re.test(name));
+  return g ? g[0] : 'sonst';
+}
+
 const normItem = (n) => String(n || '').toLowerCase().replace(/[^a-zäöüß0-9%., ]/g, ' ').replace(/\s+/g, ' ').trim();
 
 /** Alle gekauften Artikel (alle Monate) – wann, wo, zu welchem Preis */
@@ -542,23 +610,45 @@ function renderArticles() {
   const groups = new Map();
   hits.forEach((r) => { if (!groups.has(r.norm)) groups.set(r.norm, []); groups.get(r.norm).push(r); });
   const list = [...groups.values()].map((g) => g.sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time)))
-    .sort((a, b) => (b[0].date + b[0].time).localeCompare(a[0].date + a[0].time)).slice(0, 200);
+    .sort((a, b) => a[0].name.localeCompare(b[0].name, 'de'));
   const d = (r) => new Date(r.date + 'T12:00').toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' });
-  root.innerHTML = list.map((g, i) => {
+  // Artikel in Gruppen (Butter, Käse, Wurst …) einsortieren
+  const byGroup = new Map();
+  list.forEach((g) => { const k = itemGroup(g[0].name); if (!byGroup.has(k)) byGroup.set(k, []); byGroup.get(k).push(g); });
+  const order = ITEM_GROUPS.map(([id]) => id).concat('sonst');
+  const groupOpts = (sel) => order.map((id) => `<option value="${id}" ${id === sel ? 'selected' : ''}>${esc(GROUP_LABEL[id])}</option>`).join('');
+  const article = (g) => {
     const last = g[0], each = g.map((r) => r.each);
     const min = Math.min(...each), max = Math.max(...each);
     const cheap = g.find((r) => r.each === min);
-    const c = catById(last.cat);
-    const range = g.length > 1 && max - min > 0.004 ? ` · günstigst ${fmt(min)} (${esc(cheap.store)}${cheap.branch ? ', ' + esc(cheap.branch.split(',')[0]) : ''}) · teuerst ${fmt(max)}` : '';
+    const range = g.length > 1 && max - min > 0.004 ? ` · günstigst ${fmt(min)} (${esc(storeOf(cheap.store))}) · teuerst ${fmt(max)}` : '';
+    const grp = itemGroup(last.name);
     return `<details class="art" ${q && list.length <= 3 ? 'open' : ''}>
-      <summary><span class="emoji">${esc(c.emoji)}</span><span class="main"><div class="title">${esc(last.name)}</div>
-        <div class="sub">${g.length}× gekauft · zuletzt ${esc(d(last))} bei ${esc(last.store)}${range}</div></span><span class="amount">${fmt(last.each)}</span></summary>
-      <ul class="art-rows">${g.map((r) => `<li data-exp="${esc(r.expId)}"><span>${esc(d(r))}${r.time ? ' ' + esc(r.time) : ''}</span>
-        <span>${esc(r.store)}${r.branch ? `<br><small>📍 ${esc(r.branch)}</small>` : ''}${r.person ? `<br><small>${esc(r.person)}</small>` : ''}</span>
-        <span class="amt">${r.qty ? `<small>${String(r.qty).replace('.', ',')} ${esc(r.unitLabel || '×')} ${fmt(r.unit)}</small><br>` : ''}${fmt(r.price)}</span></li>`).join('')}</ul>
+      <summary><span class="main"><div class="title">${esc(last.name)}</div>
+        <div class="sub">${g.length}× gekauft · zuletzt ${esc(d(last))} bei ${esc(storeOf(last.store))}${range}</div></span><span class="amount">${fmt(last.each)}</span></summary>
+      <label class="art-group">Gruppe <select data-grp="${esc(last.norm)}">${groupOpts(grp)}</select></label>
+      <ul class="art-rows">${g.map((r) => `<li><span>${esc(d(r))}${r.time ? ' ' + esc(r.time) : ''}</span>
+        <span>${esc(storeOf(r.store))}${r.branch ? `<br><small>📍 ${esc(r.branch)}</small>` : ''}${r.person ? `<br><small>${esc(r.person)}</small>` : ''}</span>
+        <span class="amt">${r.qty ? `<small>${String(r.qty).replace('.', ',')} ${esc(r.unitLabel || '×')} ${fmt(r.unit)}</small><br>` : ''}${fmt(r.price)}</span>
+        <button class="tx-add art-bon" data-exp="${esc(r.expId)}">🧾 Zum Bon</button></li>`).join('')}</ul>
     </details>`;
+  };
+  root.innerHTML = order.filter((k) => byGroup.has(k)).map((k) => {
+    const arts = byGroup.get(k);
+    const n = arts.reduce((a, g) => a + g.length, 0);
+    return `<details class="art-grp" ${q || byGroup.size === 1 ? 'open' : ''}><summary><span class="main"><div class="title">${esc(GROUP_LABEL[k])}</div>
+      <div class="sub">${arts.length} ${arts.length === 1 ? 'Artikel' : 'Artikel'} · ${n}× gekauft</div></span><span class="chev">›</span></summary>
+      <div class="art-grp-body">${arts.map(article).join('')}</div></details>`;
   }).join('');
-  $$('.art-rows li', root).forEach((li) => li.addEventListener('click', () => openExpenseDialog(state.expenses.find((e) => e.id === li.dataset.exp))));
+  $$('.art-bon', root).forEach((btn) => btn.addEventListener('click', (ev) => {
+    ev.preventDefault();
+    const exp = state.expenses.find((e) => e.id === btn.dataset.exp);
+    if (!exp) return;
+    if (exp.receipt) Receipt.view(exp); else { toast('Zu diesem Einkauf gibt es kein Bon-Bild'); openExpenseDialog(exp); }
+  }));
+  $$('select[data-grp]', root).forEach((sel) => sel.addEventListener('change', () => {
+    state.rules['grp:' + sel.dataset.grp] = sel.value; save(); renderArticles(); toast('Gruppe gemerkt ✓');
+  }));
 }
 
 /** Alle Kassenbons zum schnellen Wiederfinden (z. B. für Umtausch/Reklamation) */
@@ -569,6 +659,7 @@ function renderBons() {
   const list = Receipt.bonList()
     .filter((e) => !fc || e.category === fc || (e.items || []).some((it) => it.cat === fc))
     .filter((e) => !fp || (fp === '__private' ? e.private : fp === '__shared' ? !e.private : e.person === fp))
+    .filter((e) => !storeFilter || (!e.virtual && storeOf(e.merchant) === storeFilter))
     .filter((e) => !q || `${e.merchant} ${e.branch || ''} ${e.note || ''} ${(e.items || []).map((it) => it.name).join(' ')}`.toLowerCase().includes(q));
   if (!Receipt.bonList().length) { root.innerHTML = '<div class="empty-state">Noch keine Kassenbons gespeichert.<br>Tippe oben auf <b>📷 Kassenbon scannen</b>.</div>'; return; }
   if (!list.length) { root.innerHTML = '<div class="empty-state">Kein Bon gefunden.</div>'; return; }
@@ -604,10 +695,12 @@ function renderList() {
     .filter((e) => (isPersonal() ? isMine(e) : !e.private))
     .filter((e) => !fc.value || e.category === fc.value)
     .filter((e) => !fp.value || (fp.value === '__private' ? e.private : fp.value === '__shared' ? !e.private : e.person === fp.value))
+    .filter((e) => !storeFilter || (!e.virtual && storeOf(e.merchant) === storeFilter))
     .filter((e) => !q || `${e.merchant} ${e.branch || ''} ${e.note} ${catById(e.category).name} ${(e.items || []).map((it) => it.name).join(' ')}`.toLowerCase().includes(q))
     .sort((a, b) => (b.date + (b.created || '')).localeCompare(a.date + (a.created || '')));
 
   const root = $('#expenseList');
+  root.onclick = (ev) => { if (ev.target.closest('#storeChip')) { storeFilter = ''; renderList(); } };
   if (!items.length) {
     root.innerHTML = '<div class="empty-state">Keine Ausgaben gefunden.<br>Tippe auf <b>+</b>, um eine hinzuzufügen.</div>';
     return;
@@ -619,7 +712,7 @@ function renderList() {
   const total = round2(items.reduce((a, e) => a + e.amount, 0));
   // Haushaltsgeld zählt beim Überweisenden mit (nicht als Ausgabe im Haushalt, aber als sein Beitrag)
   const given = {};
-  if (!isPersonal() && !fc.value && !q) transfersForMonth(viewY, viewM).forEach((t) => { if (t.payer) given[t.payer] = (given[t.payer] || 0) + t.amount; });
+  if (!isPersonal() && !fc.value && !q && !storeFilter) transfersForMonth(viewY, viewM).forEach((t) => { if (t.payer) given[t.payer] = (given[t.payer] || 0) + t.amount; });
   let perPerson = '', extra = '';
   if (!isPersonal() && !fp.value) {
     const by = {};
@@ -632,7 +725,8 @@ function renderList() {
     extra = `<div class="month-sum-head month-sum-plus"><span>+ Haushaltsgeld an ${esc(state.subs.find((s) => isTransfer(s) && s.payer === fp.value)?.to || 'Partner')}</span><b>${fmt(given[fp.value])}</b></div>`
       + `<div class="month-sum-head"><span>${esc(fp.value)} insgesamt</span><b>${fmt(total + given[fp.value])}</b></div>`;
   }
-  let html = `<div class="month-sum"><div class="month-sum-head"><span>${fp.value && !fp.value.startsWith('__') ? esc(fp.value) + ' – Einkäufe' : 'Summe'} ${esc(monthName)}</span><b>${fmt(total)}</b></div>`
+  const chip = storeFilter ? `<button class="store-chip" id="storeChip">🏪 ${esc(storeFilter)} <b>✕</b></button>` : '';
+  let html = chip + `<div class="month-sum"><div class="month-sum-head"><span>${fp.value && !fp.value.startsWith('__') ? esc(fp.value) + ' – Einkäufe' : 'Summe'} ${esc(monthName)}</span><b>${fmt(total)}</b></div>`
     + `<div class="month-sum-sub">${items.length} ${items.length === 1 ? 'Eintrag' : 'Einträge'}${fc.value || q ? ' (gefiltert)' : ''}</div>${extra}${perPerson}</div>`;
   for (const [k, list] of groups) {
     const label = k.includes('-') ? new Date(k + 'T12:00').toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' }) : k;
@@ -664,7 +758,7 @@ function renderSubs() {
   const ended = (s) => s.end && s.end < key;
   const until = (s) => (s.end ? (ended(s) ? 'beendet ' : 'bis ') + s.end.split('-').reverse().join('/') : '');
 
-  const fixed = state.subs.filter((s) => !isTransfer(s));
+  const fixed = state.subs.filter((s) => !isTransfer(s) && !s.private);
   const ul = $('#subsList');
   const monthly = fixed.filter((s) => !ended(s)).reduce((a, s) => a + perMonth(s), 0);
   $('#subsTotal').textContent = fixed.length ? `≈ ${fmt(monthly)} / Monat` : '';
@@ -813,6 +907,7 @@ function shortcutUrl() {
 
 // ---------- Views ----------
 function showView(name) {
+  storeFilter = '';
   $$('.view').forEach((v) => v.classList.toggle('active', v.id === 'view-' + name));
   $$('.tabbar button').forEach((b) => b.classList.toggle('active', b.dataset.view === name));
   $('#fab').hidden = name === 'settings' || name === 'konto';
@@ -919,6 +1014,7 @@ function openSubDialog(sub, preset = null, onSaved = null) {
   f.end.value = v.end || '';
   f.via.value = v.via || '';
   f.spread.checked = v.spread !== undefined ? !!v.spread : false;
+  f.private.checked = !!v.private;
   f.payer.innerHTML = '<option value="">Gemeinsam / Gemeinschaftskonto</option>' + persons.map((p) => `<option>${esc(p)}</option>`).join('');
   f.payer.value = v.payer !== undefined ? v.payer : '';
   f.to.innerHTML = persons.map((p) => `<option>${esc(p)}</option>`).join('');
@@ -1165,7 +1261,9 @@ function bind() {
     if (f.end.value && f.end.value < f.start.value) { toast('„Bis“ liegt vor „Seit“'); return; }
     const data = { type, name: f.name.value.trim() || (type === 'transfer' ? 'Haushaltsgeld' : ''), amount, interval: f.interval.value,
       category: f.category.value, start: f.start.value, end: f.end.value || '', payer: f.payer.value, to: type === 'transfer' ? f.to.value : '',
-      via: f.via.value, spread: type !== 'transfer' && f.interval.value !== 'month' && f.spread.checked };
+      via: f.via.value, spread: type !== 'transfer' && f.interval.value !== 'month' && f.spread.checked,
+      private: type !== 'transfer' && f.private.checked };
+    if (data.private) data.payer = state.settings.me;
     if (!data.name) { toast('Bitte einen Namen eingeben, z. B. Miete'); return; }
     if (type === 'transfer' && (!data.payer || data.payer === data.to)) { toast('Bitte „Von“ und „An“ (zwei verschiedene Personen) wählen'); return; }
     let id = editingSubId;

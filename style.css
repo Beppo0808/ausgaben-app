@@ -755,3 +755,21 @@ ul.month-sum-split li { display: flex; justify-content: space-between; padding: 
   background: #f3e6c9; border: 1px solid #d9b980; color: var(--text); font-weight: 600; }
 .bank-reminder.warn { background: #f4d9cc; border-color: #c98a6e; }
 .bank-reminder span { flex: 1 1 200px; }
+
+/* Läden */
+.store-chip { display: inline-flex; gap: 8px; align-items: center; margin: 0 0 10px; padding: 8px 14px; border-radius: 99px; border: 1px solid var(--border);
+  background: var(--surface); font: 700 .95rem var(--font-text); color: var(--text); cursor: pointer; }
+#storeList .row { cursor: pointer; }
+/* Artikel-Gruppen */
+.art-grp { margin: 0 0 10px; border-radius: 16px; background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow-sm); }
+.art-grp > summary { display: flex; align-items: center; gap: 10px; padding: 14px 16px; cursor: pointer; list-style: none; }
+.art-grp > summary::-webkit-details-marker { display: none; }
+.art-grp > summary .main { flex: 1; }
+.art-grp > summary .title { font-weight: 800; font-size: 1.05rem; }
+.art-grp .chev { font-size: 1.4rem; transition: transform .2s; color: var(--text-2); }
+.art-grp[open] .chev { transform: rotate(90deg); }
+.art-grp-body { padding: 0 10px 10px; }
+.art-group { display: flex; align-items: center; gap: 8px; margin: 6px 4px 8px; font-size: .9rem; color: var(--text-2); }
+.art-group select { flex: 1; padding: 6px 8px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface-2); font: inherit; color: var(--text); }
+.art-rows li { cursor: default; }
+.art-bon { grid-column: 1 / -1; justify-self: end; }

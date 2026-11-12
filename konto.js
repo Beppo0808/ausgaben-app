@@ -198,9 +198,29 @@ const Konto = (() => {
     else if (exp) txCat = exp.category;
     else { const g = guessCategory(`${t.name} ${t.purpose}`); txCat = g === 'sonstiges' ? '' : g; }
     drawTxChips();
+    const gk = groupKey(t);
+    const cur = (gk && linkedSub(gk)) || (t.sub && state.subs.find((x) => x.id === t.sub)) || null;
+    const subs = state.subs.filter((x) => !isTransfer(x));
+    f.sub.innerHTML = '<option value="">— kein Abo —</option>'
+      + subs.filter((x) => !x.private).map((x) => `<option value="${esc(x.id)}">👫 ${esc(x.name)} (${fmt(x.amount)})</option>`).join('')
+      + subs.filter((x) => x.private).map((x) => `<option value="${esc(x.id)}">🔒 ${esc(x.name)} (${fmt(x.amount)})</option>`).join('')
+      + '<option value="__new">＋ Neues Abo aus dieser Buchung …</option>';
+    f.sub.value = cur && !isTransfer(cur) ? cur.id : '';
+    f.sub.disabled = t.amount >= 0;
     f.household.checked = t.amount < 0 && (household || !!exp);
+    syncTxSub();
     f.household.disabled = t.amount >= 0; // Eingänge sind keine Haushaltsausgaben
     $('#txDialog').showModal();
+  }
+  function syncTxSub() {
+    const f = $('#txForm');
+    const v = f.sub.value;
+    const isSub = v && v !== '__new';
+    $('#txHouseholdRow').hidden = isSub; $('#txHouseholdHint').hidden = isSub;
+    $('#txSubHint').textContent = v === '__new'
+      ? (f.household.checked ? 'Beim Speichern wird ein neues gemeinsames Abo angelegt (Haken unten).' : 'Beim Speichern wird ein neues privates Abo angelegt. Für ein gemeinsames Abo den Haken unten setzen.')
+      : isSub ? 'Zählt über dieses Abo – privat (🔒) oder gemeinsam (👫), wie beim Abo eingestellt. Künftige gleiche Abbuchungen werden automatisch zugeordnet.'
+        : 'Z. B. PayPal-Abbuchungen: hier Netflix, Spotify … zuordnen. Künftige gleiche Abbuchungen werden automatisch zugeordnet.';
   }
   function drawTxChips() {
     const box = $('#txChips');
@@ -218,6 +238,28 @@ const Konto = (() => {
     t.cat = txCat;
     if (txCat && label) learnRule(label, txCat);
     let exp = t.linked ? state.expenses.find((e) => e.id === t.linked) : null;
+    // Abo-Zuordnung: Buchung zählt dann über das Abo (kein zusätzlicher Haushaltseintrag)
+    const gk = groupKey(t);
+    const subSel = f.sub.disabled ? '' : f.sub.value;
+    const dropExp = () => { if (exp) { state.expenses = state.expenses.filter((e) => e.id !== exp.id); delete t.linked; } };
+    const linkTo = (id) => { t.sub = id; if (gk) { data.links[gk] = id; delete data.dismissed[gk]; } dropExp(); };
+    if (subSel === '__new') {
+      const shared = f.household.checked;
+      write(); $('#txDialog').close(); txEditing = null;
+      openSubDialog(null, { type: 'fixed', name: label || orig, amount: Math.abs(t.amount), interval: 'month', category: txCat || 'abos',
+        start: t.date.slice(0, 7), payer: state.settings.me, private: !shared, via: /paypal/i.test(`${t.name} ${t.purpose}`) ? 'PayPal' : '' }, (id) => {
+        linkTo(id); write(); save(); window.render(); toast(shared ? '👫 Gemeinsames Abo angelegt ✓' : '🔒 Privates Abo angelegt ✓');
+      });
+      return;
+    }
+    if (subSel) {
+      linkTo(subSel);
+      write(); save(); $('#txDialog').close(); txEditing = null; window.render();
+      const sb = state.subs.find((x) => x.id === subSel);
+      toast(`✓ Zugeordnet: ${sb ? sb.name : 'Abo'}`);
+      return;
+    }
+    if (t.sub) { if (gk && data.links[gk] === t.sub) delete data.links[gk]; delete t.sub; }
     if (f.household.checked && t.amount < 0) {
       const cat = txCat || 'sonstiges';
       if (exp) { exp.merchant = label || orig; exp.category = cat; }
@@ -363,9 +405,11 @@ const Konto = (() => {
 
   function linkGroup(g, type) {
     delete data.dismissed[g.key];
-    openSubDialog(null, presetFor(g, type), (subId) => {
+    const preset = presetFor(g, type === 'private' ? 'fixed' : type);
+    if (type === 'private') { preset.private = true; preset.payer = state.settings.me; }
+    openSubDialog(null, preset, (subId) => {
       data.links[g.key] = subId; write(); window.render();
-      toast(type === 'transfer' ? '💶 Haushaltsgeld eingetragen ✓' : '🏠 Als gemeinsame Fixkosten übernommen ✓');
+      toast(type === 'transfer' ? '💶 Haushaltsgeld eingetragen ✓' : type === 'private' ? '🔒 Als privates Abo gespeichert ✓' : '🏠 Als gemeinsame Fixkosten übernommen ✓');
     });
   }
 
@@ -398,7 +442,7 @@ const Konto = (() => {
       const sub = [esc(g.counterparty), `${rhythm[g.interval]}, ca. am ${day}.`, `${g.list.length}× gefunden`].join(' · ');
       let actions;
       if (s) {
-        const what = s.type === 'transfer' ? `✓ Haushaltsgeld an ${esc(s.to)}` : `✓ Gemeinsame Fixkosten „${esc(s.name)}“`;
+        const what = s.type === 'transfer' ? `✓ Haushaltsgeld an ${esc(s.to)}` : s.private ? `✓ Privates Abo „${esc(s.name)}“` : `✓ Gemeinsame Fixkosten „${esc(s.name)}“`;
         const current = state.subs.find((x) => x.id === s.id);
         const changed = current && Math.abs(current.amount - g.amount) > 0.009 && !current.end;
         actions = `<span class="rec-linked">${what}</span>`
@@ -407,12 +451,29 @@ const Konto = (() => {
       } else {
         const tr = `<button class="tx-add" data-act="transfer" data-i="${i}">💶 Haushaltsgeld</button>`;
         const fx = `<button class="tx-add" data-act="fixed" data-i="${i}">＋ Fixkosten</button>`;
-        actions = (g.toPartner ? tr + fx : fx + tr) + `<button class="tx-add" data-act="dismiss" data-i="${i}">Privat / ausblenden</button>`;
+        const pv = `<button class="tx-add" data-act="private" data-i="${i}">🔒 Privates Abo</button>`;
+        actions = (g.toPartner ? tr + fx : fx + pv + tr) + (g.toPartner ? pv : '') + `<button class="tx-add" data-act="dismiss" data-i="${i}">Ausblenden</button>`;
       }
       return `<li class="row tx rec"><span class="emoji">🔁</span>
         <span class="main"><div class="title">${esc(s ? s.name : g.name)}</div><div class="sub">${sub}</div><div class="actions">${actions}</div>${recDetails(g)}</span>
         <span class="tx-right"><span class="amount">${fmt(g.amount)}</span></span></li>`;
     }).join('');
+  }
+
+  function renderPrivSubs() {
+    const key = monthKey(new Date().getFullYear(), new Date().getMonth());
+    const list = state.subs.filter((s) => s.private && !isTransfer(s));
+    const active = list.filter((s) => !s.end || s.end >= key);
+    const monthly = active.reduce((a, s) => a + (s.interval === 'year' ? s.amount / 12 : s.interval === 'quarter' ? s.amount / 3 : s.amount), 0);
+    $('#privSubsTotal').textContent = list.length ? `≈ ${fmt(monthly)} / Monat` : '';
+    const iv = { month: 'monatlich', quarter: 'vierteljährlich', year: 'jährlich' };
+    $('#privSubsList').innerHTML = list.length ? list.sort((a, b) => b.amount - a.amount).map((s) => {
+      const c = state.categories.find((x) => x.id === s.category) || { emoji: '🔁' };
+      const ended = s.end && s.end < key;
+      return `<li class="row ${ended ? 'ended' : ''}" data-sub="${esc(s.id)}"><span class="emoji">${esc(c.emoji)}</span>
+        <span class="main"><div class="title">${esc(s.name)}</div><div class="sub">${esc(iv[s.interval] || 'monatlich')}${s.via ? ' · über ' + esc(s.via) : ''}${s.end ? ' · bis ' + esc(s.end.split('-').reverse().join('/')) : ''}</div></span>
+        <span class="amount">${fmt(s.amount)}</span></li>`;
+    }).join('') : '<li class="empty-state">Noch keine privaten Abos. Tipp: unten bei „Regelmäßige Zahlungen“ auf <b>🔒 Privates Abo</b> tippen.</li>';
   }
 
   /** Aufklappbare Liste der einzelnen Buchungen einer erkannten Gruppe */
@@ -432,8 +493,8 @@ const Konto = (() => {
     const g = lastGroups[+b.dataset.i];
     if (!g) return;
     const act = b.dataset.act;
-    if (act === 'fixed' || act === 'transfer') linkGroup(g, act);
-    else if (act === 'dismiss') { data.dismissed[g.key] = true; write(); render(); toast('Ausgeblendet – bleibt privat'); }
+    if (act === 'fixed' || act === 'transfer' || act === 'private') linkGroup(g, act);
+    else if (act === 'dismiss') { data.dismissed[g.key] = true; write(); render(); toast('Ausgeblendet'); }
     else if (act === 'update') updateAmount(g);
     else if (act === 'edit') { const s = linkedSub(g.key); if (s) openSubDialog(s); }
   }
@@ -761,6 +822,10 @@ const Konto = (() => {
     $('#kontoAccount').addEventListener('change', (e) => { try { sessionStorage.setItem('konto-acc', e.target.value); } catch (x) { /* egal */ } render(); });
     $('#kontoSearch').addEventListener('input', render);
     $('#txForm').addEventListener('submit', saveTx);
+    $('#txForm').sub.addEventListener('change', syncTxSub);
+    $('#txForm').household.addEventListener('change', syncTxSub);
+    $('#addPrivSubBtn').onclick = () => openSubDialog(null, { type: 'fixed', private: true, payer: state.settings.me, category: 'abos', interval: 'month' });
+    $('#privSubsList').addEventListener('click', (e) => { const li = e.target.closest('[data-sub]'); if (li) openSubDialog(state.subs.find((x) => x.id === li.dataset.sub)); });
     $('#txCancel').onclick = () => { $('#txDialog').close(); txEditing = null; };
     $('#kontoDeleteBtn').onclick = () => {
       const id = selectedAccount(); const acc = data.accounts.find((a) => a.id === id);
@@ -806,6 +871,7 @@ const Konto = (() => {
     const s = $('#kontoSaldo'); s.textContent = fmt(inc + out); s.className = 'kpi-value ' + (inc + out < 0 ? 'neg' : 'pos');
 
     renderBank();
+    renderPrivSubs();
     renderRecurring(accId);
     const root = $('#kontoList');
     if (!data.tx.length) { root.innerHTML = '<div class="empty-state">Noch keine Umsätze importiert.<br>Tippe auf <b>Umsätze importieren (CSV)</b>.</div>'; return; }
@@ -826,7 +892,9 @@ const Konto = (() => {
         if (t.amount < 0) {
           const gk = groupKey(t);
           const ls = gk ? linkedSub(gk) : null;
-          if (ls) action = `<span class="tx-tag">${ls.type === 'transfer' ? '💶 Haushaltsgeld' : '🔁 ' + esc(ls.name)}</span>`;
+          const ts = !ls && t.sub ? state.subs.find((x) => x.id === t.sub) : null;
+          const sb = ls || ts;
+          if (sb) action = `<button class="tx-add done" data-open="${esc(t.id)}">${sb.type === 'transfer' ? '💶 Haushaltsgeld' : (sb.private ? '🔒 ' : '👫 ') + esc(sb.name)}</button>`;
           else if (t.linked && expIds.has(t.linked)) action = `<button class="tx-add done" data-open="${esc(t.id)}">✓ im Haushalt · ändern</button>`;
           else action = `<button class="tx-add" data-add="${esc(t.id)}">＋ Haushalt</button>`
             + (maybeCaptured(t) ? '<span class="muted" style="font-size:.7rem">evtl. schon erfasst</span>' : '')
