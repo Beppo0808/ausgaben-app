@@ -1583,6 +1583,8 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     if (!hadController || reloaded) return;
     const tryReload = () => {
+      // Nicht neu laden, solange die App gesperrt ist (sonst fragt Face ID ein zweites Mal) – erst nach dem Entsperren
+      if (document.body.classList.contains('locked')) { setTimeout(tryReload, 700); return; }
       if (document.querySelector('dialog[open]') || document.activeElement?.matches('input, textarea, select')) { setTimeout(tryReload, 3000); return; }
       reloaded = true; location.reload();
     };
