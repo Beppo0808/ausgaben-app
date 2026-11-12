@@ -981,7 +981,8 @@ function renderSync() {
   const pending = on ? Sync.pending() : 0;
   $('#syncStatusText').textContent = st.text + (pending && st.state !== 'busy' ? ` · ${pending} Änderung(en) ausstehend` : '');
   $('#syncDot').className = 'sync-dot ' + st.state;
-  if (on && !renderSync.busy && Date.now() - (renderSync.at || 0) > 15000) { // Überblick: hier / ausstehend / auf dem Server
+  const settingsOpen = $('#view-settings') && $('#view-settings').classList.contains('active');
+  if (on && settingsOpen && !renderSync.busy && Date.now() - (renderSync.at || 0) > 15000) { // nur wenn die Einstellungen offen sind // Überblick: hier / ausstehend / auf dem Server
     renderSync.busy = true; renderSync.at = Date.now();
     Sync.stats().then((x) => {
       if (!x) return;
@@ -1032,6 +1033,7 @@ function showView(name) {
   $$('.tabbar button').forEach((b) => b.classList.toggle('active', b.dataset.view === name));
   $('#fab').hidden = name === 'settings' || name === 'konto' || name === 'shop';
   if (name === 'shop' && typeof Shop !== 'undefined') Shop.render();
+  if (name === 'settings') renderSync();
   if (name === 'overview') renderOverview(); // Diagramm an sichtbare Breite anpassen
   if (name === 'konto' && typeof Konto !== 'undefined') { Konto.render(); Konto.autoRefresh(); }
   window.scrollTo({ top: 0 });

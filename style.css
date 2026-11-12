@@ -949,3 +949,15 @@ input[type="datetime-local"], input:not([type]), select, textarea, .shop-add inp
 .split-list li .sp-del { grid-row: 1; grid-column: 3; }
 .split-list input, .split-list select { padding: 9px 10px; border-radius: 10px; font: inherit; background: var(--surface); color: var(--text); min-width: 0; }
 #txSplitSum.warn { color: #9a3b1f; font-weight: 700; }
+
+/* ===== Flüssiges Scrollen auf dem iPhone ===== */
+/* Weichzeichner hinter festen Leisten kostet beim Scrollen viel Rechenzeit → deckende Fläche */
+.topbar, header, .tabbar { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+.topbar, header { background: var(--bg) !important; }
+.tabbar { background: var(--surface) !important; }
+/* Viele Listenzeilen: schlankerer Schatten (Karten behalten den 3D-Look) */
+.row, .tx, .rec, .sp-row, .sh-item, .rc-card { box-shadow: 0 1px 0 rgba(255,252,245,.8) inset, 0 2px 0 var(--edge) !important; }
+/* Karten unabhängig zeichnen lassen; nicht sichtbare Teile überspringen */
+.card, .day-group, .sh-list, .sp-list, .art-grp { contain: layout paint; }
+.day-group, .rc-card, .art-grp { content-visibility: auto; contain-intrinsic-size: auto 240px; }
+html, body { -webkit-overflow-scrolling: touch; overscroll-behavior-y: none; }
