@@ -227,6 +227,15 @@ const Konto = (() => {
     drawSplits();
     $('#txDialog').showModal();
     if (split && !txSplits.length) startSplit();
+    { // Bon/Einkauf zuordnen
+      const cands = t.amount < 0 ? bonCandidates(t) : [];
+      const cur = exp && exp.source !== 'bank' ? exp : null;
+      $('#txBonRow').hidden = !cands.length && !cur;
+      const d = (x) => x.split('-').reverse().slice(0, 2).join('.');
+      $('#txBonSel').innerHTML = '<option value="">— kein Bon —</option>' + cands.map((e) =>
+        `<option value="${esc(e.id)}">${e.receipt ? '🧾' : '📲'} ${esc(e.merchant)} · ${d(e.date)} · ${fmt(e.amount)}${Math.abs(e.amount - Math.abs(t.amount)) < 0.005 ? ' ✓' : ''}</option>`).join('');
+      $('#txBonSel').value = cur ? cur.id : '';
+    }
   }
   /**
    * Gescannte Bons / per Handy erfasste Einkäufe der passenden Kartenzahlung zuordnen:
@@ -240,8 +249,10 @@ const Konto = (() => {
     const day = (d) => new Date(d + 'T12:00').getTime() / 864e5;
     const shop = (x) => (typeof storeOf === 'function' ? storeOf(x) : String(x || '').toLowerCase());
     let changed = false;
+    const bankExp = (t) => { const e = t.linked && state.expenses.find((x) => x.id === t.linked); return e && e.source === 'bank' && !(e.items && e.items.length) ? e : null; };
     for (const t of data.tx) {
-      if (t.amount >= 0 || t.linked || t.sub || t.noMatch) continue;
+      const replaceable = bankExp(t);
+      if (t.amount >= 0 || (t.linked && !replaceable) || t.sub || t.noMatch || t.splits) continue;
       const gk = groupKey(t);
       if (gk && data.links[gk]) continue; // Abo/Haushaltsgeld
       let best = null, bestScore = -1;
@@ -252,10 +263,27 @@ const Konto = (() => {
         const score = (shop(t.name) === shop(e.merchant) || `${t.name} ${t.purpose}`.toLowerCase().includes(shop(e.merchant).toLowerCase()) ? 10 : 0) + (6 - Math.abs(diff));
         if (score > bestScore) { best = e; bestScore = score; }
       }
-      if (best) { t.linked = best.id; used.add(best.id); changed = true; }
+      if (best) {
+        if (replaceable) { // gleiche Ausgabe war schon aus der Kontobuchung übernommen → Bon ersetzt sie (keine Doppelzählung)
+          best.private = replaceable.private; if (!best.category || best.category === 'sonstiges') best.category = replaceable.category;
+          state.expenses = state.expenses.filter((x) => x.id !== replaceable.id);
+          if (typeof save === 'function') save();
+        }
+        t.linked = best.id; used.add(best.id); changed = true;
+      }
     }
     if (changed) write();
     return changed;
+  }
+
+  /** Bons/Einkäufe, die zu dieser Buchung passen könnten (nahe Datum, eigene, noch nicht verbunden) */
+  function bonCandidates(t) {
+    const me = state.settings.me;
+    const used = new Set(data.tx.filter((x) => x !== t && x.linked).map((x) => x.linked));
+    const day = (d) => new Date(d + 'T12:00').getTime() / 864e5;
+    return state.expenses.filter((e) => e.source !== 'bank' && !e.cash && !used.has(e.id) && (e.private || e.person === me)
+      && day(t.date) - day(e.date) >= -3 && day(t.date) - day(e.date) <= 10)
+      .sort((a, b) => Math.abs(a.amount - Math.abs(t.amount)) - Math.abs(b.amount - Math.abs(t.amount)));
   }
 
   /** Rhythmus aus dem Buchungstext erraten: „Jahresbeitrag“, „01.10.26-30.09.27“ → jährlich usw. */
@@ -442,6 +470,19 @@ const Konto = (() => {
     if (t.splits) { // Aufteilung wurde aufgehoben
       (t.splitExp || []).forEach((id) => { state.expenses = state.expenses.filter((e) => e.id !== id || e.source !== 'bank'); });
       delete t.splits; delete t.splitExp;
+    }
+    { // Bon/Einkauf von Hand zugeordnet bzw. gelöst
+      const sel = $('#txBonRow').hidden ? null : $('#txBonSel').value;
+      const curExp = t.linked ? state.expenses.find((e) => e.id === t.linked) : null;
+      if (sel && (!curExp || curExp.id !== sel)) {
+        const bon = state.expenses.find((e) => e.id === sel);
+        if (curExp && curExp.source === 'bank') { bon.private = curExp.private; state.expenses = state.expenses.filter((e) => e.id !== curExp.id); }
+        if (Math.abs(bon.amount - Math.abs(t.amount)) >= 0.005) { // Bank weiß den Betrag sicher – Bon-Summe war falsch gelesen
+          bon.note = [bon.note, `Bon-Summe war ${fmt(bon.amount)}`].filter(Boolean).join(' · ');
+          bon.amount = Math.abs(t.amount);
+        }
+        t.linked = bon.id; delete t.noMatch;
+      } else if (sel === '' && curExp && curExp.source !== 'bank') { delete t.linked; t.noMatch = true; }
     }
     let exp = t.linked ? state.expenses.find((e) => e.id === t.linked) : null;
     // Abo-Zuordnung: Buchung zählt dann über das Abo (kein zusätzlicher Haushaltseintrag)
