@@ -792,3 +792,4 @@ ul.month-sum-split li { display: flex; justify-content: space-between; padding: 
 #kontoMore { width: 100%; margin-top: 12px; }
 .howto-card > summary { cursor: pointer; padding: 2px 0; }
 .howto-card[open] > summary { margin-bottom: 10px; }
+.sp-auto { font-weight: 600; opacity: .75; }

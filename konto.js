@@ -194,9 +194,8 @@ const Konto = (() => {
     const d = t.date.split('-').reverse().join('.');
     $('#txInfo').innerHTML = `<b>${fmt(t.amount)}</b> · ${esc(d)}<br>${esc(t.name || '')}${t.purpose ? '<br><span class="muted">' + esc(t.purpose) + '</span>' : ''}`;
     f.label.value = t.label || (exp && exp.merchant) || (t.name || t.purpose || '').slice(0, 60);
-    if (t.cat !== undefined) txCat = t.cat;
-    else if (exp) txCat = exp.category;
-    else { const g = guessCategory(`${t.name} ${t.purpose}`); txCat = g === 'sonstiges' ? '' : g; }
+    // Keine Vermutung: nur was ihr selbst festgelegt habt (direkt oder bei einer gleichen Buchung)
+    txCat = t.cat !== undefined ? t.cat : exp ? exp.category : learnedCat(t);
     drawTxChips();
     const gk = groupKey(t);
     const cur = (gk && linkedSub(gk)) || (t.sub && state.subs.find((x) => x.id === t.sub)) || null;
@@ -211,6 +210,12 @@ const Konto = (() => {
     syncTxSub();
     f.household.disabled = t.amount >= 0; // Eingänge sind keine Haushaltsausgaben
     $('#txDialog').showModal();
+  }
+  /** Kategorie, die ihr bei einer gleichen Buchung schon festgelegt habt – sonst keine */
+  function learnedCat(t) {
+    const k = groupKey(t);
+    const c = k && data.catRules ? data.catRules[k] : '';
+    return c && state.categories.some((x) => x.id === c) ? c : '';
   }
   function syncTxSub() {
     const f = $('#txForm');
@@ -236,6 +241,10 @@ const Konto = (() => {
     const orig = (t.name || t.purpose || '').slice(0, 60);
     if (label && label !== orig) t.label = label; else delete t.label;
     t.cat = txCat;
+    { // merken: gleiche Buchungen (gleicher Empfänger bzw. gleicher Händler über PayPal …) künftig genauso einsortieren
+      const lk = groupKey(t);
+      if (lk) { data.catRules = data.catRules || {}; if (txCat) data.catRules[lk] = txCat; else delete data.catRules[lk]; }
+    }
     if (txCat && label) learnRule(label, txCat);
     let exp = t.linked ? state.expenses.find((e) => e.id === t.linked) : null;
     // Abo-Zuordnung: Buchung zählt dann über das Abo (kein zusätzlicher Haushaltseintrag)
@@ -921,8 +930,9 @@ const Konto = (() => {
       // Wie in der Banking-App: Empfänger/Auftraggeber, Verwendungszweck, Betrag – unverändert
       const tags = [];
       if (!t.pending) {
-        const cat = t.cat ? state.categories.find((c) => c.id === t.cat) : null;
-        if (cat) tags.push(`${esc(cat.emoji)} ${esc(cat.name)}`);
+        const own = t.cat !== undefined, cid = own ? t.cat : learnedCat(t);
+        const cat = cid ? state.categories.find((c) => c.id === cid) : null;
+        if (cat) tags.push(`${esc(cat.emoji)} ${esc(cat.name)}${own ? '' : ' <span class="sp-auto">(automatisch)</span>'}`);
         if (t.label) tags.push(`„${esc(t.label)}“`);
         if (t.amount < 0) {
           const gk = groupKey(t);
