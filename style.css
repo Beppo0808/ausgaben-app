@@ -793,3 +793,5 @@ ul.month-sum-split li { display: flex; justify-content: space-between; padding: 
 .howto-card > summary { cursor: pointer; padding: 2px 0; }
 .howto-card[open] > summary { margin-bottom: 10px; }
 .sp-auto { font-weight: 600; opacity: .75; }
+.bank-acc { flex-wrap: wrap; }
+.bank-err { flex-basis: 100%; font-size: .8rem; margin-top: 4px; }

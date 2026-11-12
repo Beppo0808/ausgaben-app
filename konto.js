@@ -620,7 +620,7 @@ const Konto = (() => {
     catch (e) { throw new Error('Keine Verbindung zum Bank-Baustein – Internet prüfen'); }
     let j = {};
     try { j = await res.json(); } catch (e) { /* leer */ }
-    if (!res.ok) { const err = new Error(j.error || `Fehler ${res.status}`); err.status = res.status; throw err; }
+    if (!res.ok) { const err = new Error(j.error || `Fehler ${res.status}`); err.status = res.status; err.code = j.code || ''; throw err; }
     return j;
   }
 
@@ -771,10 +771,14 @@ const Konto = (() => {
             }
             if (newest) a.lastDate = newest;
             if (rows.length) { const oldest = rows.reduce((m, r) => (r.date < m ? r.date : m), rows[0].date); if (!a.since || oldest < a.since) a.since = oldest; }
-            a.fetched = new Date().toISOString(); a.idv = 3;
+            a.fetched = new Date().toISOString(); a.idv = 3; delete a.lastError; conn.expired = false; delete conn.expiredCode;
           } catch (e) {
             problems++;
-            if (/expired|abgelaufen|consent|revoked|EXPIRED|SESSION/i.test(e.message)) conn.expired = true;
+            const what = `${e.code || ''} ${e.message}`;
+            a.lastError = String(e.message || '').slice(0, 160); a.lastErrorAt = new Date().toISOString();
+            // Nur eindeutige Meldungen der Bank bedeuten „abgelaufen“ – alles andere (z. B. Tageslimit) nicht
+            if (/EXPIRED_SESSION|REVOKED_SESSION|CLOSED_SESSION|session (has )?(expired|been revoked|closed)|consent (has )?(expired|been revoked)/i.test(what)) { conn.expired = true; conn.expiredCode = e.code || 'EXPIRED'; }
+            else if (/RATE_LIMIT|limit|exceed|too many|429/i.test(what)) { /* Tageslimit der Bank – später erneut */ }
             else if (!quiet) toast('⚠️ ' + e.message);
           }
         }
@@ -793,7 +797,7 @@ const Konto = (() => {
     const now = Date.now();
     for (const c of conns) {
       const until = c.valid_until ? new Date(c.valid_until).getTime() : 0;
-      if (c.expired || (until && until < now)) return { level: 'warn', text: `Der Zugriff auf ${c.bank} ist abgelaufen. Bitte unter „Mein Konto“ neu verbinden (pushTAN) – sonst fehlen Buchungen.` };
+      if ((c.expired && c.expiredCode) || (until && until < now)) return { level: 'warn', text: `Der Zugriff auf ${c.bank} ist abgelaufen. Bitte unter „Mein Konto“ neu verbinden (pushTAN) – sonst fehlen Buchungen.` };
       if (until && until - now < 14 * 864e5) return { level: 'info', text: `Der Zugriff auf ${c.bank} endet am ${new Date(until).toLocaleDateString('de-DE')}. Bitte vorher unter „Mein Konto“ neu verbinden (pushTAN).` };
       for (const a of c.accounts) {
         const days = a.fetched ? Math.floor((now - new Date(a.fetched).getTime()) / 864e5) : 999;
@@ -807,7 +811,7 @@ const Konto = (() => {
   function autoRefresh() {
     if (!bankReady()) return;
     const last = Math.max(0, ...connections().flatMap((c) => c.accounts.map((a) => (a.fetched ? new Date(a.fetched).getTime() : 0))));
-    if (connections().length && Date.now() - last > 4 * 3600e3) refresh(false, true);
+    if (connections().length && Date.now() - last > 6 * 3600e3) refresh(false, true);
   }
 
   async function disconnect(i) {
@@ -838,13 +842,14 @@ const Konto = (() => {
     $('#bankAccounts').innerHTML = conns.map((c, ci) => {
       const until = c.valid_until ? new Date(c.valid_until).toLocaleDateString('de-DE') : '';
       const days = c.valid_until ? Math.ceil((new Date(c.valid_until) - Date.now()) / 864e5) : 999;
-      const warn = c.expired || days < 0 ? '<span class="rec-warn">⚠️ Zugriff abgelaufen – bitte neu verbinden (pushTAN)</span>'
+      const warn = (c.expired && c.expiredCode) || days < 0 ? '<span class="rec-warn">⚠️ Zugriff abgelaufen – bitte neu verbinden (pushTAN)</span>'
         : days <= 14 ? `<span class="rec-warn">Zugriff endet in ${days} Tagen – dann einmal neu verbinden</span>` : '';
       return `<div class="bank-conn">
         <div class="bank-head"><b>${esc(c.bank)}</b><button class="tx-mini" data-disc="${ci}">Trennen</button></div>
         ${c.accounts.map((a) => `<div class="bank-acc">
           <div><div class="bank-name">${esc(a.name || 'Konto')}</div><div class="muted">${a.iban ? esc(a.iban.slice(0, 4) + ' •••• ' + a.iban.slice(-4)) : ''}${a.since ? ' · Umsätze seit ' + esc(a.since.split('-').reverse().join('.')) : ''}</div></div>
           <div class="bank-bal ${a.balance < 0 ? 'neg' : ''}">${a.balance !== undefined ? fmt(a.balance) : '–'}</div>
+          ${a.lastError ? `<div class="muted bank-err">Letzter Abruf hat nicht geklappt: ${esc(a.lastError)}</div>` : ''}
         </div>`).join('')}
         <div class="muted">${until ? 'Zugriff gültig bis ' + esc(until) : ''}</div>${warn}
       </div>`;

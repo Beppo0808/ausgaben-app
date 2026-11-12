@@ -26,7 +26,8 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 class HttpError extends Error {
   status: number;
-  constructor(status: number, message: string) { super(message); this.status = status; }
+  code = '';
+  constructor(status: number, message: string, code = '') { super(message); this.status = status; this.code = code; }
 }
 
 // ---------- JWT (RS256) ----------
@@ -95,7 +96,8 @@ async function eb(method: string, path: string, body?: Json): Promise<Json> {
   try { data = text ? JSON.parse(text) : {}; } catch { /* keine JSON-Antwort */ }
   if (!res.ok) {
     const msg = (data.message || data.error || data.code || `Bankdienst antwortet mit ${res.status}`) as string;
-    throw new HttpError(res.status === 401 || res.status === 403 ? 502 : res.status, String(msg).slice(0, 300));
+    const code = String(data.error || data.code || '').slice(0, 60);
+    throw new HttpError(res.status === 401 || res.status === 403 ? 502 : res.status, String(msg).slice(0, 300), code);
   }
   return data;
 }
@@ -231,7 +233,8 @@ export async function handler(req: Request): Promise<Response> {
   } catch (e) {
     const status = e instanceof HttpError ? e.status : 500;
     const message = e instanceof HttpError ? e.message : 'Interner Fehler';
-    return reply({ error: message }, status); // bewusst keine Protokollierung von Inhalten
+    const code = e instanceof HttpError ? e.code : '';
+    return reply({ error: message, code }, status); // bewusst keine Protokollierung von Inhalten
   }
 }
 
