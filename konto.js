@@ -206,11 +206,49 @@ const Konto = (() => {
       + '<option value="__new">＋ Neues Abo aus dieser Buchung …</option>';
     f.sub.value = cur && !isTransfer(cur) ? cur.id : '';
     f.sub.disabled = t.amount >= 0;
-    f.household.checked = t.amount < 0 && (household || !!exp);
+    f.household.checked = t.amount < 0 && (household || (!!exp && !exp.private));
+    const bonBtn = $('#txBon');
+    bonBtn.hidden = !(exp && exp.receipt);
+    bonBtn.onclick = () => { $('#txDialog').close(); Receipt.view(exp); };
+    $('#txLinkInfo').textContent = exp && exp.source !== 'bank'
+      ? `Gehört zu deinem Einkauf „${exp.merchant}“ vom ${exp.date.split('-').reverse().join('.')}${exp.items && exp.items.length ? ` – ${exp.items.length} Artikel vom Bon` : ''}.` : '';
+    $('#txLinkInfo').hidden = !(exp && exp.source !== 'bank');
+    $('#txUnlink').hidden = !(exp && exp.source !== 'bank');
+    $('#txUnlink').onclick = () => { delete t.linked; t.noMatch = true; write(); $('#txDialog').close(); txEditing = null; render(); toast('Zuordnung gelöst'); };
     syncTxSub();
     f.household.disabled = t.amount >= 0; // Eingänge sind keine Haushaltsausgaben
     $('#txDialog').showModal();
   }
+  /**
+   * Gescannte Bons / per Handy erfasste Einkäufe der passenden Kartenzahlung zuordnen:
+   * gleicher Betrag, Abbuchung 0–6 Tage nach dem Einkauf (Karten werden oft erst später gebucht), am liebsten gleicher Laden.
+   */
+  function matchReceipts() {
+    const me = state.settings.me;
+    const used = new Set(data.tx.filter((t) => t.linked).map((t) => t.linked));
+    const cands = state.expenses.filter((e) => !used.has(e.id) && e.source !== 'bank' && (e.private || e.person === me) && e.amount > 0);
+    if (!cands.length) return false;
+    const day = (d) => new Date(d + 'T12:00').getTime() / 864e5;
+    const shop = (x) => (typeof storeOf === 'function' ? storeOf(x) : String(x || '').toLowerCase());
+    let changed = false;
+    for (const t of data.tx) {
+      if (t.amount >= 0 || t.linked || t.sub || t.noMatch) continue;
+      const gk = groupKey(t);
+      if (gk && data.links[gk]) continue; // Abo/Haushaltsgeld
+      let best = null, bestScore = -1;
+      for (const e of cands) {
+        if (used.has(e.id) || Math.abs(e.amount - Math.abs(t.amount)) > 0.005) continue;
+        const diff = day(t.date) - day(e.date);
+        if (diff < -1 || diff > 6) continue;
+        const score = (shop(t.name) === shop(e.merchant) || `${t.name} ${t.purpose}`.toLowerCase().includes(shop(e.merchant).toLowerCase()) ? 10 : 0) + (6 - Math.abs(diff));
+        if (score > bestScore) { best = e; bestScore = score; }
+      }
+      if (best) { t.linked = best.id; used.add(best.id); changed = true; }
+    }
+    if (changed) write();
+    return changed;
+  }
+
   /** Kategorie, die ihr bei einer gleichen Buchung schon festgelegt habt – sonst keine */
   function learnedCat(t) {
     const k = groupKey(t);
@@ -250,7 +288,7 @@ const Konto = (() => {
     // Abo-Zuordnung: Buchung zählt dann über das Abo (kein zusätzlicher Haushaltseintrag)
     const gk = groupKey(t);
     const subSel = f.sub.disabled ? '' : f.sub.value;
-    const dropExp = () => { if (exp) { state.expenses = state.expenses.filter((e) => e.id !== exp.id); delete t.linked; } };
+    const dropExp = () => { if (exp) { if (exp.source === 'bank') state.expenses = state.expenses.filter((e) => e.id !== exp.id); delete t.linked; } };
     const linkTo = (id) => { t.sub = id; if (gk) { data.links[gk] = id; delete data.dismissed[gk]; } dropExp(); };
     if (subSel === '__new') {
       const shared = f.household.checked;
@@ -271,13 +309,17 @@ const Konto = (() => {
     if (t.sub) { if (gk && data.links[gk] === t.sub) delete data.links[gk]; delete t.sub; }
     if (f.household.checked && t.amount < 0) {
       const cat = txCat || 'sonstiges';
-      if (exp) { exp.merchant = label || orig; exp.category = cat; }
+      if (exp && exp.source !== 'bank') { exp.private = false; if (txCat) exp.category = txCat; } // Bon/Handy-Einkauf: nur freigeben
+      else if (exp) { exp.merchant = label || orig; exp.category = cat; }
       else {
         exp = { id: uid(), created: new Date().toISOString(), source: 'bank', amount: Math.abs(t.amount), merchant: label || orig || 'Kontobuchung',
           category: cat, date: t.date, person: state.settings.me, note: '', private: false };
         state.expenses.push(exp); t.linked = exp.id;
       }
       toast('✓ Im Haushalt');
+    } else if (exp && exp.source !== 'bank') {
+      exp.private = true; // Bon bleibt erhalten, zählt nur nicht mehr gemeinsam
+      toast('Nur noch persönlich – der Bon bleibt gespeichert');
     } else if (exp) {
       state.expenses = state.expenses.filter((e) => e.id !== exp.id);
       delete t.linked;
@@ -915,6 +957,7 @@ const Konto = (() => {
       const sEl = $('#kontoSaldo'); sEl.textContent = fmt(inc + out); sEl.className = 'kpi-value ' + (inc + out < 0 ? 'neg' : 'pos');
     }
 
+    matchReceipts();
     renderBank();
     renderPrivSubs();
     renderRecurring(accId);
@@ -938,7 +981,10 @@ const Konto = (() => {
           const gk = groupKey(t);
           const sb = (gk && linkedSub(gk)) || (t.sub && state.subs.find((x) => x.id === t.sub)) || null;
           if (sb) tags.push(sb.type === 'transfer' ? '💶 Haushaltsgeld' : `${sb.private ? '🔒' : '👫'} ${esc(sb.name)}`);
-          else if (t.linked && expIds.has(t.linked)) tags.push('👫 im Haushalt');
+          else if (t.linked && expIds.has(t.linked)) {
+            const le = state.expenses.find((e) => e.id === t.linked);
+            tags.push(le.receipt ? `🧾 Bon ${esc(le.merchant)}${le.private ? '' : ' · 👫 gemeinsam'}` : le.source === 'bank' ? '👫 im Haushalt' : `📲 ${esc(le.merchant)}${le.private ? '' : ' · 👫 gemeinsam'}`);
+          }
         }
       }
       return `<li class="sp-row ${t.pending ? 'sp-pending' : ''}" ${t.pending ? '' : `data-open="${esc(t.id)}"`}>
@@ -976,5 +1022,5 @@ const Konto = (() => {
     };
   }
 
-  return { reminder, render, parseStatement, detect, monthSummary, handleCallback, autoRefresh, refresh, setBankToken, bankToken: () => bankCfg().token || '', _data: () => data };
+  return { matchReceipts, reminder, render, parseStatement, detect, monthSummary, handleCallback, autoRefresh, refresh, setBankToken, bankToken: () => bankCfg().token || '', _data: () => data };
 })();
