@@ -795,3 +795,11 @@ ul.month-sum-split li { display: flex; justify-content: space-between; padding: 
 .sp-auto { font-weight: 600; opacity: .75; }
 .bank-acc { flex-wrap: wrap; }
 .bank-err { flex-basis: 100%; font-size: .8rem; margin-top: 4px; }
+/* Auswahl „Wie zählt diese Buchung?“ */
+.kind-choice { display: grid; gap: 8px; margin-top: 6px; }
+.kind-choice label { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border-radius: 14px; border: 2px solid var(--border); background: var(--surface-2); cursor: pointer; }
+.kind-choice input[type=radio] { margin: 4px 0 0; padding: 0; width: 22px; height: 22px; min-height: 0; border: 0; box-shadow: none; background: none; appearance: auto; -webkit-appearance: radio; accent-color: var(--accent, #b85a33); flex: none; }
+.kind-choice span { display: flex; flex-direction: column; gap: 2px; }
+.kind-choice small { color: var(--text-2); font-size: .85rem; }
+.kind-choice label:has(input:checked) { border-color: var(--accent, #b85a33); background: var(--surface); }
+.kind-choice label:has(input:disabled) { opacity: .45; }

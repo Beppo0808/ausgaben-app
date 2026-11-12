@@ -14,6 +14,7 @@ const DEFAULT_CATEGORIES = [
   { id: 'shopping', name: 'Shopping', emoji: '🛍️', budget: 150 },
   { id: 'freizeit', name: 'Freizeit', emoji: '🎉', budget: 100 },
   { id: 'abos', name: 'Abos & Verträge', emoji: '🔁', budget: 0 },
+  { id: 'kredite', name: 'Kredite & Darlehen', emoji: '🏦', budget: 0 },
   { id: 'sonstiges', name: 'Sonstiges', emoji: '📦', budget: 0 },
 ];
 
@@ -62,6 +63,14 @@ function load() {
 }
 
 let state = load();
+// Neue Standard-Kategorie einmalig ergänzen (danach frei änderbar/löschbar)
+if (!state.settings.addedKredite) {
+  if (!state.categories.some((c) => c.id === 'kredite')) {
+    const i = state.categories.findIndex((c) => c.id === 'abos');
+    state.categories.splice(i > -1 ? i + 1 : state.categories.length, 0, { id: 'kredite', name: 'Kredite & Darlehen', emoji: '🏦', budget: 0 });
+  }
+  state.settings.addedKredite = true;
+}
 function save() {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
   catch (e) { toast('⚠️ Speichern fehlgeschlagen – Speicher voll oder privat?'); }

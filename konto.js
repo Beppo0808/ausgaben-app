@@ -199,14 +199,11 @@ const Konto = (() => {
     drawTxChips();
     const gk = groupKey(t);
     const cur = (gk && linkedSub(gk)) || (t.sub && state.subs.find((x) => x.id === t.sub)) || null;
-    const subs = state.subs.filter((x) => !isTransfer(x));
-    f.sub.innerHTML = '<option value="">— kein Abo —</option>'
-      + subs.filter((x) => !x.private).map((x) => `<option value="${esc(x.id)}">👫 ${esc(x.name)} (${fmt(x.amount)})</option>`).join('')
-      + subs.filter((x) => x.private).map((x) => `<option value="${esc(x.id)}">🔒 ${esc(x.name)} (${fmt(x.amount)})</option>`).join('')
-      + '<option value="__new">＋ Neues Abo aus dieser Buchung …</option>';
-    f.sub.value = cur && !isTransfer(cur) ? cur.id : '';
-    f.sub.disabled = t.amount >= 0;
-    f.household.checked = t.amount < 0 && (household || (!!exp && !exp.private));
+    txCurSub = cur && !isTransfer(cur) ? cur : null;
+    const kind = t.amount >= 0 ? 'personal'
+      : txCurSub ? (txCurSub.private ? 'fixprivate' : 'fixshared')
+        : (household || (exp && !exp.private)) ? 'shared' : 'personal';
+    f.querySelectorAll('input[name=kind]').forEach((r) => { r.checked = r.value === kind; r.disabled = t.amount >= 0 && r.value !== 'personal'; });
     const bonBtn = $('#txBon');
     bonBtn.hidden = !(exp && exp.receipt);
     bonBtn.onclick = () => { $('#txDialog').close(); Receipt.view(exp); };
@@ -216,7 +213,6 @@ const Konto = (() => {
     $('#txUnlink').hidden = !(exp && exp.source !== 'bank');
     $('#txUnlink').onclick = () => { delete t.linked; t.noMatch = true; write(); $('#txDialog').close(); txEditing = null; render(); toast('Zuordnung gelöst'); };
     syncTxSub();
-    f.household.disabled = t.amount >= 0; // Eingänge sind keine Haushaltsausgaben
     $('#txDialog').showModal();
   }
   /**
@@ -255,15 +251,22 @@ const Konto = (() => {
     const c = k && data.catRules ? data.catRules[k] : '';
     return c && state.categories.some((x) => x.id === c) ? c : '';
   }
+  let txCurSub = null;
+  const txKind = () => ($('#txForm').querySelector('input[name=kind]:checked') || {}).value || 'personal';
+  /** Auswahl der Fixkosten nur zeigen, wenn „Fixkosten gemeinsam/privat“ gewählt ist – passend gefiltert */
   function syncTxSub() {
     const f = $('#txForm');
-    const v = f.sub.value;
-    const isSub = v && v !== '__new';
-    $('#txHouseholdRow').hidden = isSub; $('#txHouseholdHint').hidden = isSub;
-    $('#txSubHint').textContent = v === '__new'
-      ? (f.household.checked ? 'Beim Speichern wird ein neues gemeinsames Abo angelegt (Haken unten).' : 'Beim Speichern wird ein neues privates Abo angelegt. Für ein gemeinsames Abo den Haken unten setzen.')
-      : isSub ? 'Zählt über dieses Abo – privat (🔒) oder gemeinsam (👫), wie beim Abo eingestellt. Künftige gleiche Abbuchungen werden automatisch zugeordnet.'
-        : 'Z. B. PayPal-Abbuchungen: hier Netflix, Spotify … zuordnen. Künftige gleiche Abbuchungen werden automatisch zugeordnet.';
+    const k = txKind();
+    const fix = k === 'fixshared' || k === 'fixprivate';
+    $('#txSubRow').hidden = !fix; $('#txSubHint').hidden = !fix;
+    if (!fix) return;
+    const priv = k === 'fixprivate';
+    const list = state.subs.filter((x) => !isTransfer(x) && !!x.private === priv);
+    const prev = f.sub.value;
+    f.sub.innerHTML = list.map((x) => `<option value="${esc(x.id)}">${esc(x.name)} (${fmt(x.amount)})</option>`).join('')
+      + '<option value="__new">＋ Neu anlegen …</option>';
+    const want = txCurSub && !!txCurSub.private === priv ? txCurSub.id : prev;
+    f.sub.value = list.some((x) => x.id === want) ? want : '__new';
   }
   function drawTxChips() {
     const box = $('#txChips');
@@ -287,15 +290,17 @@ const Konto = (() => {
     let exp = t.linked ? state.expenses.find((e) => e.id === t.linked) : null;
     // Abo-Zuordnung: Buchung zählt dann über das Abo (kein zusätzlicher Haushaltseintrag)
     const gk = groupKey(t);
-    const subSel = f.sub.disabled ? '' : f.sub.value;
+    const kind = t.amount >= 0 ? 'personal' : txKind();
+    const fix = kind === 'fixshared' || kind === 'fixprivate';
+    const subSel = fix ? f.sub.value : '';
     const dropExp = () => { if (exp) { if (exp.source === 'bank') state.expenses = state.expenses.filter((e) => e.id !== exp.id); delete t.linked; } };
     const linkTo = (id) => { t.sub = id; if (gk) { data.links[gk] = id; delete data.dismissed[gk]; } dropExp(); };
     if (subSel === '__new') {
-      const shared = f.household.checked;
+      const shared = kind === 'fixshared';
       write(); $('#txDialog').close(); txEditing = null;
       openSubDialog(null, { type: 'fixed', name: label || orig, amount: Math.abs(t.amount), interval: 'month', category: txCat || 'abos',
         start: t.date.slice(0, 7), payer: state.settings.me, private: !shared, via: /paypal/i.test(`${t.name} ${t.purpose}`) ? 'PayPal' : '' }, (id) => {
-        linkTo(id); write(); save(); window.render(); toast(shared ? '👫 Gemeinsames Abo angelegt ✓' : '🔒 Privates Abo angelegt ✓');
+        linkTo(id); write(); save(); window.render(); toast(shared ? '🏠 Gemeinsame Fixkosten angelegt ✓' : '🔒 Private Fixkosten angelegt ✓');
       });
       return;
     }
@@ -303,11 +308,17 @@ const Konto = (() => {
       linkTo(subSel);
       write(); save(); $('#txDialog').close(); txEditing = null; window.render();
       const sb = state.subs.find((x) => x.id === subSel);
-      toast(`✓ Zugeordnet: ${sb ? sb.name : 'Abo'}`);
+      toast(`✓ Zugeordnet: ${sb ? sb.name : 'Fixkosten'}`);
       return;
     }
-    if (t.sub) { if (gk && data.links[gk] === t.sub) delete data.links[gk]; delete t.sub; }
-    if (f.household.checked && t.amount < 0) {
+    const oldSub = txCurSub;
+    if (t.sub) delete t.sub;
+    if (gk && oldSub && data.links[gk] === oldSub.id) delete data.links[gk];
+    if (oldSub && !Object.values(data.links).includes(oldSub.id)
+      && confirm(`„${oldSub.name}“ zählt dann nicht mehr als Fixkosten.\n\nDen Eintrag „${oldSub.name}“ (${fmt(oldSub.amount)}) auch aus den ${oldSub.private ? 'privaten' : 'gemeinsamen'} Fixkosten entfernen?`)) {
+      state.subs = state.subs.filter((x) => x.id !== oldSub.id);
+    }
+    if (kind === 'shared') {
       const cat = txCat || 'sonstiges';
       if (exp && exp.source !== 'bank') { exp.private = false; if (txCat) exp.category = txCat; } // Bon/Handy-Einkauf: nur freigeben
       else if (exp) { exp.merchant = label || orig; exp.category = cat; }
@@ -316,14 +327,14 @@ const Konto = (() => {
           category: cat, date: t.date, person: state.settings.me, note: '', private: false };
         state.expenses.push(exp); t.linked = exp.id;
       }
-      toast('✓ Im Haushalt');
+      toast('✓ Gemeinsame Ausgabe');
     } else if (exp && exp.source !== 'bank') {
       exp.private = true; // Bon bleibt erhalten, zählt nur nicht mehr gemeinsam
-      toast('Nur noch persönlich – der Bon bleibt gespeichert');
+      toast('Nur für mich – der Bon bleibt gespeichert');
     } else if (exp) {
       state.expenses = state.expenses.filter((e) => e.id !== exp.id);
       delete t.linked;
-      toast('Aus dem Haushalt entfernt – bleibt nur persönlich');
+      toast('Nur für mich ✓');
     } else toast('Gespeichert ✓');
     write(); save(); $('#txDialog').close(); txEditing = null; window.render();
   }
@@ -907,8 +918,7 @@ const Konto = (() => {
     $('#kontoRange').addEventListener('click', (e) => { const x = e.target.closest('button[data-v]'); if (!x) return; kontoRange = x.dataset.v; kontoLimit = 150; render(); });
     $('#kontoMore').onclick = () => { kontoLimit += 300; render(); };
     $('#txForm').addEventListener('submit', saveTx);
-    $('#txForm').sub.addEventListener('change', syncTxSub);
-    $('#txForm').household.addEventListener('change', syncTxSub);
+    $('#txKind').addEventListener('change', syncTxSub);
     $('#addPrivSubBtn').onclick = () => openSubDialog(null, { type: 'fixed', private: true, payer: state.settings.me, category: 'abos', interval: 'month' });
     $('#privSubsList').addEventListener('click', (e) => { const li = e.target.closest('[data-sub]'); if (li) openSubDialog(state.subs.find((x) => x.id === li.dataset.sub)); });
     $('#txCancel').onclick = () => { $('#txDialog').close(); txEditing = null; };

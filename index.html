@@ -445,12 +445,18 @@
       <div class="field">Kategorie <span class="muted">(nochmal antippen = abwählen)</span>
         <div class="chips" id="txChips"></div>
       </div>
-      <label class="field">Gehört zu Abo / Vertrag
+      <div class="field">Wie zählt diese Buchung?
+        <div class="kind-choice" id="txKind">
+          <label><input type="radio" name="kind" value="personal"><span><b>🔒 Nur für mich</b><small>einmalige Ausgabe, z. B. eigener Einkauf</small></span></label>
+          <label><input type="radio" name="kind" value="shared"><span><b>👫 Gemeinsame Ausgabe</b><small>einmalig, z. B. Einkauf für den Haushalt</small></span></label>
+          <label><input type="radio" name="kind" value="fixshared"><span><b>🏠 Fixkosten gemeinsam</b><small>regelmäßig: Miete, Strom, Kredit, Versicherung, Netflix …</small></span></label>
+          <label><input type="radio" name="kind" value="fixprivate"><span><b>🔒 Fixkosten privat</b><small>regelmäßig, nur meine: eigenes Handy, Spotify, eigener Kredit …</small></span></label>
+        </div>
+      </div>
+      <label class="field" id="txSubRow" hidden>Welche Fixkosten?
         <select name="sub" id="txSub"></select>
       </label>
-      <p class="hint" id="txSubHint">Z. B. PayPal-Abbuchungen: hier Netflix, Spotify … zuordnen. Künftige gleiche Abbuchungen werden automatisch zugeordnet.</p>
-      <label class="check" id="txHouseholdRow"><input type="checkbox" name="household"> 👫 Gemeinsame Ausgabe (auch in der gemeinsamen Ansicht zeigen)</label>
-      <p class="hint" id="txHouseholdHint">Ohne Haken bleibt die Buchung nur hier in deiner persönlichen Ansicht.</p>
+      <p class="hint" id="txSubHint" hidden>Künftige gleiche Abbuchungen werden automatisch zugeordnet.</p>
       <div class="dialog-actions">
         <span class="spacer"></span>
         <button type="button" class="btn btn-ghost" id="txCancel">Abbrechen</button>
