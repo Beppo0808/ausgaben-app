@@ -224,6 +224,42 @@
       </details>
     </section>
 
+    <!-- Einkauf -->
+    <section id="view-shop" class="view" aria-label="Einkauf">
+      <div class="seg" id="shopTabs">
+        <button type="button" data-v="list" aria-pressed="true">🛒 Einkaufsliste</button>
+        <button type="button" data-v="recipes" aria-pressed="false">📖 Rezepte</button>
+      </div>
+
+      <div id="shopPane">
+        <div class="card">
+          <div class="card-head"><h2>🛒 Einkaufsliste</h2><span class="muted" id="shopCount"></span></div>
+          <form id="shopForm" class="shop-add" autocomplete="off">
+            <input type="text" id="shopInput" list="shopSuggest" placeholder="z. B. Milch, 2 Butter, Eier" aria-label="Artikel hinzufügen" enterkeyhint="done">
+            <button type="submit" class="btn btn-primary" aria-label="Hinzufügen">＋</button>
+          </form>
+          <datalist id="shopSuggest"></datalist>
+          <div class="btn-row shop-tools">
+            <button type="button" class="btn" id="shopVoice">🎤 Sprechen</button>
+            <label class="btn btn-file">📷 Zettel / Foto<input type="file" id="shopPhoto" accept="image/*,application/pdf"></label>
+            <button type="button" class="btn btn-ghost" id="shopCal">📅 Erinnerung</button>
+          </div>
+          <p class="hint">Gemeinsam: Was einer hinzufügt oder abhakt, sieht der andere sofort. 💶 Preise stammen aus euren eigenen Kassenbons.</p>
+        </div>
+        <div id="shopList"></div>
+      </div>
+
+      <div id="recipePane" hidden>
+        <div class="card">
+          <div class="card-head"><h2>📖 Rezepte</h2><button type="button" class="btn btn-sm" id="recipeAdd">＋ Rezept</button></div>
+          <input type="search" id="recipeSearch" placeholder="Suchen: Titel, Zutat, Stichwort" aria-label="Rezepte suchen">
+          <div class="chips recipe-tags" id="recipeTags"></div>
+          <p class="hint">Grundstock: eiweißreich, wenig schnelle Kohlenhydrate. Allgemeine Vorschläge – ersetzen keine Ernährungsberatung. Eigene Rezepte (auch aus Cookidoo oder Oviva) per Text oder Foto hinzufügen.</p>
+        </div>
+        <ul class="recipe-list" id="recipeList"></ul>
+      </div>
+    </section>
+
     <!-- Einstellungen -->
     <section id="view-settings" class="view" aria-label="Einstellungen">
       <div class="card" id="nameCard">
@@ -387,6 +423,7 @@
   <nav class="tabbar" aria-label="Navigation">
     <button data-view="overview" class="active"><span>📊</span>Übersicht</button>
     <button data-view="list"><span>🧾</span>Ausgaben</button>
+    <button data-view="shop"><span>🛒</span>Einkauf</button>
     <button data-view="subs" class="only-shared"><span>🏠</span>Fixkosten</button>
     <button data-view="konto" class="only-personal"><span>🏦</span>Mein Konto</button>
     <button data-view="settings"><span>⚙️</span>Einstellungen</button>
@@ -464,6 +501,77 @@
         <span class="spacer"></span>
         <button type="button" class="btn btn-ghost" id="txCancel">Abbrechen</button>
         <button type="submit" class="btn btn-primary">Speichern</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Dialog: Einkaufszettel aus Foto -->
+  <dialog id="shopImportDialog">
+    <form method="dialog" id="shopImportForm">
+      <h2>📷 Vom Foto übernehmen</h2>
+      <p class="hint" id="ocrStatus" hidden></p>
+      <label class="field">Eine Zeile = ein Eintrag (bitte prüfen)
+        <textarea id="shopImportText" rows="8"></textarea>
+      </label>
+      <div class="dialog-actions"><span class="spacer"></span>
+        <button type="button" class="btn btn-ghost" id="shopImportCancel">Abbrechen</button>
+        <button type="submit" class="btn btn-primary">Auf die Liste</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Dialog: Rezept ansehen -->
+  <dialog id="recipeDialog">
+    <div class="rd">
+      <h2 id="rdTitle"></h2>
+      <p class="muted" id="rdMeta"></p>
+      <h3 class="small-h">Zutaten <span class="muted">(Haken = auf die Liste)</span></h3>
+      <ul class="rd-ingr" id="rdIngr"></ul>
+      <button type="button" class="btn btn-primary" id="rdToList">🛒 Ausgewählte auf die Einkaufsliste</button>
+      <h3 class="small-h">Zubereitung</h3>
+      <ol class="rd-steps" id="rdSteps"></ol>
+      <p class="hint" id="rdNote"></p>
+      <div class="dialog-actions">
+        <button type="button" class="btn btn-danger btn-sm" id="rdDelete" hidden>Löschen</button>
+        <button type="button" class="btn btn-ghost btn-sm" id="rdEdit" hidden>Bearbeiten</button>
+        <span class="spacer"></span>
+        <button type="button" class="btn btn-ghost btn-sm" id="rdCal">📅 Kochen planen</button>
+        <button type="button" class="btn btn-sm" id="rdClose">Schließen</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Dialog: Rezept hinzufügen/bearbeiten -->
+  <dialog id="recipeEditDialog">
+    <form method="dialog" id="recipeForm">
+      <h2>📖 Rezept</h2>
+      <label class="btn btn-file">📷 Aus Foto lesen (Kochbuch, Screenshot aus Cookidoo/Oviva)<input type="file" id="recipePhoto" accept="image/*,application/pdf"></label>
+      <p class="hint" id="ocrStatus2" hidden></p>
+      <label class="field">Titel <input type="text" name="title" autocomplete="off"></label>
+      <label class="field">Stichworte (mit Komma) <input type="text" name="tags" placeholder="eiweißreich, vegan, schnell" autocomplete="off"></label>
+      <label class="field">Zeit (Minuten) <input type="number" name="time" inputmode="numeric" min="0"></label>
+      <label class="field">Zutaten – eine pro Zeile <span class="muted">(oder das ganze Rezept hier einfügen)</span>
+        <textarea name="ingr" rows="7" placeholder="250 g Magerquark&#10;2 Eier&#10;…"></textarea>
+      </label>
+      <label class="field">Zubereitung – ein Schritt pro Zeile <textarea name="steps" rows="6"></textarea></label>
+      <label class="field">Quelle (optional) <input type="text" name="source" placeholder="z. B. Cookidoo, Oviva, Oma" autocomplete="off"></label>
+      <div class="dialog-actions"><span class="spacer"></span>
+        <button type="button" class="btn btn-ghost" id="recipeEditCancel">Abbrechen</button>
+        <button type="submit" class="btn btn-primary">Speichern</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Dialog: In den Kalender -->
+  <dialog id="calDialog">
+    <form method="dialog" id="calForm">
+      <h2>📅 In den Kalender</h2>
+      <label class="field">Titel <input type="text" name="title" autocomplete="off"></label>
+      <label class="field">Wann <input type="datetime-local" name="when" required></label>
+      <p class="hint">Das iPhone zeigt danach den Termin an – dort auf „Hinzufügen“ tippen. Mit Erinnerung 30 Minuten vorher.</p>
+      <div class="dialog-actions"><span class="spacer"></span>
+        <button type="button" class="btn btn-ghost" id="calCancel">Abbrechen</button>
+        <button type="submit" class="btn btn-primary">Übernehmen</button>
       </div>
     </form>
   </dialog>
@@ -643,6 +751,8 @@
   <script src="konto.js"></script>
   <script src="scanner.js"></script>
   <script src="receipt.js"></script>
+  <script src="recipes-data.js"></script>
+  <script src="shop.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

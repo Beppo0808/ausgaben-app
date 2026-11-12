@@ -39,6 +39,8 @@ function defaultState() {
     expenses: [],
     subs: [],
     rules: {}, // händler (klein) → kategorie-id
+    shopping: [], // gemeinsame Einkaufsliste
+    recipes: [], // eigene Rezepte
   };
 }
 
@@ -55,6 +57,8 @@ function load() {
       expenses: Array.isArray(s.expenses) ? s.expenses : [],
       subs: Array.isArray(s.subs) ? s.subs : [],
       rules: s.rules && typeof s.rules === 'object' ? s.rules : {},
+      shopping: Array.isArray(s.shopping) ? s.shopping : [],
+      recipes: Array.isArray(s.recipes) ? s.recipes : [],
     };
   } catch (e) {
     console.warn('Konnte Daten nicht laden', e);
@@ -238,6 +242,7 @@ function render() {
   renderSubs();
   renderSettings();
   if (typeof Konto !== 'undefined') Konto.render();
+  if (typeof Shop !== 'undefined') Shop.render();
 }
 
 // ---------- Namen ----------
@@ -800,7 +805,12 @@ function renderSubs() {
   const upcoming = fixed.filter((s) => (s.interval === 'quarter' || s.interval === 'year') && !ended(s))
     .map((s) => ({ s, due: nextDue(s) })).filter((x) => x.due).sort((a, b) => a.due.localeCompare(b.due)).slice(0, 6);
   $('#dueBox').hidden = !upcoming.length;
-  $('#dueList').innerHTML = upcoming.map(({ s, due }) => `<li><span>${esc(fmtYM(due))}</span><span>${esc(s.name)}</span><b>${fmt(s.amount)}</b></li>`).join('');
+  $('#dueList').innerHTML = upcoming.map(({ s, due }) => `<li><span>${esc(fmtYM(due))}</span><span>${esc(s.name)}</span><b>${fmt(s.amount)}</b>
+    <button class="tx-mini due-cal" data-sub="${esc(s.id)}" data-due="${esc(due)}" aria-label="In den Kalender">📅</button></li>`).join('');
+  $$('#dueList .due-cal').forEach((b) => b.addEventListener('click', () => {
+    const s = state.subs.find((x) => x.id === b.dataset.sub); if (!s || typeof Shop === 'undefined') return;
+    Shop.askCalendar({ title: `💶 ${s.name} fällig (${fmt(s.amount)})`, start: new Date(`${b.dataset.due}-01T09:00`), description: `${s.name}: ${fmt(s.amount)} ${INTERVALS[s.interval] || ''}` });
+  }));
 
   const tr = state.subs.filter(isTransfer);
   const tl = $('#transferList');
@@ -933,7 +943,8 @@ function showView(name) {
   storeFilter = '';
   $$('.view').forEach((v) => v.classList.toggle('active', v.id === 'view-' + name));
   $$('.tabbar button').forEach((b) => b.classList.toggle('active', b.dataset.view === name));
-  $('#fab').hidden = name === 'settings' || name === 'konto';
+  $('#fab').hidden = name === 'settings' || name === 'konto' || name === 'shop';
+  if (name === 'shop' && typeof Shop !== 'undefined') Shop.render();
   if (name === 'overview') renderOverview(); // Diagramm an sichtbare Breite anpassen
   if (name === 'konto' && typeof Konto !== 'undefined') { Konto.render(); Konto.autoRefresh(); }
   window.scrollTo({ top: 0 });

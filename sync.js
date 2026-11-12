@@ -56,6 +56,8 @@ const Sync = (() => {
     state.expenses.forEach((e) => { if (!e.private) m['expense:' + e.id] = e; }); // private Ausgaben bleiben auf dem Gerät
     state.subs.forEach((s) => { if (!s.private) m['sub:' + s.id] = s; }); // private Abos bleiben auf dem Gerät
     state.categories.forEach((c) => { m['category:' + c.id] = c; });
+    (state.shopping || []).forEach((x) => { m['shop:' + x.id] = x; });
+    (state.recipes || []).forEach((x) => { m['recipe:' + x.id] = x; });
     const { me, income, ...shared } = state.settings; // Gerät-Besitzer und eigenes Einkommen bleiben lokal
     m['settings:main'] = shared;
     Object.entries(state.rules).forEach(([k, v]) => { m['rule:' + k] = { cat: v }; });
@@ -164,7 +166,7 @@ const Sync = (() => {
     if (local !== undefined && Number(r.mtime) <= local) return false; // lokal ist gleich/neuer
     cfg.mtimes[k] = Number(r.mtime);
     delete cfg.dirty[k];
-    const listFor = { expense: 'expenses', sub: 'subs', category: 'categories' }[r.kind];
+    const listFor = { expense: 'expenses', sub: 'subs', category: 'categories', shop: 'shopping', recipe: 'recipes' }[r.kind];
     if (listFor) {
       const arr = state[listFor];
       const idx = arr.findIndex((x) => x.id === r.id);
@@ -325,6 +327,11 @@ const Sync = (() => {
       if (cfg && cfg.e2e !== 2) cfg = null;
       if (!cfg) setStatus('off', 'Nicht verbunden');
     });
+    if (enabled() && !cfg.v3) {
+      // Einkaufsliste/Rezepte neu: ältere App-Versionen haben solche Einträge evtl. schon „gesehen“, aber nicht gespeichert → einmal neu holen
+      Object.keys(cfg.mtimes).forEach((k) => { if (/^(shop|recipe):/.test(k) && !(k in (cfg.hashes || {}))) delete cfg.mtimes[k]; });
+      cfg.lastPull = null; cfg.v3 = 1; writeCfg();
+    }
     if (enabled()) {
       setStatus('idle', 'Verbunden');
       syncNow();

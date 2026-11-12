@@ -35,11 +35,13 @@ const Receipt = (() => {
     return loaded[url];
   }
 
+  let progressCb = () => {};
   async function getWorker(onProgress) {
+    progressCb = onProgress;
     await loadScript(TESSERACT_URL);
     if (!worker) {
       worker = await Tesseract.createWorker('deu', 1, {
-        logger: (m) => { if (m.status === 'recognizing text') onProgress(0.35 + m.progress * 0.65, 'Lese Bon …'); else onProgress(0.2, 'Lade Texterkennung (einmalig ca. 5 MB) …'); },
+        logger: (m) => { if (m.status === 'recognizing text') progressCb(0.35 + m.progress * 0.65, 'Lese Text …'); else progressCb(0.2, 'Lade Texterkennung (einmalig ca. 5 MB) …'); },
       });
       await worker.setParameters({ preserve_interword_spaces: '1' });
     }
@@ -591,5 +593,15 @@ const Receipt = (() => {
     window.addEventListener('online', uploadPending);
   }
 
-  return { open, startScan, editExpense, parse, view, init, itemCategory, uploadPending, bonList, prefetch, _scanCanvas: (c) => scanCanvas(c) };
+  /** Nur Text aus einem Bild lesen (Einkaufszettel, Rezept, Verpackung) – alles auf dem Gerät */
+  async function ocrFile(file, onProgress = () => {}) {
+    const canvas = await toCanvas(file);
+    const w = await getWorker(onProgress);
+    onProgress(0.35, 'Lese Text …');
+    const { data } = await w.recognize(forOcr(canvas));
+    onProgress(1, '');
+    return data.text || '';
+  }
+
+  return { ocrFile, open, startScan, editExpense, parse, view, init, itemCategory, uploadPending, bonList, prefetch, _scanCanvas: (c) => scanCanvas(c) };
 })();
