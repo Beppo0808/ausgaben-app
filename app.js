@@ -289,6 +289,9 @@ function renderOverview() {
   const meName = state.settings.me || '';
   $('#meChip').textContent = needsName() ? '👤 Name eintragen' : `👤 ${meName}`;
   $('#namePrompt').hidden = !needsName();
+  const rem = typeof Konto !== 'undefined' ? Konto.reminder() : null; // nur dieses Gerät, nie geteilt
+  $('#bankReminder').hidden = !rem;
+  if (rem) { $('#bankReminderText').textContent = rem.text; $('#bankReminder').classList.toggle('warn', rem.level === 'warn'); }
   const all = expensesForMonth(viewY, viewM);
   const isCurrent = viewY === now.getFullYear() && viewM === now.getMonth();
   const dim = daysInMonth(viewY, viewM);
@@ -1319,6 +1322,10 @@ render();
 Sync.init();
 loadGate();
 Konto.handleCallback();
+$('#bankReminderBtn').onclick = () => { setMode('personal'); showView('konto'); };
+// Konto beim Öffnen der App im Hintergrund abrufen (höchstens alle 4 Stunden) – so entsteht keine Lücke
+setTimeout(() => { try { Konto.autoRefresh(); } catch (e) { /* egal */ } }, 1500);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { try { Konto.autoRefresh(); } catch (e) { /* egal */ } } });
 
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   const hadController = !!navigator.serviceWorker.controller;

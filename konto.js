@@ -568,7 +568,7 @@ const Konto = (() => {
   }
 
   const BAL_ORDER = ['CLBD', 'ITBD', 'CLAV', 'ITAV', 'XPCD', 'OTHR'];
-  async function refresh(force) {
+  async function refresh(force, quiet) {
     if (bankBusy || !connections().length) return;
     bankBusy = true;
     $('#bankStatus').textContent = 'Aktualisiere …';
@@ -636,21 +636,39 @@ const Konto = (() => {
           } catch (e) {
             problems++;
             if (/expired|abgelaufen|consent|revoked|EXPIRED|SESSION/i.test(e.message)) conn.expired = true;
-            else toast('⚠️ ' + e.message);
+            else if (!quiet) toast('⚠️ ' + e.message);
           }
         }
       }
       write();
       window.render();
-      if (!problems || added) toast(added ? `🏦 ${added} neue Umsätze abgerufen ✓` : '🏦 Kontostand aktuell ✓');
+      if (added || (!quiet && !problems)) toast(added ? `🏦 ${added} neue Umsätze abgerufen ✓` : '🏦 Kontostand aktuell ✓');
     } finally { bankBusy = false; render(); }
   }
 
   /** Beim Öffnen von „Mein Konto“: automatisch aktualisieren, wenn länger als 4 Stunden her */
+  /** Erinnerung, damit keine Lücke entsteht: die Bank gibt ohne neue TAN nur die letzten 90 Tage heraus */
+  function reminder() {
+    const conns = connections();
+    if (!conns.length) return null;
+    const now = Date.now();
+    for (const c of conns) {
+      const until = c.valid_until ? new Date(c.valid_until).getTime() : 0;
+      if (c.expired || (until && until < now)) return { level: 'warn', text: `Der Zugriff auf ${c.bank} ist abgelaufen. Bitte unter „Mein Konto“ neu verbinden (pushTAN) – sonst fehlen Buchungen.` };
+      if (until && until - now < 14 * 864e5) return { level: 'info', text: `Der Zugriff auf ${c.bank} endet am ${new Date(until).toLocaleDateString('de-DE')}. Bitte vorher unter „Mein Konto“ neu verbinden (pushTAN).` };
+      for (const a of c.accounts) {
+        const days = a.fetched ? Math.floor((now - new Date(a.fetched).getTime()) / 864e5) : 999;
+        if (days >= 75) return { level: 'warn', text: `Dein Konto wurde seit ${days} Tagen nicht abgerufen. Bitte jetzt „Mein Konto“ öffnen – ab 90 Tagen gehen Buchungen verloren.` };
+        if (days >= 45) return { level: 'info', text: `Dein Konto wurde seit ${days} Tagen nicht abgerufen. Bitte bald „Mein Konto“ öffnen, damit keine Buchung fehlt.` };
+      }
+    }
+    return null;
+  }
+
   function autoRefresh() {
     if (!bankReady()) return;
     const last = Math.max(0, ...connections().flatMap((c) => c.accounts.map((a) => (a.fetched ? new Date(a.fetched).getTime() : 0))));
-    if (connections().length && Date.now() - last > 4 * 3600e3) refresh();
+    if (connections().length && Date.now() - last > 4 * 3600e3) refresh(false, true);
   }
 
   async function disconnect(i) {
@@ -835,5 +853,5 @@ const Konto = (() => {
     };
   }
 
-  return { render, parseStatement, detect, monthSummary, handleCallback, autoRefresh, refresh, setBankToken, bankToken: () => bankCfg().token || '', _data: () => data };
+  return { reminder, render, parseStatement, detect, monthSummary, handleCallback, autoRefresh, refresh, setBankToken, bankToken: () => bankCfg().token || '', _data: () => data };
 })();

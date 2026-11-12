@@ -749,3 +749,9 @@ ul.month-sum-split { list-style: none; margin: 10px 0 0; padding: 8px 0 0; borde
 ul.month-sum-split li { display: flex; justify-content: space-between; padding: 3px 0; font-size: 1.05rem; }
 .month-sum-plus { margin-top: 8px; font-weight: 600; }
 .month-sum-plus b { font-size: 1.1rem !important; }
+
+/* Erinnerung Kontoabruf (nur auf diesem Gerät) */
+.bank-reminder { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 0 14px; padding: 12px 14px; border-radius: 14px;
+  background: #f3e6c9; border: 1px solid #d9b980; color: var(--text); font-weight: 600; }
+.bank-reminder.warn { background: #f4d9cc; border-color: #c98a6e; }
+.bank-reminder span { flex: 1 1 200px; }
