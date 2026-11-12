@@ -467,7 +467,10 @@
         <label class="field">Person <select name="person"></select></label>
       </div>
       <label class="field">Notiz <input type="text" name="note" autocomplete="off"></label>
-      <label class="check"><input type="checkbox" name="cash"> 💵 Bar bezahlt (z. B. von abgehobenem Bargeld)</label>
+      <div class="field">Bezahlt mit
+        <div class="seg pay-seg" id="expPay"><button type="button" data-v="card" aria-pressed="true">💳 Karte / Handy</button><button type="button" data-v="cash" aria-pressed="false">💵 Bar</button></div>
+      </div>
+      <input type="checkbox" name="cash" hidden>
       <label class="check"><input type="checkbox" name="private"> 🔒 Privat – nur auf meinem Gerät, wird nicht geteilt</label>
       <div id="expItems" hidden>
         <div class="card-head"><h2 class="small-h">🧾 Artikel</h2><button type="button" class="btn btn-ghost btn-sm" id="expItemsEdit">Bearbeiten</button></div>
@@ -698,7 +701,11 @@
           <label class="field">Bezahlt von <select id="rcPerson"></select></label>
         </div>
         <label class="check"><input type="checkbox" id="rcPrivate"> 🔒 Privat – nur auf meinem Gerät</label>
-        <p class="hint">💳 Mit Karte bezahlt, aber noch nicht abgebucht? Einfach speichern – sobald die Abbuchung im Konto erscheint, ordnet die App sie automatisch diesem Bon zu (keine Doppelung). Bar bezahlt? Nach dem Speichern „💵 Bar bezahlt“ ankreuzen.</p>
+        <div class="field">Bezahlt mit
+        <div class="seg pay-seg" id="rcPay"><button type="button" data-v="card" aria-pressed="true">💳 Karte / Handy</button><button type="button" data-v="cash" aria-pressed="false">💵 Bar</button></div>
+      </div>
+        <input type="checkbox" id="rcCash" hidden>
+        <p class="hint">💳 Karte, aber noch nicht abgebucht? Einfach speichern – sobald die Abbuchung im Konto erscheint, ordnet die App sie automatisch diesem Bon zu (keine Doppelung).</p>
         <div class="field">Artikel <span class="muted">– Kategorie je Artikel änderbar, wird gemerkt</span></div>
         <ul class="items-edit" id="rcItems"></ul>
         <button type="button" class="btn btn-ghost btn-sm" id="rcAddItem">+ Artikel</button>

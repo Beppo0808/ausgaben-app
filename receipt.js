@@ -370,6 +370,7 @@ const Receipt = (() => {
     $('#rcPerson').innerHTML = state.settings.persons.map((p) => `<option>${esc(p)}</option>`).join('');
     $('#rcPerson').value = r.person || state.settings.me;
     $('#rcPrivate').checked = !!r.private;
+    $('#rcCash').checked = !!r.cash; if (typeof setPaySeg === 'function') setPaySeg('#rcPay', r.cash);
     updateSum();
   }
 
@@ -385,7 +386,7 @@ const Receipt = (() => {
     editing = { expenseId: exp.id }; current = null; bind();
     $('#rcTitle').textContent = '🧾 Bon / Artikel bearbeiten';
     $('#rcPick').hidden = false; $('#rcForm').hidden = false; resetPreview(); setProgress(1, '');
-    fillForm({ store: exp.merchant, branch: exp.branch, date: exp.date, time: exp.time, total: exp.amount, items: exp.items || [], person: exp.person, private: exp.private });
+    fillForm({ store: exp.merchant, branch: exp.branch, date: exp.date, time: exp.time, total: exp.amount, items: exp.items || [], person: exp.person, private: exp.private, cash: exp.cash });
     $('#receiptDialog').showModal();
   }
 
@@ -475,6 +476,7 @@ const Receipt = (() => {
     const items = readItems();
     const person = $('#rcPerson').value;
     const priv = $('#rcPrivate').checked;
+    const cash = $('#rcCash').checked || undefined;
     // Gelernt: Artikel-Kategorie merken (wird wie Händler-Regeln geteilt)
     items.forEach((it) => { if (it.cat) state.rules[itemKey(it.name)] = it.cat; });
 
@@ -490,10 +492,10 @@ const Receipt = (() => {
       await idbPut(receipt.id, current.blob);
     }
     const fields = { branch, time, items, ...(receipt ? { receipt } : {}) };
-    if (exp && editing) Object.assign(exp, { amount: total, merchant: store || exp.merchant, date, person, private: priv, ...fields });
+    if (exp && editing) Object.assign(exp, { amount: total, merchant: store || exp.merchant, date, person, private: priv, cash, ...fields });
     else if (exp) Object.assign(exp, { merchant: store || exp.merchant, ...fields, time: time || exp.time || timeFromCreated(exp) }); // per Handy erfasst: Person/Betrag bleiben, Laden/Uhrzeit vom Bon sind genauer
     else {
-      exp = { id: uid(), created: new Date().toISOString(), source: 'receipt', amount: total, merchant: store, category: guessCategory(store), date, person, note: '', private: priv, ...fields };
+      exp = { id: uid(), created: new Date().toISOString(), source: 'receipt', amount: total, merchant: store, category: guessCategory(store), date, person, note: '', private: priv, cash, ...fields };
       state.expenses.push(exp);
     }
     save();

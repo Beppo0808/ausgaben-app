@@ -1054,6 +1054,11 @@ function renderChips(container, selected, onPick) {
   }));
 }
 
+/** „Bezahlt mit: Karte | Bar“ – große Umschalter statt kleinem Kästchen (jederzeit umstellbar) */
+function setPaySeg(sel, cash) { $$(sel + ' button').forEach((b) => b.setAttribute('aria-pressed', String((b.dataset.v === 'cash') === !!cash))); }
+function bindPaySeg(sel, box) {
+  $(sel).addEventListener('click', (e) => { const b = e.target.closest('button[data-v]'); if (!b) return; box().checked = b.dataset.v === 'cash'; setPaySeg(sel, box().checked); });
+}
 function openExpenseDialog(exp) {
   const dlg = $('#expenseDialog'), f = $('#expenseForm');
   editingId = exp ? exp.id : null;
@@ -1065,6 +1070,7 @@ function openExpenseDialog(exp) {
   f.note.value = exp ? exp.note || '' : '';
   f.private.checked = exp ? !!exp.private : isPersonal();
   f.cash.checked = !!(exp && exp.cash);
+  setPaySeg('#expPay', f.cash.checked);
   f.person.innerHTML = state.settings.persons.map((p) => `<option>${esc(p)}</option>`).join('');
   f.person.value = exp ? exp.person : state.settings.me;
   chosenCat = exp ? exp.category : null;
@@ -1374,6 +1380,8 @@ function bind() {
   };
   $('#expItemsEdit').onclick = editItems;
   $('#expSplitBtn').onclick = () => { const tx = Konto.txForExpense(editingId); if (!tx) return; $('#expenseDialog').close(); Konto.openTx(tx.id, false, true); };
+  bindPaySeg('#expPay', () => $('#expenseForm').cash);
+  bindPaySeg('#rcPay', () => $('#rcCash'));
   $('#expBonBtn').onclick = () => { const e = state.expenses.find((x) => x.id === editingId); if (e) { $('#expenseDialog').close(); Receipt.view(e); } };
   // Ausgaben: Einkäufe | Artikel & Preise
   $$('#listMode button').forEach((b) => b.addEventListener('click', () => { listMode = b.dataset.v; renderList(); }));
