@@ -1079,6 +1079,13 @@ function openExpenseDialog(exp) {
   }).join('');
   $('#expBonInfo').textContent = exp ? [exp.branch ? '📍 ' + exp.branch : '', exp.time ? '🕑 ' + exp.time + ' Uhr' : ''].filter(Boolean).join(' · ') : '';
   $('#expBonBtn').hidden = !(exp && exp.receipt);
+  { // Aufteilen geht über die zugehörige Kontobuchung – die liegt nur auf dem Handy der Person, von deren Konto bezahlt wurde
+    const tx = exp && typeof Konto !== 'undefined' ? Konto.txForExpense(exp.id) : null;
+    $('#expSplitBtn').hidden = !tx;
+    const other = exp && !tx && exp.source === 'bank' && exp.person && exp.person !== state.settings.me;
+    $('#expSplitHint').hidden = !other;
+    if (other) $('#expSplitHint').textContent = `✂️ Aufteilen (z. B. Bargeld) geht auf dem Handy von ${exp.person} unter 🔒 Persönlich → 🏦 Mein Konto bei dieser Buchung.`;
+  }
   const merchants = [...new Set(state.expenses.map((e) => e.merchant).filter(Boolean))].slice(-200);
   $('#merchantList').innerHTML = merchants.map((m) => `<option value="${esc(m)}">`).join('');
   dlg.showModal();
@@ -1364,6 +1371,7 @@ function bind() {
     $('#expenseDialog').close(); Receipt.editExpense(e);
   };
   $('#expItemsEdit').onclick = editItems;
+  $('#expSplitBtn').onclick = () => { const tx = Konto.txForExpense(editingId); if (!tx) return; $('#expenseDialog').close(); Konto.openTx(tx.id, false, true); };
   $('#expBonBtn').onclick = () => { const e = state.expenses.find((x) => x.id === editingId); if (e) { $('#expenseDialog').close(); Receipt.view(e); } };
   // Ausgaben: Einkäufe | Artikel & Preise
   $$('#listMode button').forEach((b) => b.addEventListener('click', () => { listMode = b.dataset.v; renderList(); }));

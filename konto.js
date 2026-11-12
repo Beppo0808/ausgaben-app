@@ -185,7 +185,7 @@ const Konto = (() => {
 
   /** Fenster für eine Kontobuchung: eigene Kategorie (abwählbar) und ob sie im Haushalt erscheint */
   let txEditing = null, txCat = '';
-  function openTx(txId, household) {
+  function openTx(txId, household, split) {
     const t = data.tx.find((x) => x.id === txId);
     if (!t) return;
     txEditing = t;
@@ -226,6 +226,7 @@ const Konto = (() => {
     $('#txSplitHint').textContent = txCashHint ? `💵 Erkannt: ${fmt(txCashHint)} Bargeld abgehoben – tippe auf „Betrag aufteilen“.` : '';
     drawSplits();
     $('#txDialog').showModal();
+    if (split && !txSplits.length) startSplit();
   }
   /**
    * Gescannte Bons / per Handy erfasste Einkäufe der passenden Kartenzahlung zuordnen:
@@ -1208,5 +1209,8 @@ const Konto = (() => {
     };
   }
 
-  return { cashForMonth, matchReceipts, reminder, render, parseStatement, detect, monthSummary, handleCallback, autoRefresh, refresh, setBankToken, bankToken: () => bankCfg().token || '', _data: () => data };
+  /** Kontobuchung zu einer Haushaltsausgabe (falls auf diesem Gerät vorhanden) */
+  function txForExpense(expId) { return data.tx.find((t) => t.linked === expId || (t.splitExp || []).includes(expId)) || null; }
+
+  return { txForExpense, openTx, cashForMonth, matchReceipts, reminder, render, parseStatement, detect, monthSummary, handleCallback, autoRefresh, refresh, setBankToken, bankToken: () => bankCfg().token || '', _data: () => data };
 })();
