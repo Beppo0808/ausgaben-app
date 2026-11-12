@@ -975,6 +975,14 @@ function renderSync() {
   const pending = on ? Sync.pending() : 0;
   $('#syncStatusText').textContent = st.text + (pending && st.state !== 'busy' ? ` · ${pending} Änderung(en) ausstehend` : '');
   $('#syncDot').className = 'sync-dot ' + st.state;
+  if (on && !renderSync.busy && Date.now() - (renderSync.at || 0) > 15000) { // Überblick: hier / ausstehend / auf dem Server
+    renderSync.busy = true; renderSync.at = Date.now();
+    Sync.stats().then((x) => {
+      if (!x) return;
+      const srv = x.server ? Object.entries(x.server).filter(([k]) => ['expense', 'sub', 'shop', 'recipe'].includes(k)).reduce((s2, [, v]) => s2 + v, 0) : null;
+      $('#syncStats').textContent = `Auf diesem Gerät: ${x.local} Einträge${x.pending ? ` · ${x.pending} warten aufs Hochladen` : ''}${srv !== null ? ` · gemeinsam gespeichert: ${srv} Ausgaben/Fixkosten/Einkauf/Rezepte` : ''}`;
+    }).finally(() => { renderSync.busy = false; });
+  }
   $('#footerNote').textContent = on ? (Sync.usesSelf() ? 'Ausgaben-App · verschlüsselt synchronisiert über euer Netlify-Konto' : 'Ausgaben-App · verschlüsselt synchronisiert über eure Supabase-Datenbank') : 'Ausgaben-App · Daten nur auf diesem Gerät';
 }
 
@@ -1485,11 +1493,12 @@ function bind() {
     catch (e) { prompt('Einladungslink kopieren:', link); }
   };
   $('#syncNowBtn').onclick = () => Sync.syncNow();
+  $('#syncRepairBtn').onclick = async () => { toast('🔧 Gleiche alles vollständig ab …'); await Sync.repair(); renderSync.at = 0; renderSync(); toast('✓ Abgleich vollständig nachgeholt'); };
   $('#syncDisconnectBtn').onclick = () => {
     if (!confirm('Dieses Gerät vom gemeinsamen Haushalt trennen? Die Daten bleiben auf diesem Gerät und in der Cloud erhalten.')) return;
     Sync.disconnect(); render(); toast('Getrennt');
   };
-  Sync.onStatus(() => { renderSync(); renderSyncBanner(); });
+  Sync.onStatus((st) => { if (st && st.state === 'ok') renderSync.at = 0; renderSync(); renderSyncBanner(); });
   setInterval(renderSyncBanner, 60000);
 
   $('#exportJsonBtn').onclick = () => download(`ausgaben-backup-${todayISO()}.json`, JSON.stringify(state, null, 2), 'application/json');

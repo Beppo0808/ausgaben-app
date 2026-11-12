@@ -75,9 +75,17 @@ const Sync = (() => {
       const h = hash(JSON.stringify(v));
       if (cfg.hashes[k] !== h) { cfg.hashes[k] = h; cfg.mtimes[k] = now; cfg.dirty[k] = 1; changed = true; }
     }
-    for (const k of Object.keys(cfg.hashes)) {
-      if (!(k in m)) { delete cfg.hashes[k]; cfg.mtimes[k] = now; cfg.dirty[k] = 1; changed = true; }
+    // Sicherung: Verschwindet auf einmal ein großer Teil der Einträge (z. B. weil iOS den Speicher geleert hat),
+    // wird das NICHT als „gelöscht“ verschickt – sonst wären die Daten auch auf dem anderen Gerät weg. Stattdessen neu abholen.
+    const gone = Object.keys(cfg.hashes).filter((k) => !(k in m) && !k.startsWith('settings:'));
+    const known = Object.keys(cfg.hashes).length;
+    if (gone.length >= 5 && gone.length > known * 0.3) {
+      gone.forEach((k) => { delete cfg.hashes[k]; delete cfg.mtimes[k]; delete cfg.dirty[k]; });
+      cfg.lastPull = null; writeCfg();
+      console.warn('Viele Einträge fehlen lokal – hole sie neu, statt Löschungen zu senden', gone.length);
+      return changed;
     }
+    for (const k of gone) { delete cfg.hashes[k]; cfg.mtimes[k] = now; cfg.dirty[k] = 1; changed = true; }
     writeCfg();
     return changed;
   }
@@ -221,6 +229,31 @@ const Sync = (() => {
     return applied.size;
   }
 
+  /**
+   * Reparatur: alles Lokale erneut hochladen und alles vom Server erneut abholen.
+   * Holt Einträge nach, die ein Gerät fälschlich für „schon abgeglichen“ hielt (z. B. nach einem Abbruch beim Verbinden).
+   * Nichts wird gelöscht; bei Konflikten gewinnt wie immer die neuere Änderung.
+   */
+  async function repair() {
+    if (!enabled()) return;
+    const m = items();
+    for (const k of Object.keys(cfg.mtimes)) if (!(k in m) && !cfg.dirty[k]) delete cfg.mtimes[k]; // fehlt hier → vom Server neu übernehmen
+    const now = Date.now();
+    for (const k of Object.keys(m)) { cfg.dirty[k] = 1; if (!cfg.mtimes[k]) cfg.mtimes[k] = now; cfg.hashes[k] = hash(JSON.stringify(m[k])); }
+    cfg.lastPull = null; cfg.repairedAt = new Date().toISOString(); writeCfg();
+    return syncNow();
+  }
+
+  /** Kurzer Überblick für die Einstellungen: was liegt hier, was wartet noch, was hat der Server */
+  async function stats() {
+    if (!enabled()) return null;
+    const local = Object.keys(items()).length;
+    const pending = Object.keys(cfg.dirty || {}).length;
+    let server = null;
+    if (cfg.url === SELF) { try { const { hid } = await getKeys(); server = await rpc('sync_stats', { p_household: hid }); } catch (e) { server = null; } }
+    return { local, pending, server, lastOk: cfg.lastOk || '' };
+  }
+
   /** Hochladen + Abholen. Läuft nie doppelt gleichzeitig. */
   async function syncNow() {
     if (!enabled()) return;
@@ -334,6 +367,7 @@ const Sync = (() => {
       if (cfg && cfg.e2e !== 2) cfg = null;
       if (!cfg) setStatus('off', 'Nicht verbunden');
     });
+    if (enabled() && !cfg.v5) { cfg.v4 = 1; cfg.v5 = 1; writeCfg(); setTimeout(() => repair().catch(() => {}), 1500); } // einmalige Reparatur auf jedem Gerät
     if (enabled() && !cfg.v4) {
       // Einkaufsliste/Rezepte neu: ältere App-Versionen haben solche Einträge evtl. schon „gesehen“, aber nicht gespeichert → einmal neu holen
       Object.keys(cfg.mtimes).forEach((k) => { if (/^(shop|recipe|avatar):/.test(k) && !(k in (cfg.hashes || {}))) delete cfg.mtimes[k]; });
@@ -392,6 +426,7 @@ const Sync = (() => {
     usesSelf: () => !!(cfg && cfg.url === SELF),
     household: () => (cfg ? cfg.household : ''),
     status: () => status,
+    repair, stats,
     lastOk: () => (cfg && cfg.lastOk) || '',
     pending: () => (cfg ? Object.keys(cfg.dirty).length : 0),
     onStatus: (fn) => listeners.push(fn),

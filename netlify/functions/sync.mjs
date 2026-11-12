@@ -80,6 +80,19 @@ async function pull(hid, since) {
   return json(rows);
 }
 
+/** Nur Zählung (keine Inhalte): wie viele Einträge je Art liegen für diesen Haushalt vor */
+async function stats(hid) {
+  const s = store();
+  const { blobs } = await s.list({ prefix: `${hid}/log/` });
+  const latest = new Map();
+  for (const b of blobs.map((x) => x.key).sort()) {
+    for (const r of ((await s.get(b, { type: 'json' })) || [])) latest.set(`${r.kind}:${r.id}`, r);
+  }
+  const out = {};
+  for (const r of latest.values()) if (!r.deleted) out[r.kind] = (out[r.kind] || 0) + 1;
+  return json(out);
+}
+
 export default async (req) => {
   if (req.method !== 'POST') return json({ error: 'Nur POST erlaubt' }, 405);
   const deny = await denyIfNoAccess(req); if (deny) return deny;
@@ -92,6 +105,7 @@ export default async (req) => {
   try {
     if (body.fn === 'sync_push') return await push(hid, body.p_items);
     if (body.fn === 'sync_pull') return await pull(hid, body.p_since);
+    if (body.fn === 'sync_stats') return await stats(hid);
     return json({ error: 'Unbekannte Aktion' }, 400);
   } catch {
     return json({ error: 'Speicher vorübergehend nicht erreichbar' }, 503);
