@@ -299,7 +299,7 @@ const Konto = (() => {
   const STOP = /\b(gmbh|ag|se|kg|ohg|co|eg|ev|e\.v|mbh|und|sagt|danke|ihr|einkauf|filiale|lastschrift|sepa|dauerauftrag|gutschrift|ueberweisung|überweisung|kartenzahlung|online|de|www|com)\b/g;
 
   function baseName(s) {
-    return String(s || '').toLowerCase().replace(/[0-9]/g, ' ').replace(/[^a-zäöüß&+ ]/g, ' ')
+    return String(s || '').toLowerCase().replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss').replace(/[0-9]/g, ' ').replace(/[^a-zäöüß&+ ]/g, ' ')
       .replace(STOP, ' ').replace(/\s+/g, ' ').trim().split(' ').slice(0, 3).join(' ');
   }
   // Zahlungsdienste, die viele verschiedene Abos bündeln
@@ -322,7 +322,18 @@ const Konto = (() => {
     return a ? a[0] : '';
   }
   /** Gruppiert gleiche Abbuchungen. Bei PayPal/Apple & Co. nach Händler bzw. Betrag getrennt */
+  const escRe = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  /** Überweisung an den Partner (z. B. Haushaltsgeld an Ute)? → Name des Partners */
+  function partnerOf(t) {
+    if (!(t.amount < 0)) return '';
+    const text = `${t.name} ${t.purpose}`;
+    return state.settings.persons.filter((x) => x && x !== state.settings.me)
+      .find((x) => x.split(/\s+/)[0].length >= 3 && new RegExp('\\b' + escRe(x.split(/\s+/)[0]) + '\\b', 'i').test(text)) || '';
+  }
+  function legacyKey(t) { const b = baseName(t.name) || baseName(t.purpose); return b ? `${t.account}|${b}` : null; }
   function groupInfo(t) {
+    const partner = partnerOf(t);
+    if (partner) return { key: `${t.account}|partner|${partner.toLowerCase()}`, agg: '', inner: '', partner };
     const agg = aggregatorOf(t);
     if (agg) {
       const inner = innerMerchant(t);
@@ -361,17 +372,24 @@ const Konto = (() => {
     }
     const out = [];
     for (const [key, list] of groups) {
+      if (key.includes('|partner|') && !data.links[key]) { // frühere Zuordnung (vor dem Zusammenfassen) weiterverwenden
+        for (const t of list) { const lk = legacyKey(t); if (lk && data.links[lk]) { data.links[key] = data.links[lk]; if (data.dismissed[lk]) data.dismissed[key] = true; break; } }
+      }
       list.sort((a, b) => a.date.localeCompare(b.date));
       const latest = list[list.length - 1];
       const months = [...new Set(list.map((t) => t.date.slice(0, 7)))];
       const amts = list.map((t) => Math.abs(t.amount));
       const max = Math.max(...amts), min = Math.min(...amts);
       const stable = (max - min) / max <= 0.15;
+      // üblicher Betrag = häufigster der letzten 6 Buchungen (einzelne Abweichungen, z. B. Verrechnung, zählen nicht)
+      const recent = amts.slice(-6), freq = {};
+      recent.forEach((a) => { const k = a.toFixed(2); freq[k] = (freq[k] || 0) + 1; });
+      const usual = +Object.entries(freq).sort((a, b) => b[1] - a[1] || +b[0] - +a[0])[0][0];
       const text = `${latest.name} ${latest.purpose}`;
       const gi = groupInfo(latest);
       const hint = HINTS.find(([re]) => re.test(gi.agg ? gi.inner : text));
       const others = state.settings.persons.filter((p) => p !== state.settings.me);
-      const toPartner = others.find((p) => p.length >= 3 && new RegExp('\\b' + p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i').test(text));
+      const toPartner = gi.partner || others.find((p) => p.length >= 3 && new RegExp('\\b' + p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i').test(text));
       const linked = !!data.links[key];
       const recurring = (months.length >= 2 && stable) || (hint && Math.abs(latest.amount) >= 2) || toPartner;
       if (!recurring && !linked && !includeAll) continue;
@@ -383,10 +401,11 @@ const Konto = (() => {
         const g = gaps[Math.floor(gaps.length / 2)];
         interval = g <= 1.5 ? 'month' : g <= 4.5 ? 'quarter' : 'year';
       }
+      if (gi.partner) interval = 'month'; // Haushaltsgeld kommt monatlich, auch wenn mal ein Monat fehlt
       out.push({
         key, list, latest, months, interval, toPartner,
-        amount: Math.abs(latest.amount),
-        name: gi.agg ? (gi.inner || `${gi.agg}-Abo ${fmt(Math.abs(latest.amount))}`) : hint ? hint[1] : (latest.name || latest.purpose || '').slice(0, 40),
+        amount: gi.partner || !stable ? usual : Math.abs(latest.amount),
+        name: gi.partner ? `Überweisung an ${gi.partner}` : gi.agg ? (gi.inner || `${gi.agg}-Abo ${fmt(Math.abs(latest.amount))}`) : hint ? hint[1] : (latest.name || latest.purpose || '').slice(0, 40),
         category: hint ? hint[2] : gi.agg ? 'abos' : guessCategory(text),
         counterparty: gi.agg ? `über ${gi.agg}${gi.inner ? ' → ' + gi.inner : ' (Händler steht nicht in der Buchung – bitte benennen)'}` : (latest.name || latest.purpose.slice(0, 40)),
         via: gi.agg || 'Girokonto',
