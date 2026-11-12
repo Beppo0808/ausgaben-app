@@ -112,6 +112,7 @@ const Lock = (() => {
   }
   function hide() {
     unlocked = true;
+    try { sessionStorage.setItem('hb-unlocked', String(Date.now())); } catch (e) { /* egal */ }
     document.body.classList.remove('locked');
     $l('#lockScreen').hidden = true;
     entry = '';
@@ -221,7 +222,10 @@ const Lock = (() => {
 
   function init() {
     bind();
-    if (enabled()) show(); else unlocked = true;
+    // Neustart wegen neuer App-Version direkt nach dem Entsperren: nicht noch einmal fragen (gleicher Tab, max. 2 Minuten)
+    let recent = 0;
+    try { recent = Number(sessionStorage.getItem('hb-unlocked')) || 0; } catch (e) { /* egal */ }
+    if (enabled() && !(recent && Date.now() - recent < 120000)) show(); else unlocked = true;
   }
 
   return {
