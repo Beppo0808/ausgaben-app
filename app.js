@@ -851,7 +851,7 @@ function renderSyncBanner() {
   let text = '', btn = '', act = null;
   if (!Sync.enabled()) {
     text = '⚠️ Dieses Gerät ist nicht mit eurem Haushalt verbunden – gemeinsame Einträge werden nicht abgeglichen.';
-    btn = 'Verbinden'; act = () => { showView('settings'); const c = $('#syncCard'); if (c) c.scrollIntoView({ behavior: 'smooth' }); };
+    btn = 'Mit Einladungslink verbinden'; act = () => { showView('settings'); const d = $('#syncInvite') && $('#syncInvite').closest('details'); if (d) d.open = true; const c = $('#syncInvite') || $('#syncCard'); if (c) { c.scrollIntoView({ behavior: 'smooth', block: 'center' }); setTimeout(() => c.focus && c.focus(), 400); } };
   } else if (st.state === 'noaccess') {
     text = '⚠️ Abgleich gesperrt: Der Zugang auf diesem Gerät ist abgelaufen.';
     btn = 'Zugang erneuern'; act = () => { location.href = '/?gate=' + Date.now(); };
@@ -1488,6 +1488,7 @@ function bind() {
 
   // Synchronisation
   $('#syncCreateSelfBtn').onclick = async () => {
+    if (!confirm('Wirklich einen NEUEN, eigenen Haushalt erstellen?\n\nNur für das allererste Gerät! Wenn dein Partner/deine Partnerin die App schon nutzt: Abbrechen und stattdessen unten „Ich habe einen Einladungslink“ verwenden – sonst seht ihr eure Einträge gegenseitig nicht.')) return;
     const btn = $('#syncCreateSelfBtn'); btn.disabled = true;
     try {
       await Sync.create('self', '');
