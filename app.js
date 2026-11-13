@@ -951,10 +951,21 @@ async function renderGate() {
   try {
     const { people } = await gateCall('people');
     const d = (iso) => (iso ? new Date(iso).toLocaleDateString('de-DE') : '–');
-    $('#gatePeople').innerHTML = people.map((p) => `<li class="row ${p.revoked ? 'ended' : ''}"><span class="emoji">${p.role === 'owner' ? '👑' : '👤'}</span>
-      <span class="main"><div class="title">${esc(p.name)}${p.me ? ' <span class="badge">das bist du</span>' : ''}${p.revoked ? ' <span class="badge badge-private">gesperrt</span>' : ''}</div>
-      <div class="sub">${p.devices ? `${p.devices}× angemeldet · zuletzt ${esc(d(p.lastSeen))}` : `eingeladen am ${esc(d(p.created))} · noch nicht geöffnet`}</div></span>
-      ${p.me ? '' : `<button class="tx-add" data-gate="${esc(p.id)}" data-rev="${p.revoked ? '0' : '1'}">${p.revoked ? 'Freigeben' : 'Sperren'}</button>`}</li>`).join('');
+    // Mehrere Einladungen derselben Person (z. B. Safari + Home-Bildschirm) als EINEN Eintrag zeigen
+    const groups = new Map();
+    people.forEach((p) => { const k = p.name.trim().toLowerCase() + '|' + p.role; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(p); });
+    $('#gatePeople').innerHTML = [...groups.values()].map((g) => {
+      const p = g.find((x) => x.me) || g[0];
+      const active = g.filter((x) => !x.revoked);
+      const devs = active.reduce((s, x) => s + (x.devices || 0), 0);
+      const last = active.map((x) => x.lastSeen).filter(Boolean).sort().pop();
+      const allRevoked = !active.length;
+      const ids = (allRevoked ? g : active).map((x) => x.id).join(',');
+      return `<li class="row ${allRevoked ? 'ended' : ''}"><span class="emoji">${p.role === 'owner' ? '👑' : '👤'}</span>
+      <span class="main"><div class="title">${esc(p.name)}${g.some((x) => x.me) ? ' <span class="badge">das bist du</span>' : ''}${allRevoked ? ' <span class="badge badge-private">gesperrt</span>' : ''}</div>
+      <div class="sub">${devs ? `${active.length > 1 ? active.length + ' Zugänge (z. B. Safari + Home-Bildschirm) · ' : ''}zuletzt ${esc(d(last))}` : `eingeladen · noch nicht geöffnet`}</div></span>
+      ${g.some((x) => x.me) ? '' : `<button class="tx-add" data-gate="${esc(ids)}" data-rev="${allRevoked ? '0' : '1'}">${allRevoked ? 'Freigeben' : 'Sperren'}</button>`}</li>`;
+    }).join('');
   } catch (e) { $('#gatePeople').innerHTML = `<li class="hint warn">${esc(e.message)}</li>`; }
 }
 
@@ -1342,7 +1353,7 @@ function bind() {
     const b = e.target.closest('button[data-gate]'); if (!b) return;
     const revoke = b.dataset.rev === '1';
     if (revoke && !confirm('Diesen Zugang sperren? Die Person kommt dann auf keinem Gerät mehr an eure gemeinsamen Daten.')) return;
-    try { await gateCall('revoke', { id: b.dataset.gate, revoked: revoke }); renderGate(); toast(revoke ? 'Gesperrt' : 'Freigegeben'); } catch (err) { toast('⚠️ ' + err.message); }
+    try { for (const id of b.dataset.gate.split(',')) await gateCall('revoke', { id, revoked: revoke }); renderGate(); toast(revoke ? 'Gesperrt' : 'Freigegeben'); } catch (err) { toast('⚠️ ' + err.message); }
   });
   $('#gatePwBtn').onclick = async () => {
     try { await gateCall('password', { password: $('#gatePw').value }); $('#gatePw').value = ''; toast('Inhaber-Passwort gespeichert ✓'); }
@@ -1524,6 +1535,12 @@ function bind() {
     finally { btn.disabled = false; }
   };
   $('#syncJoinBtn').onclick = () => joinFromInvite($('#syncInvite').value);
+  $('#syncLinkBtn').onclick = async () => {
+    const link = Sync.inviteLink(); if (!link) return;
+    try { if (navigator.share) { await navigator.share({ text: 'Link zu unserem Haushaltsbuch (in der App unter Einstellungen → Synchronisation → „Zusammenführen“ einfügen):', url: link }); return; } }
+    catch (e) { if (e.name === 'AbortError') return; }
+    try { await navigator.clipboard.writeText(link); toast('Haushalts-Link kopiert ✓'); } catch (e) { prompt('Link kopieren:', link); }
+  };
   $('#syncInviteBtn').onclick = async () => {
     if (gateMe) { // Zugangssperre aktiv: Einladung über „Zugänge & Einladungen“ (enthält Zugang + Haushalt)
       $('#gateCard').scrollIntoView({ block: 'start', behavior: 'smooth' });
