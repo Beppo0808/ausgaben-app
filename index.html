@@ -394,6 +394,12 @@
           </div>
           <p class="hint" id="syncStats"></p>
           <button class="btn btn-ghost" id="syncRepairBtn">🔧 Abgleich vollständig nachholen</button>
+          <details class="howto" id="syncMerge">
+            <summary>🔗 Mit dem Haushalt des Partners zusammenführen</summary>
+            <p class="hint">Falls ihr versehentlich zwei getrennte Haushalte habt: Einladungslink des anderen hier einfügen. Alle Einträge dieses Geräts werden <b>mitgenommen</b> – nichts geht verloren.</p>
+            <label class="field">Einladungslink <input type="text" id="syncMergeLink" placeholder="https://…#verbinden=…" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+            <button class="btn btn-primary" id="syncMergeBtn">Zusammenführen</button>
+          </details>
           <button class="btn btn-danger" id="syncDisconnectBtn">Dieses Gerät trennen</button>
         </div>
       </div>

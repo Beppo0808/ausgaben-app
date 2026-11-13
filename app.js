@@ -994,6 +994,21 @@ function renderSync() {
   $('#footerNote').textContent = on ? (Sync.usesSelf() ? 'Ausgaben-App · verschlüsselt synchronisiert über euer Netlify-Konto' : 'Ausgaben-App · verschlüsselt synchronisiert über eure Supabase-Datenbank') : 'Ausgaben-App · Daten nur auf diesem Gerät';
 }
 
+/** Zweiten (versehentlichen) Haushalt auflösen: in den Haushalt aus dem Link wechseln und alle lokalen Einträge mitnehmen */
+async function mergeIntoInvite(text) {
+  const info = Sync.parseInvite(text);
+  if (!info) { toast('⚠️ Ungültiger Einladungslink – bitte den ganzen Link einfügen'); return; }
+  if (Sync.enabled() && Sync.household() === info.h) { toast('Ihr seid schon im selben Haushalt ✓'); return; }
+  if (!confirm('Jetzt mit diesem Haushalt zusammenführen?\n\nAlle Einträge von diesem Gerät werden mitgenommen.')) return;
+  try {
+    toast('Führe zusammen …');
+    if (Sync.enabled()) Sync.disconnect();
+    await Sync.join(info, true);
+    await Sync.repair();
+    render(); toast('✓ Zusammengeführt – ihr seht jetzt dieselben Daten');
+  } catch (e) { toast('⚠️ ' + e.message); render(); }
+}
+
 async function joinFromInvite(text) {
   const info = Sync.parseInvite(text);
   if (!info) { toast('⚠️ Ungültiger Einladungslink'); return; }
@@ -1525,6 +1540,7 @@ function bind() {
   };
   $('#syncNowBtn').onclick = () => Sync.syncNow();
   $('#syncRepairBtn').onclick = async () => { toast('🔧 Gleiche alles vollständig ab …'); await Sync.repair(); renderSync.at = 0; renderSync(); toast('✓ Abgleich vollständig nachgeholt'); };
+  $('#syncMergeBtn').onclick = () => mergeIntoInvite($('#syncMergeLink').value.trim());
   $('#syncDisconnectBtn').onclick = () => {
     if (!confirm('Dieses Gerät vom gemeinsamen Haushalt trennen? Die Daten bleiben auf diesem Gerät und in der Cloud erhalten.')) return;
     Sync.disconnect(); render(); toast('Getrennt');
