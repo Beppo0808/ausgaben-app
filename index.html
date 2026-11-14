@@ -607,7 +607,27 @@
       <div id="prodResult"></div>
       <label class="field">Strichcode-Nummer <span class="muted">(falls nicht lesbar)</span>
         <span class="shop-add"><input type="text" id="prodEan" inputmode="numeric" autocomplete="off"><button type="button" class="btn" id="prodEanBtn">Suchen</button></span></label>
+      <button type="button" class="btn btn-sm" id="prodPrefs">⚙️ Meine Hinweise (Wichtiges, Diagnosen, Allergien)</button>
       <div class="dialog-actions"><button type="button" class="btn btn-ghost" id="prodClose">Schließen</button><span class="spacer"></span><button type="button" class="btn btn-primary" id="prodAdd" hidden>🛒 Auf die Einkaufsliste</button></div>
+    </div>
+  </dialog>
+
+  <!-- Dialog: Meine Hinweise (nur dieses Gerät) -->
+  <dialog id="prefDialog">
+    <div>
+      <h2>⚙️ Meine Hinweise</h2>
+      <p class="hint">🔒 Bleibt nur auf diesem Handy – wird nicht geteilt. Alles jederzeit abwählbar.</p>
+      <h3 class="small-h">Was ist mir wichtig? <span class="muted">(wird fett angezeigt)</span></h3>
+      <div class="pref-grid" id="hpNut"></div>
+      <h3 class="small-h">Diagnosen / Ernährung <span class="muted">(farbige Hinweise)</span></h3>
+      <div class="pref-grid" id="hpDiag"></div>
+      <h3 class="small-h">Allergien &amp; Unverträglichkeiten</h3>
+      <div class="pref-grid" id="hpAllergy"></div>
+      <label class="field">Weitere Stoffe, auf die ich achten muss (mit Komma)
+        <input type="text" id="hpCustom" placeholder="z. B. Kokos, Zimt" autocomplete="off"></label>
+      <p class="hint">Die Hinweise sind eine Orientierung (Nährwert-Ampel) und ersetzen keine ärztliche Beratung.</p>
+      <div class="dialog-actions"><button type="button" class="btn btn-ghost" id="hpNone">Alles abwählen</button><span class="spacer"></span>
+        <button type="button" class="btn btn-ghost" id="hpCancel">Abbrechen</button><button type="button" class="btn btn-primary" id="hpSave">Speichern</button></div>
     </div>
   </dialog>
 
