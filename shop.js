@@ -173,6 +173,7 @@ const Shop = (() => {
   }
 
   function renderList() {
+    if (shopStore && !storeList().includes(shopStore)) { shopStore = ''; try { localStorage.setItem('shop-store', ''); } catch (e) { /* egal */ } } // gewählter Laden gibt es nicht mehr (z. B. nach dem Zusammenführen) → „Alle“
     renderStoreRow();
     const inStore = (x) => !shopStore || !x.store || x.store === shopStore;
     const open = state.shopping.filter((x) => !x.done && inStore(x));
