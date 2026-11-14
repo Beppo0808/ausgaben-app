@@ -23,7 +23,7 @@ export default async (req: Request, context: { next: () => Promise<Response> }) 
   if (PUBLIC_PATHS.some((r) => r.test(url.pathname))) return context.next();
   // @ts-ignore Netlify-Laufzeit
   const secret = (globalThis.Netlify?.env?.get('GATE_SECRET') ?? '') as string;
-  if (!secret) return context.next(); // Sperre noch nicht eingerichtet
+  if (!secret) return new Response('Vorübergehend nicht verfügbar', { status: 503, headers: { 'Cache-Control': 'no-store' } }); // lieber gesperrt als offen
   const s = await verify(readCookie(req, COOKIE), secret, 's');
   if (s) return context.next();
   const headers = { 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex' };

@@ -675,7 +675,7 @@ function renderArticles() {
       <label class="art-group">Gruppe <select data-grp="${esc(last.norm)}">${groupOpts(grp)}</select></label>
       <ul class="art-rows">${g.map((r) => `<li><span>${esc(d(r))}${r.time ? ' ' + esc(r.time) : ''}</span>
         <span>${esc(storeOf(r.store))}${r.branch ? `<br><small>📍 ${esc(r.branch)}</small>` : ''}${r.person ? `<br><small>${esc(r.person)}</small>` : ''}</span>
-        <span class="amt">${r.qty ? `<small>${String(r.qty).replace('.', ',')} ${esc(r.unitLabel || '×')} ${fmt(r.unit)}</small><br>` : ''}${fmt(r.price)}</span>
+        <span class="amt">${Number(r.qty) ? `<small>${String(Number(r.qty)).replace('.', ',')} ${esc(r.unitLabel || '×')} ${fmt(Number(r.unit) || 0)}</small><br>` : ''}${fmt(r.price)}</span>
         <button class="tx-add art-bon" data-exp="${esc(r.expId)}">🧾 Zum Bon</button></li>`).join('')}</ul>
     </details>`;
   };
@@ -817,7 +817,7 @@ function renderSubs() {
       rare && s.spread ? `umgelegt ${esc(fmt(perMonth(s)))}/Monat` : '', esc(until(s))].filter(Boolean).join(' · ');
     return `<li class="row ${ended(s) ? 'ended' : ''}" data-id="${esc(s.id)}"><span class="emoji">${esc(c.emoji)}</span>
       <span class="main"><div class="title">${esc(s.name)}</div><div class="sub">${info}</div></span>
-      <span class="amount">${fmt(s.amount)}${rare ? `<div class="muted per">${s.interval === 'year' ? 'pro Jahr' : 'pro Quartal'}</div>` : ''}</span></li>`;
+      <span class="amount">${fmt(s.amount)}${rare ? `<div class="muted per">${s.interval === 'year' ? 'pro Jahr' : s.interval === 'half' ? 'pro Halbjahr' : 'pro Quartal'}</div>` : ''}</span></li>`;
   }).join('') : '<li class="empty-state">Noch keine Fixkosten. Miete, Strom, Handyvertrag, Netflix …<br>Tipp: In „Mein Konto“ werden regelmäßige Abbuchungen automatisch erkannt.</li>';
 
   const upcoming = fixed.filter((s) => (IV_MONTHS[s.interval] || 1) > 1 && !ended(s))
@@ -1109,7 +1109,7 @@ function openExpenseDialog(exp) {
   $('#expItemsAdd').hidden = !exp || !!its.length;
   $('#expItemsList').innerHTML = its.map((it) => {
     const c = catById(it.cat || exp.category);
-    const qty = it.qty ? ` <span class="muted">${String(it.qty).replace('.', ',')} ${it.unitLabel ? esc(it.unitLabel) + ' ×' : '×'} ${fmt(it.unit)}${it.unitLabel ? '/' + esc(it.unitLabel) : ''}</span>` : '';
+    const qty = Number(it.qty) ? ` <span class="muted">${String(Number(it.qty)).replace('.', ',')} ${it.unitLabel ? esc(it.unitLabel) + ' ×' : '×'} ${fmt(Number(it.unit) || 0)}${it.unitLabel ? '/' + esc(it.unitLabel) : ''}</span>` : '';
     return `<li><span>${esc(c.emoji)} ${esc(it.name)}${qty}</span><span>${fmt(it.price)}</span></li>`;
   }).join('');
   $('#expBonInfo').textContent = exp ? [exp.branch ? '📍 ' + exp.branch : '', exp.time ? '🕑 ' + exp.time + ' Uhr' : ''].filter(Boolean).join(' · ') : '';

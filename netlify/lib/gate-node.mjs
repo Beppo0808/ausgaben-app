@@ -20,7 +20,7 @@ export async function savePeople(list) { await gateStore().setJSON('people', lis
 /** Gültige, nicht gesperrte Sitzung – oder null */
 export async function session(req) {
   const secret = gateSecret();
-  if (!secret) return { open: true }; // Sperre noch nicht eingerichtet
+  if (!secret) return null; // ohne Geheimnis lieber gesperrt als offen
   const s = await verify(readCookie(req, COOKIE), secret, 's');
   if (!s) return null;
   const p = (await people()).find((x) => x.id === s.id);

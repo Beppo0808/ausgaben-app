@@ -328,8 +328,8 @@ const Receipt = (() => {
   function itemRow(it = { name: '', price: '' }, fallbackCat) {
     const price = it.price === '' ? '' : String(it.price).replace('.', ',');
     const cat = it.cat || itemCategory(it.name, fallbackCat || 'lebensmittel');
-    const qty = it.qty ? `${String(it.qty).replace('.', ',')} ${it.unitLabel ? it.unitLabel + ' ×' : '×'} ${fmt(it.unit)}${it.unitLabel ? '/' + it.unitLabel : ''}` : '';
-    return `<li class="item-edit" data-qty="${it.qty || ''}" data-unit="${it.unit || ''}" data-ul="${esc(it.unitLabel || '')}">
+    const qty = Number(it.qty) ? `${String(Number(it.qty)).replace('.', ',')} ${it.unitLabel ? it.unitLabel + ' ×' : '×'} ${fmt(Number(it.unit) || 0)}${it.unitLabel ? '/' + it.unitLabel : ''}` : '';
+    return `<li class="item-edit" data-qty="${Number(it.qty) || ''}" data-unit="${Number(it.unit) || ''}" data-ul="${esc(it.unitLabel || '')}">
       <input class="it-name" value="${esc(it.name)}" placeholder="Artikel" aria-label="Artikel">
       <input class="it-price" value="${esc(price)}" inputmode="decimal" placeholder="0,00" aria-label="Preis">
       <button type="button" class="it-del" aria-label="Artikel entfernen">✕</button>

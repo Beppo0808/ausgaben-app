@@ -368,15 +368,21 @@ const Konto = (() => {
     if (Math.abs(total - sum) >= 0.005) { toast(`Die Teile ergeben ${fmt(sum)}, die Buchung ist ${fmt(total)}`); return false; }
     // bisherige Zuordnungen dieser Buchung lösen
     (t.splitExp || []).forEach((id) => { state.expenses = state.expenses.filter((e) => e.id !== id || e.source !== 'bank'); });
-    if (t.linked) { const old = state.expenses.find((e) => e.id === t.linked); if (old && old.source === 'bank') state.expenses = state.expenses.filter((e) => e.id !== old.id); delete t.linked; }
+    let reuse = null;
+    if (t.linked) { const old = state.expenses.find((e) => e.id === t.linked); if (old && old.source === 'bank') state.expenses = state.expenses.filter((e) => e.id !== old.id); else if (old) reuse = old; delete t.linked; }
     if (t.sub) delete t.sub;
     t.splitExp = [];
-    parts.filter((p) => p.kind === 'shared').forEach((p) => {
+    if (reuse) { // Bon/Handy-Erfassung = erster Teil, der kein Bargeld ist
+      const p = parts.find((x) => x.kind !== 'cash');
+      if (p) { reuse.amount = p.amount; reuse.private = p.kind === 'personal'; if (p.cat) reuse.category = p.cat; p.reused = true; t.linked = reuse.id; }
+      else state.expenses = state.expenses.filter((e) => e.id !== reuse.id || reuse.receipt);
+    }
+    parts.filter((p) => p.kind === 'shared' && !p.reused).forEach((p) => {
       const e = { id: uid(), created: new Date().toISOString(), source: 'bank', amount: p.amount, merchant: p.label || (t.name || 'Kontobuchung').slice(0, 60),
         category: p.cat || 'sonstiges', date: t.date, person: state.settings.me, note: 'Teil einer Kontobuchung', private: false };
       state.expenses.push(e); t.splitExp.push(e.id);
     });
-    t.splits = parts;
+    t.splits = parts.map(({ reused, ...p }) => p);
     write(); save(); $('#txDialog').close(); txEditing = null; window.render();
     toast('✂️ Aufgeteilt gespeichert');
     return true;
@@ -491,7 +497,7 @@ const Konto = (() => {
     const kind = t.amount >= 0 ? 'personal' : txKind();
     const fix = kind === 'fixshared' || kind === 'fixprivate';
     const subSel = fix ? f.sub.value : '';
-    const dropExp = () => { if (exp) { if (exp.source === 'bank') state.expenses = state.expenses.filter((e) => e.id !== exp.id); delete t.linked; } };
+    const dropExp = () => { if (exp) { if (exp.source === 'bank' || !exp.receipt) state.expenses = state.expenses.filter((e) => e.id !== exp.id); delete t.linked; } };
     const linkTo = (id) => { t.sub = id; if (gk) { data.links[gk] = id; delete data.dismissed[gk]; } dropExp(); };
     if (subSel === '__new') {
       // Direkt anlegen – alles Nötige steht schon in diesem Fenster (ändern geht später unter „Fixkosten“)

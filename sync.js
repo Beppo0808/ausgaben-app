@@ -77,15 +77,15 @@ const Sync = (() => {
     }
     // Sicherung: Verschwindet auf einmal ein großer Teil der Einträge (z. B. weil iOS den Speicher geleert hat),
     // wird das NICHT als „gelöscht“ verschickt – sonst wären die Daten auch auf dem anderen Gerät weg. Stattdessen neu abholen.
-    const gone = Object.keys(cfg.hashes).filter((k) => !(k in m) && !k.startsWith('settings:'));
-    const known = Object.keys(cfg.hashes).length;
+    const gone = Object.keys(cfg.hashes).filter((k) => !(k in m) && /^(expense|sub):/.test(k));
+    const known = Object.keys(cfg.hashes).filter((k) => /^(expense|sub):/.test(k)).length;
     if (gone.length >= 5 && gone.length > known * 0.3) {
       gone.forEach((k) => { delete cfg.hashes[k]; delete cfg.mtimes[k]; delete cfg.dirty[k]; });
       cfg.lastPull = null; writeCfg();
       console.warn('Viele Einträge fehlen lokal – hole sie neu, statt Löschungen zu senden', gone.length);
       return changed;
     }
-    for (const k of gone) { delete cfg.hashes[k]; cfg.mtimes[k] = now; cfg.dirty[k] = 1; changed = true; }
+    for (const k of Object.keys(cfg.hashes).filter((x) => !(x in m) && !x.startsWith('settings:'))) { delete cfg.hashes[k]; cfg.mtimes[k] = now; cfg.dirty[k] = 1; changed = true; }
     writeCfg();
     return changed;
   }
@@ -187,11 +187,17 @@ const Sync = (() => {
         if (idx > -1) arr[idx] = obj; else arr.push(obj);
       }
     } else if (r.kind === 'settings' && !r.deleted && r.data) {
-      const { budget, persons } = r.data; // Einkommen wird bewusst NICHT übernommen
+      const { budget, persons, shopStores } = r.data; // Einkommen wird bewusst NICHT übernommen
       if (budget !== undefined) state.settings.budget = budget;
+      if (Array.isArray(shopStores)) state.settings.shopStores = shopStores;
       if (Array.isArray(persons) && persons.length) {
-        state.settings.persons = persons;
-        if (!persons.includes(state.settings.me)) state.settings.me = persons[0];
+        const list = persons.slice(), me = state.settings.me;
+        if (me && !['Ich', 'Partner', ''].includes(me) && !list.includes(me)) { // eigenen Namen nicht verlieren (statt einfach „Person 1“ zu werden)
+          const ph = list.findIndex((p) => ['Ich', 'Partner', ''].includes(p));
+          if (ph > -1) list[ph] = me; else list.push(me);
+        }
+        state.settings.persons = list;
+        if (!list.includes(me)) state.settings.me = list[0];
       }
     } else if (r.kind === 'avatar') {
       state.avatars = state.avatars || {};
