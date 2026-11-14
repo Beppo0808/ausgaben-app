@@ -193,7 +193,8 @@ const Konto = (() => {
     const f = $('#txForm');
     const d = t.date.split('-').reverse().join('.');
     $('#txInfo').innerHTML = `<b>${fmt(t.amount)}</b> · ${esc(d)}<br>${esc(t.name || '')}${t.purpose ? '<br><span class="muted">' + esc(t.purpose) + '</span>' : ''}`;
-    f.label.value = t.label || (exp && exp.merchant) || (t.name || t.purpose || '').slice(0, 60);
+    const gi0 = groupInfo(t);
+    f.label.value = t.label || (exp && exp.merchant) || (gi0 && gi0.agg && gi0.inner) || (t.name || t.purpose || '').slice(0, 60); // PayPal → „Netflix“ statt „PayPal Europe …“
     // Keine Vermutung: nur was ihr selbst festgelegt habt (direkt oder bei einer gleichen Buchung)
     txCat = t.cat !== undefined ? t.cat : exp ? exp.category : learnedCat(t);
     txSubcat = t.subcat !== undefined ? t.subcat : exp && exp.subcat ? exp.subcat : learnedSubcat(t, txCat);
@@ -604,7 +605,9 @@ const Konto = (() => {
       return { key: `${t.account}|${agg}|${Math.abs(t.amount).toFixed(2)}`, agg, inner: '' };
     }
     const b = baseName(t.name) || baseName(t.purpose);
-    return b ? { key: `${t.account}|${b}`, agg: '', inner: '' } : null;
+    if (b) return { key: `${t.account}|${b}`, agg: '', inner: '' };
+    // Kein brauchbarer Name (z. B. nur „LASTSCHRIFT 88812“): am gleichen Betrag wiedererkennen
+    return t.amount < 0 ? { key: `${t.account}|betrag|${Math.abs(t.amount).toFixed(2)}`, agg: '', inner: '', byAmount: true } : null;
   }
   function groupKey(t) { const g = groupInfo(t); return g ? g.key : null; }
   const monthIdx = (ym) => +ym.slice(0, 4) * 12 + (+ym.slice(5, 7) - 1);
@@ -658,6 +661,7 @@ const Konto = (() => {
       const linked = !!data.links[key];
       const recurring = (months.length >= 2 && stable) || (hint && Math.abs(latest.amount) >= 2) || toPartner;
       if (!recurring && !linked && !includeAll) continue;
+      if (gi.byAmount && !linked && !includeAll) continue; // nur am Betrag erkannt: nicht ungefragt vorschlagen
       if (data.dismissed[key] && !linked && !includeAll) continue;
       let interval = guessInterval(text);
       if (months.length >= 2) {
