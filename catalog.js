@@ -92,19 +92,24 @@ const Catalog = (() => {
     if (b.dataset.act === 'add') addToList(x); else openEdit(x);
   }
 
-  function addToList(x, store) {
+  let pickQty = 1, pickStore = '';
+  function addToList(x) {
     const b = best(x.stores);
-    if (store === undefined && b.length > 1) { picking = x; openPick(x, b); return; }
-    const st = store !== undefined ? store : (b[0] ? b[0].st : '');
-    const shopName = niceStore(st);
-    Shop.addItems([x.name], '', { store: shopName, pid: x.id || '', bk: x.key || '' });
-    toast(`🛒 ${x.name}${shopName ? ' · ' + shopName : ''}`);
-  }
-  function openPick(x, b) {
+    picking = x; pickQty = 1; pickStore = b[0] ? niceStore(b[0].st) : '';
     $('#catPickTitle').textContent = x.name;
-    $('#catPickList').innerHTML = b.map((v) => `<button type="button" class="btn cat-pick" data-st="${esc(v.st)}">${esc(v.st)} <b>${fmt(v.p)}</b><small>${esc(dshort(v.d))}</small></button>`).join('')
+    $('#catPickImg').innerHTML = x.img ? `<img src="${esc(x.img)}" alt="">` : `<span>${emojiOf(x.name)}</span>`;
+    $('#catPickQty').textContent = '1';
+    $('#catPickList').innerHTML = b.map((v) => `<button type="button" class="btn cat-pick" data-st="${esc(niceStore(v.st))}">${esc(niceStore(v.st))} <b>${fmt(v.p)}</b><small>${esc(dshort(v.d))}</small></button>`).join('')
       + '<button type="button" class="btn btn-ghost cat-pick" data-st="">Egal wo</button>';
+    markPick();
     $('#catPickDialog').showModal();
+  }
+  const markPick = () => $$('#catPickList [data-st]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.st === pickStore)));
+  function confirmPick() {
+    const x = picking; if (!x) return;
+    Shop.addItems([`${pickQty > 1 ? pickQty + ' ' : ''}${x.name}`], '', { store: pickStore, pid: x.id || '', bk: x.key || '' });
+    $('#catPickDialog').close(); picking = null;
+    toast(`🛒 ${pickQty > 1 ? pickQty + ' × ' : ''}${x.name}${pickStore ? ' · ' + pickStore : ''}`);
   }
 
   // ---------- Details / Foto / Name ----------
@@ -145,6 +150,17 @@ const Catalog = (() => {
   }
   const packFor = (ean) => { const p = list().find((y) => ean && y.ean === ean); return p && +p.pack > 0 ? +p.pack : 0; };
   function setPack(meta, q) { const id = upsertScan(meta); const p = list().find((y) => y.id === id); if (p) { p.pack = q; save(); } }
+  const findFor = (x) => (x.pid && list().find((y) => y.id === x.pid)) || list().find((y) => norm(y.name) === norm(x.name)) || null;
+  /** Bild zu einem Eintrag der Einkaufsliste (über verknüpftes oder gleichnamiges Produkt) */
+  const imgForItem = (x) => { const p = findFor(x); return p && imgOk(p.img) ? p.img : ''; };
+  /** Foto aus der Einkaufsliste speichern → Produkt anlegen/ergänzen, Eintrag verknüpfen */
+  function photoForItem(x, img) {
+    if (!imgOk(img)) return '';
+    let p = findFor(x);
+    if (!p) { p = { id: uid(), name: x.name.slice(0, 80), aliases: x.bk ? [x.bk] : [], stores: {}, at: new Date().toISOString() }; list().push(p); }
+    p.img = img; x.pid = p.id; save();
+    return p.id;
+  }
   const byEan = (ean) => list().find((y) => ean && y.ean === ean) || null;
   const imgFor = (ean) => { const p = byEan(ean); return p && imgOk(p.img) && p.img.startsWith('data:') ? p.img : ''; };
   function setImg(meta, img) {
@@ -190,7 +206,10 @@ const Catalog = (() => {
     if (bound) return; bound = true;
     $('#catGrid').addEventListener('click', onGrid);
     $('#catSearch').addEventListener('input', (e) => { q = e.target.value; render(); });
-    $('#catPickList').addEventListener('click', (e) => { const b = e.target.closest('[data-st]'); if (!b || !picking) return; $('#catPickDialog').close(); addToList(picking, b.dataset.st); picking = null; });
+    $('#catPickList').addEventListener('click', (e) => { const b = e.target.closest('[data-st]'); if (!b) return; pickStore = b.dataset.st; markPick(); });
+    $('#catPickMinus').onclick = () => { pickQty = Math.max(1, pickQty - 1); $('#catPickQty').textContent = pickQty; };
+    $('#catPickPlus').onclick = () => { pickQty = Math.min(99, pickQty + 1); $('#catPickQty').textContent = pickQty; };
+    $('#catPickOk').onclick = confirmPick;
     $('#catPickCancel').onclick = () => $('#catPickDialog').close();
     $('#cePhoto').addEventListener('change', async (e) => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; const t = await thumbFromFile(f); if (t) { $('#cePic').dataset.img = t; $('#cePic').innerHTML = `<img src="${t}" alt="">`; } });
     $('#ceSave').onclick = saveEdit;
@@ -203,5 +222,5 @@ const Catalog = (() => {
     };
   }
 
-  return { render, fromBon, upsertScan, setPrice, pricesFor, packFor, setPack, byEan, imgFor, setImg, thumb, thumbFromFile };
+  return { imgForItem, photoForItem, render, fromBon, upsertScan, setPrice, pricesFor, packFor, setPack, byEan, imgFor, setImg, thumb, thumbFromFile };
 })();

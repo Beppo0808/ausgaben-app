@@ -185,6 +185,7 @@ const Shop = (() => {
       const p = priceInfo(x.name, shopStore || x.store);
       return `<li class="sh-item ${x.done ? 'done' : ''}" data-id="${esc(x.id)}">
         <button class="sh-check" data-act="toggle" aria-label="${x.done ? 'wieder offen' : 'erledigt'}">${x.done ? '✓' : ''}</button>
+        ${(() => { const im = typeof Catalog !== 'undefined' ? Catalog.imgForItem(x) : ''; return `<label class="sh-pic${im ? '' : ' empty'}" aria-label="Produktfoto">${im ? `<img src="${esc(im)}" alt="">` : '📷'}<input type="file" class="sh-photo" accept="image/*" capture="environment"></label>`; })()}
         <span class="sh-main" data-act="edit"><span class="sh-name">${esc(x.name)}${x.qty ? ` <span class="sh-qty">${esc(x.qty)}</span>` : ''}${x.store && !shopStore ? ' ' + storeBadge(x.store) : ''}${!x.store && shopStore ? ' <span class="sh-any">egal wo</span>' : ''}</span>
           ${x.done ? `<span class="sh-sub">${x.doneBy ? 'gekauft von ' + esc(x.doneBy) : 'gekauft'}</span>`
             : `${p ? `<span class="sh-price">💶 ${esc(priceText(p))}</span>` : ''}${x.note || (x.by && x.by !== state.settings.me) ? `<span class="sh-sub">${[x.note, x.by && x.by !== state.settings.me ? 'von ' + x.by : ''].filter(Boolean).map(esc).join(' · ')}</span>` : ''}`}
@@ -444,6 +445,13 @@ const Shop = (() => {
 
   function bind() {
     if (bound) return; bound = true;
+    $('#shopList').addEventListener('change', async (e) => {
+      if (!e.target.matches('.sh-photo')) return;
+      const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+      const x = state.shopping.find((s) => s.id === e.target.closest('[data-id]').dataset.id); if (!x) return;
+      const t = await Catalog.thumbFromFile(f);
+      if (t && Catalog.photoForItem(x, t)) { save(); render(); toast('📷 Foto gespeichert – unter ⭐ Produkte antippen zum Hinzufügen'); }
+    });
     $('#shopTabs').addEventListener('click', (e) => { const b = e.target.closest('button[data-v]'); if (b) { tab = b.dataset.v; render(); } });
     $('#shopForm').addEventListener('submit', submitInput);
     $('#shopList').addEventListener('click', onListClick);

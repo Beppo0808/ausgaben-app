@@ -634,10 +634,11 @@
   <!-- Dialog: Laden wählen (Produkt auf die Liste) -->
   <dialog id="catPickDialog">
     <div>
-      <h2 id="catPickTitle"></h2>
-      <p class="hint">In welchem Laden kaufen?</p>
+      <div class="pick-top"><div class="cat-pic pick-pic" id="catPickImg"></div><h2 id="catPickTitle"></h2></div>
+      <div class="qty-step"><button type="button" class="btn" id="catPickMinus" aria-label="weniger">−</button><b id="catPickQty">1</b><button type="button" class="btn" id="catPickPlus" aria-label="mehr">＋</button></div>
+      <p class="hint">Wo kaufen?</p>
       <div class="cat-picks" id="catPickList"></div>
-      <div class="dialog-actions"><span class="spacer"></span><button type="button" class="btn btn-ghost" id="catPickCancel">Abbrechen</button></div>
+      <div class="dialog-actions"><button type="button" class="btn btn-ghost" id="catPickCancel">Abbrechen</button><span class="spacer"></span><button type="button" class="btn btn-primary" id="catPickOk">🛒 Auf die Liste</button></div>
     </div>
   </dialog>
 
