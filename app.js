@@ -613,7 +613,7 @@ const ITEM_GROUPS = [
   ['tier', '🐾 Tierbedarf', /katze|\bhund|tierfutter|whiskas|felix|frolic|pedigree|sheba|katzenstreu/i],
   ['butter', '🧈 Butter & Margarine', /butter(?!milch|keks)|margarine|\bmarg\b|\brama\b|kerrygold|halbfett/i],
   ['kaese', '🧀 Käse', /k(ä|ae)se|gouda|emmentaler|mozzarella|\bfeta\b|camembert|parmesan|\bbrie\b|edamer|tilsiter|cheddar|bergk/i],
-  ['milch', '🥛 Milch & Milchprodukte', /milch|joghurt|jogh|quark|sahne|schmand|kefir|\bskyr\b|pudding|creme fraiche|cr(è|e)me|h-milch|\bvollm|frischm/i],
+  ['milch', '🥛 Milch & Milchprodukte', /ayran|lassi|milch|joghurt|jogh|quark|sahne|schmand|kefir|\bskyr\b|pudding|creme fraiche|cr(è|e)me|h-milch|\bvollm|frischm/i],
   ['eier', '🥚 Eier', /\beier\b|\beier\s|freiland|bodenhalt/i],
   ['wurst', '🥓 Wurst & Aufschnitt', /wurst|salami|schinken|aufschn|lyoner|mortadella|w(ü|ue)rstchen|wiener|leberw|mettw|cervelat|bacon|\bspeck\b|fleischw|krakauer|bierschinken/i],
   ['fleisch', '🥩 Fleisch & Geflügel', /fleisch|\bhack|schnitzel|steak|filet|braten|gulasch|h(ä|ae)hnchen|haehn|\bhuhn|\bpute|kotelett|\brind|schwein|geschn|nacken|br(u|ü)st|keule|frikadell/i],

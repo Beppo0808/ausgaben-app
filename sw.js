@@ -1,7 +1,7 @@
 // Offline-Unterstützung und schneller Start:
 // App-Dateien kommen sofort aus dem Speicher des Geräts. Neue Versionen erkennt der Browser an dieser
 // Datei (CACHE-Name ändert sich bei jeder Veröffentlichung) – dann wird alles einmal komplett neu geladen.
-const CACHE = 'ausgaben-v104';
+const CACHE = 'ausgaben-v105';
 const ASSETS = ['./', 'index.html', 'style.css', 'app.js', 'sync.js', 'konto.js', 'receipt.js', 'shop.js', 'product.js', 'catalog.js', 'pull.js', 'recipes-data.js', 'scanner.js', 'lock.js', 'manifest.webmanifest', 'icon.svg', 'fonts/fraunces-latin.woff2', 'fonts/nunito-latin.woff2', 'icon-180.png', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', (e) => {

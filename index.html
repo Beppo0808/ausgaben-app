@@ -270,9 +270,13 @@
             <button type="button" class="btn" id="catNew">➕ Ohne Strichcode anlegen</button>
           </div>
           <input type="search" id="catSearch" placeholder="Suchen, z. B. Butter" autocomplete="off" aria-label="Produkte suchen">
+          <button type="button" class="btn btn-sm" id="catNetBtn" hidden></button>
+          <div class="chips" id="catGroups"></div>
+          <div class="chips subs" id="catSubs" hidden></div>
           <p class="hint">Bild antippen = auf die Liste · ⓘ = Foto, Name, Preise</p>
         </div>
         <div class="cat-grid" id="catGrid"></div>
+        <div id="catNet"></div>
       </div>
 
       <div id="recipePane" hidden>
@@ -631,11 +635,28 @@
         <label class="field">Preis (€)<input type="text" id="ptPrice" inputmode="decimal" autocomplete="off"></label>
         <div class="dialog-actions"><button type="button" class="btn btn-ghost" id="ptCancel">Abbrechen</button><span class="spacer"></span><button type="button" class="btn btn-primary" id="ptSave">Preis speichern</button></div>
       </div>
-      <label class="field">Strichcode-Nummer <span class="muted">(falls nicht lesbar)</span>
-        <span class="shop-add"><input type="text" id="prodEan" inputmode="numeric" autocomplete="off"><button type="button" class="btn" id="prodEanBtn">Suchen</button></span></label>
-      <div class="row-btns"><button type="button" class="btn btn-sm" id="prodRescan">🔄 Nächstes Produkt</button><label class="btn btn-sm btn-file">📷 Strichcode-Foto<input type="file" id="prodPhoto2" accept="image/*" capture="environment"></label><label class="btn btn-sm btn-file">🖼️ Produktfoto<input type="file" id="prodOwnPhoto" accept="image/*" capture="environment"></label></div>
-      <button type="button" class="btn btn-sm" id="prodPrefs">⚙️ Hinweise (Wichtiges, Diagnosen, Allergien)</button>
-      <div class="dialog-actions"><button type="button" class="btn btn-ghost" id="prodClose">Schließen</button><span class="spacer"></span><button type="button" class="btn btn-primary" id="prodAdd" hidden>🛒 Auf die Einkaufsliste</button></div>
+      <p class="prod-saved" id="prodSaved" hidden></p>
+      <details class="prod-more" id="prodMore"><summary>Strichcode eintippen · Foto vom Strichcode · Hinweise</summary>
+        <label class="field">Strichcode-Nummer
+          <span class="shop-add"><input type="text" id="prodEan" inputmode="numeric" autocomplete="off"><button type="button" class="btn" id="prodEanBtn">Suchen</button></span></label>
+        <div class="row-btns"><label class="btn btn-sm btn-file">📷 Foto vom Strichcode<input type="file" id="prodPhoto2" accept="image/*" capture="environment"></label>
+          <button type="button" class="btn btn-sm" id="prodPrefs">⚙️ Hinweise (Diagnosen, Allergien)</button></div>
+      </details>
+      <div class="dialog-actions prod-actions"><button type="button" class="btn btn-ghost" id="prodClose">Schließen</button>
+        <button type="button" class="btn" id="prodRescan">🔄 Nächstes</button>
+        <button type="button" class="btn btn-primary" id="prodSave" hidden>⭐ Speichern</button>
+        <button type="button" class="btn" id="prodAdd" hidden>🛒 Auf die Liste …</button></div>
+    </div>
+  </dialog>
+
+  <!-- Dialog: Foto zuschneiden -->
+  <dialog id="cropDialog">
+    <div>
+      <h2>✂️ Foto zuschneiden</h2>
+      <p class="hint">Mit dem Finger verschieben, mit dem Regler vergrößern – nur das Produkt soll im Quadrat sein.</p>
+      <canvas id="cropCv" width="600" height="600" class="crop-cv"></canvas>
+      <label class="field">Vergrößern<input type="range" id="cropZoom" min="1" max="5" step="0.01" value="1"></label>
+      <div class="dialog-actions"><button type="button" class="btn btn-ghost" id="cropCancel">Abbrechen</button><span class="spacer"></span><button type="button" class="btn btn-primary" id="cropOk">✓ Übernehmen</button></div>
     </div>
   </dialog>
 

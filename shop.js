@@ -452,7 +452,7 @@ const Shop = (() => {
       if (!e.target.matches('.sh-photo')) return;
       const f = e.target.files[0]; e.target.value = ''; if (!f) return;
       const x = state.shopping.find((s) => s.id === e.target.closest('[data-id]').dataset.id); if (!x) return;
-      const t = await Catalog.thumbFromFile(f);
+      const t = await Catalog.cropFromFile(f);
       if (t && Catalog.photoForItem(x, t)) { save(); render(); toast('📷 Foto gespeichert – unter ⭐ Produkte antippen zum Hinzufügen'); }
     });
     $('#shopTabs').addEventListener('click', (e) => { const b = e.target.closest('button[data-v]'); if (b) { tab = b.dataset.v; render(); } });

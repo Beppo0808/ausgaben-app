@@ -6,7 +6,7 @@
 const Product = (() => {
   const ZXING_URL = 'https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js';
   const OFF = 'https://world.openfoodfacts.org/api/v2/product/';
-  const FIELDS = 'product_name,product_name_de,generic_name_de,brands,quantity,nutriments,ingredients_text_de,ingredients_text,nutriscore_grade,image_front_small_url,allergens_tags,traces_tags,product_quantity,product_quantity_unit,serving_size,serving_quantity';
+  const FIELDS = 'product_name,product_name_de,generic_name_de,brands,quantity,nutriments,ingredients_text_de,ingredients_text,nutriscore_grade,image_front_small_url,allergens_tags,traces_tags,product_quantity,product_quantity_unit,serving_size,serving_quantity,categories,categories_tags';
   let current = null, bound = false;
 
   function loadZxing() {
@@ -134,16 +134,17 @@ const Product = (() => {
     if (!p) {
       current = null;
       const own = Catalog.byEan(ean);
-      box.innerHTML = `${own && own.img ? `<div class="prod-head"><img src="${esc(own.img)}" alt=""></div>` : ''}<p>Strichcode <b>${esc(ean)}</b> ist in der freien Datenbank (noch) nicht erfasst.</p>
+      box.innerHTML = `<div class="prod-head"><label class="prod-photo-btn" title="Foto">📷<input type="file" class="prod-own-photo" accept="image/*" capture="environment"></label>${own && own.img ? `<img src="${esc(own.img)}" alt="">` : '<span class="prod-nopic">Foto antippen 📷 →</span>'}</div><p>Strichcode <b>${esc(ean)}</b> ist in der freien Datenbank (noch) nicht erfasst.</p>
         <label class="field">Produktname<input type="text" id="prodOwnName" value="${esc(own && own.name !== ean ? own.name : '')}" placeholder="z. B. Doppelherz Kollagen Pulver 200 g" autocomplete="off"></label>
-        <p class="hint">Mach unten ein 🖼️ Produktfoto – dann erkennst du es unter ⭐ Produkte wieder.</p>`;
+        <p class="hint">Name eintragen, oben 📷 Foto machen und ⭐ Speichern – dann findest du es unter ⭐ Produkte.</p>`;
       current = { ean, name: own ? own.name : '', pname: own ? own.name : '', brand: own ? own.brand || '' : '', qty: '', img: '', unknown: true };
-      $('#prodAdd').hidden = false; return;
+      $('#prodSave').hidden = false; $('#prodAdd').hidden = !own; $('#prodMore').open = false; return;
     }
     const n = p.nutriments || {}, h = getH();
     const name = p.product_name_de || p.product_name || p.generic_name_de || 'Produkt';
     const brand = (p.brands || '').split(',')[0].trim();
-    current = { ean, name: [brand, name].filter(Boolean).join(' ').slice(0, 70), pname: name.slice(0, 80), brand, qty: p.quantity || '', img: /^https:\/\/images\.openfoodfacts\.org\//.test(p.image_front_small_url || '') ? p.image_front_small_url : '' };
+    current = { ean, name: [brand, name].filter(Boolean).join(' ').slice(0, 70), pname: name.slice(0, 80), brand, qty: p.quantity || '', img: /^https:\/\/images\.openfoodfacts\.org\//.test(p.image_front_small_url || '') ? p.image_front_small_url : '',
+      cats: String(p.categories || '').split(',').map((x) => x.replace(/^\s*\w\w:/, '').trim()).filter((x) => x && x.length < 50).slice(-4) };
     // Hinweise für alle Personen mit Einstellungen; bei mehreren mit Namen davor
     const people = (state.settings.persons || [meName()]).filter((x) => hasH(getH(x)));
     const notes = [], mark = {}, lv = { red: 3, yellow: 2, green: 1 };
@@ -219,7 +220,7 @@ const Product = (() => {
     if (keepSeries !== true) series = false;
     bind(); stopLive();
     current = null; lastP = null; shot = '';
-    $('#prodResult').innerHTML = ''; $('#prodPrices').innerHTML = ''; $('#prodTagForm').hidden = true; $('#prodAdd').hidden = true; $('#prodEan').value = '';
+    $('#prodResult').innerHTML = ''; $('#prodPrices').innerHTML = ''; $('#prodTagForm').hidden = true; $('#prodAdd').hidden = true; $('#prodSave').hidden = true; $('#prodSaved').hidden = true; $('#prodEan').value = '';
     $('#prodCam').hidden = false; $('#camCtrl').hidden = false; $('#prodCamHint').textContent = '📷 Kamera startet …'; markMode();
     if (!$('#prodDialog').open) $('#prodDialog').showModal();
     const zx = loadZxing(); // parallel laden
@@ -266,7 +267,7 @@ const Product = (() => {
       const why = e && e.name === 'NotAllowedError' ? 'Kamerazugriff wurde nicht erlaubt. Einstellungen → Safari → Kamera → „Erlauben“ (oder beim nächsten Mal „Erlauben“ tippen).'
         : e && e.name === 'NotReadableError' ? 'Die Kamera wird gerade von einer anderen App benutzt.'
         : `Kamera nicht verfügbar (${esc((e && (e.name + ': ' + e.message)) || 'unbekannt')}).`;
-      $('#prodResult').innerHTML = `<p>⚠️ ${why}</p><p class="hint">Solange: 📷 Strichcode-Foto machen oder die Nummer unten eintippen.</p>`;
+      $('#prodResult').innerHTML = `<p>⚠️ ${why}</p><p class="hint">Solange: Foto vom Strichcode machen oder die Nummer eintippen (unten).</p>`; $('#prodMore').open = true;
     }
   }
 
@@ -287,7 +288,7 @@ const Product = (() => {
   }
   const myPrices = (ean) => ({ ...(((state.settings.prices || {})[ean]) || {}), ...Catalog.pricesFor(ean) });
   let shot = '';
-  const meta = (ean) => ({ ean, name: current ? current.pname : ean, brand: current ? current.brand : '', qty: current ? current.qty : '', img: (current && current.img) || shot });
+  const meta = (ean) => ({ ean, name: current ? current.pname : ean, brand: current ? current.brand : '', qty: current ? current.qty : '', img: (current && current.img) || shot, cats: (current && current.cats) || [] });
   function savePrice(ean, store, p, d) {
     const all = { ...(state.settings.prices || {}) };
     all[ean] = { ...(all[ean] || {}), [store]: { p, d: d || new Date().toISOString().slice(0, 10), t: Date.now() } };
@@ -351,9 +352,9 @@ const Product = (() => {
     $('#prodResult').innerHTML = '<p>🔍 Lese Strichcode …</p>'; $('#prodAdd').hidden = true; $('#prodPrices').innerHTML = ''; $('#prodTagForm').hidden = true;
     $('#prodDialog').showModal();
     try {
-      shot = await Catalog.thumbFromFile(file);
+      shot = await Catalog.thumbFromFile(file); // nur Vorschau, kein Zuschnitt
       const ean = await readBarcode(file);
-      if (!ean) { $('#prodResult').innerHTML = '<p>Kein Strichcode erkannt.</p><p class="hint">Bitte den Strichcode nah, gerade und scharf fotografieren – oder die Nummer unten eintippen.</p>'; return; }
+      if (!ean) { $('#prodResult').innerHTML = '<p>Kein Strichcode erkannt.</p><p class="hint">Bitte den Strichcode nah, gerade und scharf fotografieren – oder die Nummer unten eintippen.</p>'; $('#prodMore').open = true; return; }
       await show(ean);
     } catch (e) { $('#prodResult').innerHTML = `<p>⚠️ ${esc(e.message)}</p>`; }
   }
@@ -366,10 +367,18 @@ const Product = (() => {
   async function remember(ean) {
     if (!current || current.unknown) return '';
     const img = (await offThumb(current.img)) || shot;
-    return Catalog.upsertScan({ ...meta(ean), img });
+    const id = Catalog.upsertScan({ ...meta(ean), img });
+    savedMsg(id);
+    return id;
+  }
+  function savedMsg(id) {
+    const el = $('#prodSaved'); if (!id) { el.hidden = true; return; }
+    const pr = Catalog.bestPrice(id);
+    el.hidden = false; el.innerHTML = `✓ Gespeichert unter <b>⭐ Produkte</b>${pr ? ` · ${esc(pr)}` : ' · Preis kommt automatisch vom nächsten Bon'}`;
+    $('#prodAdd').hidden = false; $('#prodAdd').dataset.pid = id;
   }
   async function show(ean) {
-    stopLive();
+    stopLive(); $('#prodSaved').hidden = true; $('#prodSave').hidden = true; $('#prodAdd').hidden = true;
     $('#prodEan').value = ean;
     $('#prodResult').innerHTML = `<p>🔍 Suche Produkt ${esc(ean)} …</p>`;
     try { render(ean, await lookup(ean)); } catch (e) { $('#prodResult').innerHTML = `<p>⚠️ ${esc(e.message)}</p>`; }
@@ -392,19 +401,18 @@ const Product = (() => {
   function bind() {
     if (bound) return; bound = true;
     $('#prodClose').onclick = () => $('#prodDialog').close();
-    $('#prodDialog').addEventListener('close', () => { stopLive(); if (series && seriesN) toast(`⭐ ${seriesN} Produkte unter „Produkte“ gemerkt`); series = false; });
+    $('#prodDialog').addEventListener('close', () => { if (typeof Catalog !== 'undefined' && !$('#catPane').hidden) Catalog.render(); stopLive(); if (series && seriesN) toast(`⭐ ${seriesN} Produkte unter „Produkte“ gemerkt`); series = false; });
     $('#prodRescan').onclick = () => startLive(series);
     $('#camMode').onclick = (e) => { const b = e.target.closest('[data-m]'); if (!b) return; series = b.dataset.m === 'series'; lastSeries = ''; markMode(); camHint(); };
     $('#camStop').onclick = () => $('#prodDialog').close();
     const ownPhoto = async (e) => {
       const f = e.target.files[0]; e.target.value = ''; const ean = $('#prodEan').value.replace(/\D/g, '');
       if (!f || ean.length < 8) { toast('Erst Strichcode scannen oder eintippen'); return; }
-      const t = await Catalog.thumbFromFile(f); if (!t) return;
+      const t = await Catalog.cropFromFile(f); if (!t) return;
       if (current && current.unknown) { const v = ($('#prodOwnName') || {}).value || ''; if (v.trim()) current.name = current.pname = v.trim().slice(0, 80); }
-      Catalog.setImg(meta(ean), t); toast('📷 Foto gespeichert');
+      const pid = Catalog.setImg(meta(ean), t); toast('📷 Foto gespeichert'); savedMsg(pid);
       const head = $('#prodResult .prod-head img'); if (head) head.src = t; else if ($('#prodResult .prod-head')) $('#prodResult .prod-head').insertAdjacentHTML('beforeend', `<img src="${t}" alt="">`); else $('#prodResult').insertAdjacentHTML('afterbegin', `<div class="prod-head"><img src="${t}" alt=""></div>`);
     };
-    $('#prodOwnPhoto').addEventListener('change', ownPhoto);
     $('#prodResult').addEventListener('change', (e) => {
       if (e.target.matches('.prod-own-photo')) ownPhoto(e);
       if (e.target.matches('.prod-pack-in')) { const q = parseFloat(e.target.value.replace(',', '.')); const ean = $('#prodEan').value.replace(/\D/g, ''); if (q > 0 && q < 20000 && ean) { Catalog.setPack(meta(ean), q); if (lastP) render(lastEan, lastP); } }
@@ -426,7 +434,13 @@ const Product = (() => {
     try { const old = localStorage.getItem('ausgaben-health-v1'); if (old && !(state.settings.health || {})[meName()]) { setH(meName(), { ...EMPTY(), ...JSON.parse(old) }); } localStorage.removeItem('ausgaben-health-v1'); } catch (e) { /* egal */ }
     $('#hpCancel').onclick = () => $('#prefDialog').close();
     $('#hpNone').onclick = () => { $$('#prefDialog input[data-g]').forEach((c) => { c.checked = false; }); $('#hpCustom').value = ''; };
-    $('#prodAdd').onclick = () => { if (!current) return; if (current.unknown) { const v = ($('#prodOwnName') || {}).value || ''; if (!v.trim()) { toast('Bitte einen Produktnamen eintragen'); return; } current.name = current.pname = v.trim().slice(0, 80); } const pid = Catalog.upsertScan(meta(current.ean)); Shop.addItems([current.pname || current.name], '', { pid }); $('#prodDialog').close(); toast('🛒 auf der Einkaufsliste'); };
+    const saveUnknown = () => {
+      if (!current) return '';
+      if (current.unknown) { const v = ($('#prodOwnName') || {}).value || ''; if (!v.trim()) { toast('Bitte einen Produktnamen eintragen'); return ''; } current.name = current.pname = v.trim().slice(0, 80); }
+      const id = Catalog.upsertScan(meta(current.ean)); savedMsg(id); return id;
+    };
+    $('#prodSave').onclick = () => { if (saveUnknown()) { $('#prodSave').hidden = true; toast('⭐ Gespeichert'); } };
+    $('#prodAdd').onclick = () => { const id = $('#prodAdd').dataset.pid || saveUnknown(); if (id) Catalog.pickById(id); };
     $('#prodEanBtn').onclick = () => { const v = $('#prodEan').value.replace(/\D/g, ''); if (v.length >= 8) show(v); else toast('Bitte die Ziffern unter dem Strichcode eintippen'); };
   }
   const showEan = (ean) => { bind(); shot = ''; $('#prodCam').hidden = true; if (!$('#prodDialog').open) $('#prodDialog').showModal(); show(ean); };
