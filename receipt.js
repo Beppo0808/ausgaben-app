@@ -204,6 +204,7 @@ const Receipt = (() => {
     ['denn’s Biomarkt', /denn.?s/i], ['Alnatura', /alnatura/i], ['IKEA', /ikea/i], ['OBI', /\bobi\b/i], ['Hornbach', /hornbach/i],
     ['Bauhaus', /bauhaus/i], ['toom', /toom/i], ['Action', /\baction\b/i], ['Tedi', /tedi/i], ['Apotheke', /apotheke/i],
   ];
+  const SUM_FUZZY = /^\W*s[a-zäöü]{1,6}\W*\s+eur\b/i;
   const SKIP = /(summe|gesamt|\btotal\b|zu zahlen|\bmwst\b|\bust\b|steuer|netto ?umsatz|brutto|\bnetto\b|\bbar\b|gegeben|r[üu]ckgeld|wechselgeld|ec[- ]?karte|girocard|kartenzahlung|\bvisa\b|mastercard|maestro|kontaktlos|betrag\s*eur|\beur\s*$|datum|uhrzeit|\bkasse\b|bon[- ]?nr|\bbeleg\b|terminal|\btrace\b|\btse\b|signatur|transaktion|steuer-?nr|ust-?id|\btel\b\.?|telefon|www\.|danke|vielen dank|öffnungszeiten|payback|punkte|kundenkarte|filiale|markt\s*\d)/i;
   const PRICE_END = /(-?\s?[\dOo]{1,4}\s?[,.]\s?[\dOo]{2})\s*(?:€|eur)?\s*(?:[ABCD12]|\*|[ABCD]\s?\*)?\s*$/i;
   const QTY = /^\s*(\d{1,3}(?:[,.]\d{1,3})?)\s*(stk\.?|st\.?|kg|x|×|\*)\s*(?:x|×|\*)?\s*([\dOo]{1,4}[,.][\dOo]{2,3})\s*(?:eur|€)?(?:\s*\/\s*(?:kg|stk|st))?/i;
@@ -218,7 +219,11 @@ const Receipt = (() => {
     // Logo oben wird oft nicht gelesen → zur Not im ganzen Bon nach dem Laden suchen (z. B. „Mix Markt 191“ im Kundenbeleg)
     const hit = STORES.find(([, re]) => re.test(head.join(' '))) || STORES.filter(([n]) => !['Netto', 'real', 'Hit', 'Action', 'dm', 'Müller', 'toom'].includes(n)).find(([, re]) => re.test(lines.join(' '))); // mehrdeutige Wörter („Netto“ = Steuer) nur im Kopf
     if (hit) out.store = hit[0];
-    else { const l = head.slice(0, 6).find((x) => /[a-zäöü]{3,}/i.test(x) && !/\d{3,}/.test(x)); if (l) out.store = l.slice(0, 40); }
+    else {
+      const firm = head.slice(0, 8).find((x) => /\b(gmbh|ag|kg|ohg|e\.\s?k\.?|ug)\b/i.test(x) && /[a-zäöü]{3,}/i.test(x));
+      const l = firm || head.slice(0, 6).find((x) => /[a-zäöü]{3,}/i.test(x) && !/\d{3,}/.test(x));
+      if (l) out.store = l.replace(/^[^A-Za-zÄÖÜäöü]+/, '').replace(/\s*(gmbh|ag|kg|ohg|e\.\s?k\.?|ug)(\s*&\s*co\.?\s*kg)?\b.*$/i, '').trim().slice(0, 40);
+    }
     // Filiale: Straße + PLZ/Ort (gleiche oder nächste Zeile) und ggf. Filial-/Marktnummer
     let street = '', place = '';
     for (let i = 0; i < head.length; i++) {
@@ -232,8 +237,16 @@ const Receipt = (() => {
       }
     }
     const fil = head.join(' ').match(/(?:filiale|markt|fil\.?)\s*(?:nr\.?)?\s*[:#]?\s*(\d{2,6})/i);
+    street = street.replace(/^[^A-Za-zÄÖÜäöü]+/, '').replace(/(\d+)[.,]\d\s*$/, '$1');
     out.branch = [street, place].filter(Boolean).join(', ') + (fil ? `${street || place ? ' · ' : ''}Filiale ${fil[1]}` : '');
     return out;
+  }
+
+  /** Von mehreren Lesarten die häufigste, bei Gleichstand die „sauberste“ (echte Wörter, wenig Sonderzeichen) */
+  function bestOf(vals) {
+    const q = (v) => (v.match(/[A-ZÄÖÜa-zäöüß]{3,}/g) || []).join('').length - 4 * (v.match(/[^A-Za-zÄÖÜäöüß0-9 .,\-&'·]/g) || []).length;
+    const c = new Map(); vals.filter(Boolean).forEach((v) => c.set(v, (c.get(v) || 0) + 1));
+    return [...c.entries()].sort((a, b) => b[1] - a[1] || q(b[0]) - q(a[0]))[0]?.[0] || '';
   }
 
   function parse(text) {
@@ -263,7 +276,7 @@ const Receipt = (() => {
     for (let i = 0; i < lines.length; i++) {
       const l = lines[i];
       if (/zwischensumme/i.test(l)) continue;
-      if (/(^|\s)(summe|zu zahlen|gesamtbetrag|gesamt|total|endbetrag|betrag)\b/i.test(l)) {
+      if (/(^|\s)(summe|zu zahlen|gesamtbetrag|gesamt|total|endbetrag|betrag)\b/i.test(l) || SUM_FUZZY.test(l)) {
         const m = l.match(PRICE_END) || (lines[i + 1] || '').match(PRICE_END);
         if (m) { const v = num(m[1]); if (v > 0) { result.total = round2(v); totalIdx = i; break; } }
       }
@@ -271,7 +284,12 @@ const Receipt = (() => {
 
     // Artikel + Mengenzeilen („2 x 0,49“, „0,512 kg x 2,99 EUR/kg“)
     const end = totalIdx > -1 ? totalIdx : lines.length;
-    let pendingQty = null;
+    let pendingQty = null, nameCand = '';
+    // Mengenzeile, die zu keinem Artikel passte, aber einen Namen davor hat („Natives Olivenöl …“ / „1 x 19,45“) → eigener Artikel
+    const flush = () => {
+      if (pendingQty && pendingQty.name) result.items.push({ name: pendingQty.name.slice(0, 60), price: round2(pendingQty.qty * pendingQty.unit), qty: pendingQty.qty, unit: pendingQty.unit, unitLabel: pendingQty.unitLabel });
+      pendingQty = null;
+    };
     for (let i = 0; i < end; i++) {
       const l = lines[i];
       const q = l.match(QTY);
@@ -280,10 +298,16 @@ const Receipt = (() => {
         const last = result.items[result.items.length - 1];
         // passt die Menge zum vorherigen Artikel? sonst gilt sie für den nächsten
         if (last && !last.qty && Math.abs(last.price - qty * unit) < 0.02) { last.qty = qty; last.unit = unit; last.unitLabel = /kg/i.test(q[2]) ? 'kg' : ''; }
-        else pendingQty = { qty, unit, unitLabel: /kg/i.test(q[2]) ? 'kg' : '' };
+        else { flush(); pendingQty = { qty, unit, unitLabel: /kg/i.test(q[2]) ? 'kg' : '', name: nameCand }; }
+        nameCand = '';
         continue;
       }
-      if (SKIP.test(l)) continue;
+      if (SKIP.test(l) || SUM_FUZZY.test(l)) continue;
+      if (!PRICE_END.test(l) && /[a-zäöü]{4,}/i.test(l)) {
+        // Artikel beginnen meist groß („Jordan Olivenöl …“), Fortsetzungszeilen klein („matt schwarz …“)
+        const c = l.replace(/^[^A-Za-zÄÖÜäöü]+/, '').replace(/(\s+\S*\d\S*|\s+[^\wÄÖÜäöü\s]+)+\s*$/, '').replace(/[\s.:*\-—]+$/, '').trim();
+        if (!nameCand || (/^[A-ZÄÖÜ][a-zäöüß]{2,}/.test(c) && !/^\W*\d/.test(l) && !/^(liter|stück|gramm|inhalt)\b/i.test(c))) nameCand = c;
+      }
       const inl = l.match(/^(.*?[a-zäöü]{2,}.*?)\s+(\d{1,3}\s?[,.]\s?\d{2})\s*(?:€|eur|e)?\s*[x×*]\s*(\d{1,3})\b(?:\s+(-?\d{1,4}\s?[,.]\s?\d{2}))?/i);
       if (inl) {
         const unit = num(inl[2]), qty = num(inl[3]);
@@ -296,13 +320,17 @@ const Receipt = (() => {
       if (!m) continue;
       const name = l.slice(0, m.index).replace(/\s+\d+([,.]\d+)?\s*(stk|st|x|×)\s*[\d,.]+\s*$/i, '').replace(/[\s.:*]+$/, '').trim();
       if (!/[a-zäöü]{2,}/i.test(name)) continue;
-      const price = num(m[1]);
+      let price = num(m[1]);
       if (!Number.isFinite(price) || Math.abs(price) > 999) continue;
-      const it = { name: name.slice(0, 60), price: round2(price) };
-      if (pendingQty && Math.abs(it.price - pendingQty.qty * pendingQty.unit) < 0.02) Object.assign(it, pendingQty);
-      pendingQty = null;
+      // „Olivenöl - Bambatsa - 16,95“: Bindestrich ist Trennzeichen, kein Minus – Minus nur bei Rabatt, Pfand-Rückgabe usw.
+      if (price < 0 && !/rabatt|nachlass|coupon|gutschein|storno|leergut|pfand|ersparnis|preisvorteil|vorteil|abzug|retoure|aktion|%/i.test(l)) price = Math.abs(price);
+      const it = { name: name.replace(/[\s\-—]+$/, '').slice(0, 60), price: round2(price) };
+      if (pendingQty && Math.abs(it.price - pendingQty.qty * pendingQty.unit) < 0.02) { const { name: _n, ...pq } = pendingQty; Object.assign(it, pq); pendingQty = null; }
+      else flush();
+      nameCand = '';
       result.items.push(it);
     }
+    flush();
     if (!(result.total > 0) && result.items.length) { result.total = round2(result.items.reduce((a, it) => a + it.price, 0)); result.totalGuessed = true; }
     return result;
   }
@@ -424,13 +452,15 @@ const Receipt = (() => {
         const off = real ? Math.abs(sum - r.total) / r.total : 1;
         return r.items.length * 2 - Math.min(off, 1) * 20 + (real ? 6 : 0) + (r.date ? 1 : 0);
       };
-      let r = null;
+      let r = null; const heads = [];
       const passes = [['plain', '3'], ['clean', '3'], ['plain', '6'], ['clean', '6']];
       for (const [i, [kind, psm]] of passes.entries()) {
         if (i) setProgress(0.35, `Lese Bon noch einmal anders (${i + 1}/${passes.length}) …`);
         await w.setParameters({ tessedit_pageseg_mode: psm });
         const { data } = await w.recognize(imgs[kind]);
+        if (window.__ocrLog) window.__ocrLog.push(data.text || ''); // nur für Tests
         const cand = parse(data.text || '');
+        heads.push({ store: cand.store, branch: cand.branch });
         if (!r || score(cand) > score(r)) {
           // Kopfdaten (Laden, Datum …) aus der besseren Lesart, fehlende aus der vorigen ergänzen
           if (r) for (const k of ['store', 'branch', 'date', 'time']) if (!cand[k] && r[k]) cand[k] = r[k];
@@ -442,6 +472,7 @@ const Receipt = (() => {
       }
       await w.setParameters({ tessedit_pageseg_mode: '3' });
       setProgress(1, '');
+      for (const k of ['store', 'branch']) { const v = bestOf(heads.map((h) => h[k])); if (v) r[k] = v; }
       if (editing) {
         const cur = readItems();
         r.items = cur.length ? cur : r.items;
