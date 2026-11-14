@@ -160,21 +160,24 @@ const Product = (() => {
     const packQ = +p.product_quantity > 0 && +p.product_quantity <= 20000 ? +p.product_quantity : qParsed > 0 && qParsed <= 20000 ? qParsed : 0;
     const servQ = +p.serving_quantity > 0 && +p.serving_quantity < 5000 ? +p.serving_quantity : 0;
     const cols = [['100', (v) => v]];
-    if (servQ && Math.abs(servQ - 100) > 0.5 && !(packQ && Math.abs(servQ - packQ) <= 0.5)) cols.push([`Portion (${num(servQ)} ${per})`, (v) => v * servQ / 100]);
-    if (packQ && Math.abs(packQ - 100) > 0.5) cols.push([`Packung (${num(packQ)} ${per})`, (v) => v * packQ / 100]);
+    if (servQ && Math.abs(servQ - 100) > 0.5 && !(packQ && Math.abs(servQ - packQ) <= 0.5)) cols.push([`Portion<br>${num(servQ)} ${per}`, (v) => v * servQ / 100]);
+    const ownQ = Catalog.packFor(ean);
+    const pq = packQ || ownQ;
+    if (pq && Math.abs(pq - 100) > 0.5) cols.push([`Packung<br>${num(pq)} ${per}`, (v) => v * pq / 100]);
     const rows = NUTS.map(([k, label, unit, f]) => {
       const v = nv(n, k); if (v === null || !Number.isFinite(v)) return '';
       const imp = h.nut.includes(k);
       return `<tr class="${imp ? 'imp' : ''} ${mark[k] ? 'm-' + mark[k] : ''}"><td>${mark[k] ? `<span class="dot ${mark[k]}"></span>` : ''}${esc(label)}</td>${cols.map(([, fn]) => `<td>${num(fn(f ? v * f : v))} ${unit}</td>`).join('')}</tr>`;
     }).join('');
-    const thead = `<tr><th></th>${cols.map(([l]) => `<th>${l === '100' ? `100 ${per}` : esc(l)}</th>`).join('')}</tr>`;
+    const thead = `<tr><th></th>${cols.map(([l]) => `<th>${l === '100' ? `pro<br>100 ${per}` : l}</th>`).join('')}</tr>`;
     const ownImg = Catalog.imgFor(ean);
     const allergens = (p.allergens_tags || []).map((t) => (ALLERGENS.find((a) => a[0] === t) || [, t.replace(/^\w+:/, '')])[1]);
-    box.innerHTML = `<div class="prod-head">${ownImg ? `<img src="${esc(ownImg)}" alt="">` : p.image_front_small_url && /^https:\/\/images\.openfoodfacts\.org\//.test(p.image_front_small_url) ? `<img src="${esc(p.image_front_small_url)}" alt="">` : ''}
+    box.innerHTML = `<div class="prod-head"><label class="prod-photo-btn" title="Eigenes Foto">📷<input type="file" class="prod-own-photo" accept="image/*" capture="environment"></label>${ownImg ? `<img src="${esc(ownImg)}" alt="">` : p.image_front_small_url && /^https:\/\/images\.openfoodfacts\.org\//.test(p.image_front_small_url) ? `<img src="${esc(p.image_front_small_url)}" alt="">` : ''}
       <div><div class="prod-brand">${esc(brand)}</div><div class="prod-name">${esc(name)}</div><div class="muted">${esc(p.quantity || '')}${p.nutriscore_grade && /^[a-e]$/.test(p.nutriscore_grade) ? ` · Nutri-Score ${esc(p.nutriscore_grade.toUpperCase())}` : ''}</div></div></div>
       ${notes.length ? `<ul class="prod-notes">${notes.map((x) => `<li class="${x.c}"><span class="dot ${x.c}"></span>${esc(x.t)}</li>`).join('')}</ul>`
         : (people.length ? '<p class="prod-ok">🟢 Zu deinen Hinweisen nichts Auffälliges gefunden.</p>' : '')}
-      <table class="prod-nut"><caption>Nährwerte</caption>${rows ? thead + rows : '<tr><td>Keine Nährwerte erfasst</td></tr>'}</table>
+      ${!packQ ? `<label class="field prod-pack">Packungsinhalt (${per}) – für die Spalte „Packung“<input type="text" inputmode="decimal" class="prod-pack-in" value="${ownQ ? num(ownQ) : ''}" placeholder="z. B. 250"></label>` : ''}
+      <table class="prod-nut${cols.length > 2 ? ' multi' : ''}"><caption>Nährwerte</caption>${rows ? thead + rows : '<tr><td>Keine Nährwerte erfasst</td></tr>'}</table>
       ${allergens.length ? `<p class="hint"><b>Allergene laut Hersteller:</b> ${esc(allergens.join(', '))}</p>` : ''}
       ${(p.ingredients_text_de || p.ingredients_text) ? `<details open><summary>Zutaten</summary><p class="hint">${esc(p.ingredients_text_de || p.ingredients_text)}</p></details>` : ''}
       <p class="hint">Angaben aus Open Food Facts – können unvollständig sein, die Verpackung gilt. Die Hinweise ersetzen keine ärztliche Beratung.</p>`;
@@ -205,33 +208,63 @@ const Product = (() => {
   // ---------- Live-Kamera: Strichcode wird automatisch erkannt ----------
   let live = null;
   const eanOk = (c) => { if (!/^\d{8}$|^\d{12,13}$/.test(c)) return false; const d = c.padStart(13, '0').split('').map(Number); const sum = d.slice(0, 12).reduce((a, x, i) => a + x * (i % 2 ? 3 : 1), 0); return (10 - (sum % 10)) % 10 === d[12]; };
-  function stopLive() { try { live && live.reset(); } catch (e) { /* egal */ } live = null; const v = $('#prodVideo'); if (v) { v.srcObject && v.srcObject.getTracks && v.srcObject.getTracks().forEach((t) => t.stop()); v.srcObject = null; } $('#prodCam').hidden = true; }
+  function stopLive() {
+    if (live) { clearInterval(live.timer); live.stream && live.stream.getTracks().forEach((t) => t.stop()); }
+    live = null;
+    const v = $('#prodVideo'); if (v) { try { v.pause(); } catch (e) { /* egal */ } v.srcObject = null; }
+    $('#prodCam').hidden = true;
+  }
+  /** Eigene Kamera-Schleife: alle 0,2 s den mittleren Bildausschnitt nach einem Strichcode absuchen */
   async function startLive() {
-    bind();
-    current = null; lastP = null;
-    $('#prodResult').innerHTML = ''; $('#prodAdd').hidden = true; $('#prodEan').value = '';
+    bind(); stopLive();
+    current = null; lastP = null; shot = '';
+    $('#prodResult').innerHTML = ''; $('#prodPrices').innerHTML = ''; $('#prodTagForm').hidden = true; $('#prodAdd').hidden = true; $('#prodEan').value = '';
     $('#prodCam').hidden = false; $('#prodCamHint').textContent = '📷 Kamera startet …';
     if (!$('#prodDialog').open) $('#prodDialog').showModal();
+    const zx = loadZxing(); // parallel laden
     try {
-      await loadZxing();
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { const e = new Error('Kamera-Zugriff wird hier nicht unterstützt'); e.name = 'NoMedia'; throw e; }
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } });
+      const v = $('#prodVideo');
+      v.setAttribute('playsinline', ''); v.setAttribute('muted', ''); v.muted = true; v.autoplay = true;
+      v.srcObject = stream;
+      live = { stream, timer: 0 };
+      await v.play().catch(() => {});
+      await zx;
+      if (!live) return; // inzwischen geschlossen
       const hints = new Map();
       hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [ZXing.BarcodeFormat.EAN_13, ZXing.BarcodeFormat.EAN_8, ZXing.BarcodeFormat.UPC_A, ZXing.BarcodeFormat.UPC_E]);
-      live = new ZXing.BrowserMultiFormatReader(hints, 250);
-      let seen = '', count = 0;
-      await live.decodeFromConstraints({ video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } } }, $('#prodVideo'), (r) => {
-        if (!r || !live) return;
-        const t = r.getText();
-        if (!eanOk(t)) return;
-        count = t === seen ? count + 1 : 1; seen = t;
-        if (count < 2) return; // zweimal gleich gelesen = sicher
-        if (navigator.vibrate) navigator.vibrate(60);
-        try { const v = $('#prodVideo'); shot = Catalog.thumb(v, v.videoWidth, v.videoHeight); } catch (e) { shot = ''; }
-        stopLive(); show(t);
-      });
+      const reader = new ZXing.MultiFormatReader(); reader.setHints(hints);
+      const c = document.createElement('canvas'), x = c.getContext('2d', { willReadFrequently: true });
+      let seen = '', count = 0, busy = false;
       $('#prodCamHint').textContent = 'Strichcode ins Bild halten – wird automatisch erkannt';
+      live.timer = setInterval(() => {
+        if (!live || busy || !v.videoWidth) return;
+        busy = true;
+        try {
+          const vw = v.videoWidth, vh = v.videoHeight;
+          const cw = vw * 0.9, ch = vh * 0.5, sx = (vw - cw) / 2, sy = (vh - ch) / 2; // Bereich im Rahmen
+          const sc = Math.min(1, 1000 / cw);
+          c.width = Math.round(cw * sc); c.height = Math.round(ch * sc);
+          x.drawImage(v, sx, sy, cw, ch, 0, 0, c.width, c.height);
+          let t = '';
+          try { t = reader.decode(new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(new ZXing.HTMLCanvasElementLuminanceSource(c)))).getText(); } catch (e) { /* noch nichts */ }
+          if (t && eanOk(t)) {
+            count = t === seen ? count + 1 : 1; seen = t;
+            if (count >= 2) { // zweimal gleich gelesen = sicher
+              if (navigator.vibrate) navigator.vibrate(60);
+              try { shot = Catalog.thumb(v, vw, vh); } catch (e) { shot = ''; }
+              stopLive(); show(t);
+            }
+          }
+        } finally { busy = false; }
+      }, 200);
     } catch (e) {
       stopLive();
-      $('#prodResult').innerHTML = `<p>⚠️ Kamera nicht verfügbar${e && e.name === 'NotAllowedError' ? ' – bitte den Kamerazugriff erlauben' : ''}.</p><p class="hint">Du kannst ein Foto machen oder die Nummer unten eintippen.</p>`;
+      const why = e && e.name === 'NotAllowedError' ? 'Kamerazugriff wurde nicht erlaubt. Einstellungen → Safari → Kamera → „Erlauben“ (oder beim nächsten Mal „Erlauben“ tippen).'
+        : e && e.name === 'NotReadableError' ? 'Die Kamera wird gerade von einer anderen App benutzt.'
+        : `Kamera nicht verfügbar (${esc((e && (e.name + ': ' + e.message)) || 'unbekannt')}).`;
+      $('#prodResult').innerHTML = `<p>⚠️ ${why}</p><p class="hint">Solange: 📷 Strichcode-Foto machen oder die Nummer unten eintippen.</p>`;
     }
   }
 
@@ -335,13 +368,18 @@ const Product = (() => {
     $('#prodClose').onclick = () => $('#prodDialog').close();
     $('#prodDialog').addEventListener('close', stopLive);
     $('#prodRescan').onclick = startLive;
-    $('#prodOwnPhoto').addEventListener('change', async (e) => {
+    const ownPhoto = async (e) => {
       const f = e.target.files[0]; e.target.value = ''; const ean = $('#prodEan').value.replace(/\D/g, '');
       if (!f || ean.length < 8) { toast('Erst Strichcode scannen oder eintippen'); return; }
       const t = await Catalog.thumbFromFile(f); if (!t) return;
       if (current && current.unknown) { const v = ($('#prodOwnName') || {}).value || ''; if (v.trim()) current.name = current.pname = v.trim().slice(0, 80); }
       Catalog.setImg(meta(ean), t); toast('📷 Foto gespeichert');
-      const head = $('#prodResult .prod-head img'); if (head) head.src = t; else $('#prodResult').insertAdjacentHTML('afterbegin', `<div class="prod-head"><img src="${t}" alt=""></div>`);
+      const head = $('#prodResult .prod-head img'); if (head) head.src = t; else if ($('#prodResult .prod-head')) $('#prodResult .prod-head').insertAdjacentHTML('beforeend', `<img src="${t}" alt="">`); else $('#prodResult').insertAdjacentHTML('afterbegin', `<div class="prod-head"><img src="${t}" alt=""></div>`);
+    };
+    $('#prodOwnPhoto').addEventListener('change', ownPhoto);
+    $('#prodResult').addEventListener('change', (e) => {
+      if (e.target.matches('.prod-own-photo')) ownPhoto(e);
+      if (e.target.matches('.prod-pack-in')) { const q = parseFloat(e.target.value.replace(',', '.')); const ean = $('#prodEan').value.replace(/\D/g, ''); if (q > 0 && q < 20000 && ean) { Catalog.setPack(meta(ean), q); if (lastP) render(lastEan, lastP); } }
     });
     $('#prodPhoto2').addEventListener('change', (e) => { const f = e.target.files[0]; e.target.value = ''; if (f) { stopLive(); handleFile(f); } });
     $('#prodPrices').addEventListener('change', (e) => { if (e.target.id === 'prodTag') { const f = e.target.files[0]; e.target.value = ''; if (f) readTag(f); } });

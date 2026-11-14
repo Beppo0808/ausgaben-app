@@ -1155,3 +1155,12 @@ dialog form > .dialog-actions, dialog .rd > .dialog-actions { position: sticky; 
 .card-info { margin: 8px 0; padding: 10px 12px; border-radius: 12px; background: var(--surface-3); font-weight: 600; }
 .card-info.ok { background: #dcebdc; } .card-info.warn { background: #f4e7c4; }
 .card-who { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+
+.prod-head { position: relative; }
+.prod-photo-btn { position: absolute; top: 0; right: 0; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; background: var(--surface); box-shadow: var(--shadow-sm); font-size: 1.3rem; cursor: pointer; z-index: 1; }
+.prod-photo-btn input { display: none; }
+.prod-pack { margin: 6px 0; }
+.prod-nut th { line-height: 1.2; vertical-align: bottom; }
+.prod-nut.multi { font-size: .86rem; }
+.prod-nut.multi td { padding: 6px 2px; }
+.prod-nut.multi td:first-child { hyphens: auto; overflow-wrap: anywhere; }

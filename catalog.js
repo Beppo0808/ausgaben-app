@@ -143,6 +143,8 @@ const Catalog = (() => {
     p.stores = { ...(p.stores || {}), [store]: { p: price, d: today() } };
     save();
   }
+  const packFor = (ean) => { const p = list().find((y) => ean && y.ean === ean); return p && +p.pack > 0 ? +p.pack : 0; };
+  function setPack(meta, q) { const id = upsertScan(meta); const p = list().find((y) => y.id === id); if (p) { p.pack = q; save(); } }
   const byEan = (ean) => list().find((y) => ean && y.ean === ean) || null;
   const imgFor = (ean) => { const p = byEan(ean); return p && imgOk(p.img) && p.img.startsWith('data:') ? p.img : ''; };
   function setImg(meta, img) {
@@ -201,5 +203,5 @@ const Catalog = (() => {
     };
   }
 
-  return { render, fromBon, upsertScan, setPrice, pricesFor, byEan, imgFor, setImg, thumb, thumbFromFile };
+  return { render, fromBon, upsertScan, setPrice, pricesFor, packFor, setPack, byEan, imgFor, setImg, thumb, thumbFromFile };
 })();
