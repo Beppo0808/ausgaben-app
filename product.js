@@ -56,10 +56,12 @@ const Product = (() => {
     return p;
   }
 
-  // ---------- Meine Hinweise (nur auf diesem Gerät – Gesundheitsdaten werden nie geteilt) ----------
-  const HKEY = 'ausgaben-health-v1';
-  const getH = () => { try { return { nut: [], diag: [], allergy: [], custom: [], ...JSON.parse(localStorage.getItem(HKEY) || '{}') }; } catch (e) { return { nut: [], diag: [], allergy: [], custom: [] }; } };
-  const setH = (h) => { try { localStorage.setItem(HKEY, JSON.stringify(h)); } catch (e) { /* voll */ } };
+  // ---------- Hinweise je Person (verschlüsselt im Haushalt geteilt, damit beide sie sehen) ----------
+  const EMPTY = () => ({ nut: [], diag: [], allergy: [], custom: [] });
+  const meName = () => state.settings.me || (state.settings.persons || [])[0] || 'Ich';
+  const getH = (who = meName()) => ({ ...EMPTY(), ...((state.settings.health || {})[who] || {}) });
+  const setH = (who, h) => { state.settings.health = { ...(state.settings.health || {}), [who]: { ...h, t: Date.now() } }; save(); };
+  const hasH = (h) => h.diag.length || h.allergy.length || h.custom.length;
 
   // Nährwerte (Reihenfolge wie auf der Verpackung)
   const NUTS = [
@@ -91,8 +93,8 @@ const Product = (() => {
   const nv = (n, k) => { const v = n[k + '_100g']; return v === undefined || v === '' ? null : +v; };
 
   /** Hinweise für dieses Produkt (rot/gelb/grün) aus den gewählten Diagnosen und Allergien */
-  function assess(p) {
-    const h = getH(), n = p.nutriments || {}, out = [], mark = {};
+  function assess(p, h) {
+    const n = p.nutriments || {}, out = [], mark = {};
     const ingr = `${p.ingredients_text_de || ''} ${p.ingredients_text || ''} ${p.product_name_de || p.product_name || ''}`;
     const tags = p.allergens_tags || [], traces = p.traces_tags || [];
     const lvl = { red: 3, yellow: 2, green: 1 };
@@ -138,7 +140,15 @@ const Product = (() => {
     const name = p.product_name_de || p.product_name || p.generic_name_de || 'Produkt';
     const brand = (p.brands || '').split(',')[0].trim();
     current = { ean, name: [brand, name].filter(Boolean).join(' ').slice(0, 70), qty: p.quantity || '' };
-    const { notes, mark } = assess(p);
+    // Hinweise für alle Personen mit Einstellungen; bei mehreren mit Namen davor
+    const people = (state.settings.persons || [meName()]).filter((x) => hasH(getH(x)));
+    const notes = [], mark = {}, lv = { red: 3, yellow: 2, green: 1 };
+    for (const who of people) {
+      const r = assess(p, getH(who));
+      r.notes.forEach((x) => notes.push(people.length > 1 || who !== meName() ? { ...x, t: `${who}: ${x.t}` } : x));
+      for (const [k, c] of Object.entries(r.mark)) if (!mark[k] || lv[c] > lv[mark[k]]) mark[k] = c;
+    }
+    const ord = { red: 0, yellow: 1, green: 2 }; notes.sort((x, y) => ord[x.c] - ord[y.c]);
     const rows = NUTS.map(([k, label, unit, f]) => {
       const v = nv(n, k); if (v === null || !Number.isFinite(v)) return '';
       const val = f ? v * f : v;
@@ -150,7 +160,7 @@ const Product = (() => {
     box.innerHTML = `<div class="prod-head">${p.image_front_small_url && /^https:\/\/images\.openfoodfacts\.org\//.test(p.image_front_small_url) ? `<img src="${esc(p.image_front_small_url)}" alt="">` : ''}
       <div><div class="prod-brand">${esc(brand)}</div><div class="prod-name">${esc(name)}</div><div class="muted">${esc(p.quantity || '')}${p.nutriscore_grade && /^[a-e]$/.test(p.nutriscore_grade) ? ` · Nutri-Score ${esc(p.nutriscore_grade.toUpperCase())}` : ''}</div></div></div>
       ${notes.length ? `<ul class="prod-notes">${notes.map((x) => `<li class="${x.c}"><span class="dot ${x.c}"></span>${esc(x.t)}</li>`).join('')}</ul>`
-        : (h.diag.length || h.allergy.length || h.custom.length ? '<p class="prod-ok">🟢 Zu deinen Hinweisen nichts Auffälliges gefunden.</p>' : '')}
+        : (people.length ? '<p class="prod-ok">🟢 Zu deinen Hinweisen nichts Auffälliges gefunden.</p>' : '')}
       <table class="prod-nut"><caption>Alle Nährwerte pro 100 g / 100 ml</caption>${rows || '<tr><td colspan="2">Keine Nährwerte erfasst</td></tr>'}</table>
       ${allergens.length ? `<p class="hint"><b>Allergene laut Hersteller:</b> ${esc(allergens.join(', '))}</p>` : ''}
       <p class="prod-price">💶 ${price ? esc(price) : 'Preis: noch kein Bon mit diesem Produkt – nach dem Einkauf den Bon scannen'}</p>
@@ -159,8 +169,11 @@ const Product = (() => {
     $('#prodAdd').hidden = false;
   }
 
-  function openPrefs() {
-    const h = getH();
+  let prefWho = '';
+  function openPrefs(who) {
+    prefWho = typeof who === 'string' ? who : (prefWho || meName());
+    const h = getH(prefWho);
+    $('#hpWho').innerHTML = (state.settings.persons || [meName()]).map((x) => `<button type="button" aria-pressed="${x === prefWho}" data-who="${esc(x)}">${esc(x)}</button>`).join('');
     const chk = (name, id, label, on) => `<label class="pref"><input type="checkbox" data-g="${name}" value="${esc(id)}" ${on ? 'checked' : ''}><span>${esc(label)}</span></label>`;
     $('#hpNut').innerHTML = NUTS.slice(0, 10).map(([k, l]) => chk('nut', k, l, h.nut.includes(k))).join('');
     $('#hpDiag').innerHTML = DIAGS.map(([k, l]) => chk('diag', k, l, h.diag.includes(k))).join('');
@@ -172,9 +185,9 @@ const Product = (() => {
     const h = { nut: [], diag: [], allergy: [], custom: [] };
     $$('#prefDialog input[data-g]:checked').forEach((c) => h[c.dataset.g].push(c.value));
     h.custom = $('#hpCustom').value.split(',').map((x) => x.trim()).filter((x) => x.length > 1).slice(0, 20);
-    setH(h); $('#prefDialog').close();
+    setH(prefWho, h); $('#prefDialog').close();
     if (lastP && $('#prodDialog').open) render(lastEan, lastP);
-    toast('Meine Hinweise gespeichert – nur auf diesem Gerät');
+    toast(`Hinweise für ${prefWho} gespeichert`);
   }
 
   async function handleFile(file) {
@@ -199,6 +212,9 @@ const Product = (() => {
     $('#prodClose').onclick = () => $('#prodDialog').close();
     $('#prodPrefs').onclick = openPrefs;
     $('#hpSave').onclick = savePrefs;
+    $('#hpWho').onclick = (e) => { const b = e.target.closest('[data-who]'); if (b) openPrefs(b.dataset.who); };
+    // alte, nur lokal gespeicherte Hinweise einmalig übernehmen
+    try { const old = localStorage.getItem('ausgaben-health-v1'); if (old && !(state.settings.health || {})[meName()]) { setH(meName(), { ...EMPTY(), ...JSON.parse(old) }); } localStorage.removeItem('ausgaben-health-v1'); } catch (e) { /* egal */ }
     $('#hpCancel').onclick = () => $('#prefDialog').close();
     $('#hpNone').onclick = () => { $$('#prefDialog input[data-g]').forEach((c) => { c.checked = false; }); $('#hpCustom').value = ''; };
     $('#prodAdd').onclick = () => { if (!current) return; Shop.addItems([(current.qty ? '' : '') + current.name]); $('#prodDialog').close(); toast('🛒 auf der Einkaufsliste'); };

@@ -191,6 +191,11 @@ const Sync = (() => {
       if (budget !== undefined) state.settings.budget = budget;
       if (Array.isArray(shopStores)) state.settings.shopStores = shopStores;
       if (r.data.storeLogos && typeof r.data.storeLogos === 'object') state.settings.storeLogos = r.data.storeLogos;
+      if (r.data.health && typeof r.data.health === 'object') { // je Person die neuere Fassung behalten
+        const loc = state.settings.health || {}, merged = { ...loc };
+        for (const [who, v] of Object.entries(r.data.health)) if (v && typeof v === 'object' && (!loc[who] || (v.t || 0) > (loc[who].t || 0))) merged[who] = v;
+        state.settings.health = merged;
+      }
       if (Array.isArray(persons) && persons.length) {
         const list = persons.slice(), me = state.settings.me;
         if (me && !['Ich', 'Partner', ''].includes(me) && !list.includes(me)) { // eigenen Namen nicht verlieren (statt einfach „Person 1“ zu werden)

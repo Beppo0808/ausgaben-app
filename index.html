@@ -607,7 +607,7 @@
       <div id="prodResult"></div>
       <label class="field">Strichcode-Nummer <span class="muted">(falls nicht lesbar)</span>
         <span class="shop-add"><input type="text" id="prodEan" inputmode="numeric" autocomplete="off"><button type="button" class="btn" id="prodEanBtn">Suchen</button></span></label>
-      <button type="button" class="btn btn-sm" id="prodPrefs">⚙️ Meine Hinweise (Wichtiges, Diagnosen, Allergien)</button>
+      <button type="button" class="btn btn-sm" id="prodPrefs">⚙️ Hinweise (Wichtiges, Diagnosen, Allergien)</button>
       <div class="dialog-actions"><button type="button" class="btn btn-ghost" id="prodClose">Schließen</button><span class="spacer"></span><button type="button" class="btn btn-primary" id="prodAdd" hidden>🛒 Auf die Einkaufsliste</button></div>
     </div>
   </dialog>
@@ -615,8 +615,9 @@
   <!-- Dialog: Meine Hinweise (nur dieses Gerät) -->
   <dialog id="prefDialog">
     <div>
-      <h2>⚙️ Meine Hinweise</h2>
-      <p class="hint">🔒 Bleibt nur auf diesem Handy – wird nicht geteilt. Alles jederzeit abwählbar.</p>
+      <h2>⚙️ Hinweise</h2>
+      <div class="seg" id="hpWho"></div>
+      <p class="hint">🔒 Verschlüsselt nur zwischen euch beiden geteilt – ihr seht gegenseitig eure Hinweise. Alles jederzeit abwählbar.</p>
       <h3 class="small-h">Was ist mir wichtig? <span class="muted">(wird fett angezeigt)</span></h3>
       <div class="pref-grid" id="hpNut"></div>
       <h3 class="small-h">Diagnosen / Ernährung <span class="muted">(farbige Hinweise)</span></h3>
