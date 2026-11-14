@@ -36,6 +36,7 @@ const Receipt = (() => {
   }
 
   let progressCb = () => {};
+  let pdfText = ''; // Text aus einem digitalen Bon (PDF), dann ist keine Texterkennung nötig
   async function getWorker(onProgress) {
     progressCb = onProgress;
     await loadScript(TESSERACT_URL);
@@ -65,8 +66,15 @@ const Receipt = (() => {
       }
       const pdf = await window.pdfjsLib.getDocument({ data: await file.arrayBuffer(), isEvalSupported: false }).promise;
       const pages = [];
+      pdfText = '';
       for (let n = 1; n <= Math.min(pdf.numPages, 4); n++) {
         const page = await pdf.getPage(n);
+        try { // Textebene in Zeilen (gleiche Höhe) zusammensetzen
+          const tc = await page.getTextContent();
+          const rows = new Map();
+          for (const it of tc.items) { if (!it.str) continue; const y = Math.round(it.transform[5] / 3); if (!rows.has(y)) rows.set(y, []); rows.get(y).push(it); }
+          pdfText += [...rows.entries()].sort((a, b) => b[0] - a[0]).map(([, its]) => its.sort((a, b) => a.transform[4] - b.transform[4]).map((x) => x.str).join(' ')).join('\n') + '\n';
+        } catch (e) { /* ohne Text weiter */ }
         const v1 = page.getViewport({ scale: 1 });
         const vp = page.getViewport({ scale: Math.min(3, 1400 / v1.width) });
         const c = document.createElement('canvas'); c.width = Math.round(vp.width); c.height = Math.round(vp.height);
@@ -206,7 +214,7 @@ const Receipt = (() => {
   ];
   const SUM_FUZZY = /^\W*s[a-zäöü]{1,6}\W*\s+eur\b/i;
   const SKIP = /(summe|gesamt|\btotal\b|zu zahlen|\bmwst\b|\bust\b|steuer|netto ?umsatz|brutto|\bnetto\b|\bbar\b|gegeben|r[üu]ckgeld|wechselgeld|ec[- ]?karte|girocard|kartenzahlung|\bvisa\b|mastercard|maestro|kontaktlos|betrag\s*eur|\beur\s*$|datum|uhrzeit|\bkasse\b|bon[- ]?nr|\bbeleg\b|terminal|\btrace\b|\btse\b|signatur|transaktion|steuer-?nr|ust-?id|\btel\b\.?|telefon|www\.|danke|vielen dank|öffnungszeiten|payback|punkte|kundenkarte|filiale|markt\s*\d)/i;
-  const PRICE_END = /(-?\s?[\dOo]{1,4}\s?[,.]\s?[\dOo]{2})\s*(?:€|eur)?\s*(?:[ABCD12]|\*|[ABCD]\s?\*)?\s*$/i;
+  const PRICE_END = /(?:€\s?)?(-?\s?[\dOo]{1,4}\s?[,.]\s?[\dOo]{2})\s*(?:€|eur)?\s*(?:[ABCD12]|\*|[ABCD]\s?\*)?\s*$/i;
   const QTY = /^\s*(\d{1,3}(?:[,.]\d{1,3})?)\s*(stk\.?|st\.?|kg|x|×|\*)\s*(?:x|×|\*)?\s*([\dOo]{1,4}[,.][\dOo]{2,3})\s*(?:eur|€)?(?:\s*\/\s*(?:kg|stk|st))?/i;
 
   function fixNum(s) { return s.replace(/[oO]/g, '0').replace(/[lI|]/g, '1').replace(/\s/g, ''); }
@@ -236,6 +244,12 @@ const Receipt = (() => {
         break;
       }
     }
+    if (!place) { // digitale Bons: Anschrift oft unten („40878 Ratingen / Calor-Emag-Str. 8“)
+      for (const l of lines) {
+        const m = l.match(/\b(\d{5})\s+([A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]{2,30})(?:\s*[\/,]\s*(.+))?$/);
+        if (m && !/\d{6,}/.test(l)) { place = `${m[1]} ${m[2]}`; if (m[3] && /[a-zäöüß]{3,}.*\d/i.test(m[3])) street = m[3].trim(); break; }
+      }
+    }
     const fil = head.join(' ').match(/(?:filiale|markt|fil\.?)\s*(?:nr\.?)?\s*[:#]?\s*(\d{2,6})/i);
     street = street.replace(/^[^A-Za-zÄÖÜäöü]+/, '').replace(/(\d+)[.,]\d\s*$/, '$1');
     out.branch = [street, place].filter(Boolean).join(', ') + (fil ? `${street || place ? ' · ' : ''}Filiale ${fil[1]}` : '');
@@ -250,7 +264,7 @@ const Receipt = (() => {
   }
 
   function parse(text) {
-    const lines = text.split(/\r?\n/).map((l) => l.replace(/\s+/g, ' ').trim()).filter(Boolean);
+    const lines = text.replace(/[\uFE0F\u200B]/g, ' ').split(/\r?\n/).map((l) => l.replace(/\s+/g, ' ').trim()).filter(Boolean);
     const result = { store: '', branch: '', date: '', time: '', total: NaN, items: [] };
     Object.assign(result, parseHeader(lines));
 
@@ -302,7 +316,7 @@ const Receipt = (() => {
         nameCand = '';
         continue;
       }
-      if (SKIP.test(l) || SUM_FUZZY.test(l)) continue;
+      if (SKIP.test(l) || SUM_FUZZY.test(l) || /gespart|ersparnis heute|kdnr/i.test(l)) continue;
       if (!PRICE_END.test(l) && /[a-zäöü]{4,}/i.test(l)) {
         // Artikel beginnen meist groß („Jordan Olivenöl …“), Fortsetzungszeilen klein („matt schwarz …“)
         const c = l.replace(/^[^A-Za-zÄÖÜäöü]+/, '').replace(/(\s+\S*\d\S*|\s+[^\wÄÖÜäöü\s]+)+\s*$/, '').replace(/[\s.:*\-—]+$/, '').trim();
@@ -323,8 +337,12 @@ const Receipt = (() => {
       let price = num(m[1]);
       if (!Number.isFinite(price) || Math.abs(price) > 999) continue;
       // „Olivenöl - Bambatsa - 16,95“: Bindestrich ist Trennzeichen, kein Minus – Minus nur bei Rabatt, Pfand-Rückgabe usw.
-      if (price < 0 && !/rabatt|nachlass|coupon|gutschein|storno|leergut|pfand|ersparnis|preisvorteil|vorteil|abzug|retoure|aktion|%/i.test(l)) price = Math.abs(price);
-      const it = { name: name.replace(/[\s\-—]+$/, '').slice(0, 60), price: round2(price) };
+      const DISC = /rabatt|nachlass|coupon|gutschein|storno|leergut|pfand|ersparnis|preisvorteil|vorteil|abzug|retoure|aktion|%/i;
+      if (price < 0 && !DISC.test(l)) price = Math.abs(price);
+      if (price > 0 && /coupon|rabatt|nachlass|gutschein|preisvorteil|ersparnis/i.test(l)) price = -price; // Coupon zieht ab
+      const eanM = name.match(/^(\d{8}|\d{12,14})\s+/);
+      const clean = name.replace(/^\d{8,14}\s+/, '').replace(/\s+\d{1,2}$/, '').replace(/[\s\-—€]+$/, '');
+      const it = { name: clean.slice(0, 60), price: round2(price), ...(eanM && !/coupon/i.test(l) ? { ean: eanM[1] } : {}) };
       if (pendingQty && Math.abs(it.price - pendingQty.qty * pendingQty.unit) < 0.02) { const { name: _n, ...pq } = pendingQty; Object.assign(it, pq); pendingQty = null; }
       else flush();
       nameCand = '';
@@ -423,6 +441,7 @@ const Receipt = (() => {
   async function scan(file) {
     $('#rcPick').hidden = true;
     setProgress(0.05, /pdf/i.test(file.type || file.name) ? 'Öffne PDF …' : 'Bereite Bild vor …');
+    pdfText = '';
     try { await scanCanvas(await toCanvas(file)); }
     catch (e) { console.warn(e); setProgress(1, '⚠️ ' + e.message); $('#rcPick').hidden = false; }
   }
@@ -444,9 +463,11 @@ const Receipt = (() => {
     {
       current = await forStorage(color);
       const pv = $('#rcPreview'); pv.src = URL.createObjectURL(current.blob); pv.hidden = false;
-      const w = await getWorker(setProgress);
+      const digital = pdfText.replace(/\s/g, '').length > 80 && /\d[,.]\d\d/.test(pdfText) ? pdfText : '';
+      pdfText = '';
+      const w = digital ? null : await getWorker(setProgress);
       setProgress(0.35, 'Lese Bon …');
-      const imgs = { plain: forOcrPlain(color), clean: forOcr(color, prepared) };
+      const imgs = digital ? {} : { plain: forOcrPlain(color), clean: forOcr(color, prepared) };
       // Mehrere Lesarten probieren; die beste ist die, deren Artikel am besten zur Bon-Summe passen
       const score = (r) => {
         const sum = r.items.reduce((a, it) => a + it.price, 0);
@@ -455,7 +476,8 @@ const Receipt = (() => {
         return r.items.length * 2 - Math.min(off, 1) * 20 + (real ? 6 : 0) + (r.date ? 1 : 0);
       };
       let r = null; const heads = [], cards = [];
-      const passes = [['plain', '3'], ['clean', '3'], ['plain', '6'], ['clean', '6']];
+      const passes = digital ? [] : [['plain', '3'], ['clean', '3'], ['plain', '6'], ['clean', '6']];
+      if (digital) { r = parse(digital); heads.push({ store: r.store, branch: r.branch }); cards.push(cardDigits(digital)); }
       for (const [i, [kind, psm]] of passes.entries()) {
         if (i) setProgress(0.35, `Lese Bon noch einmal anders (${i + 1}/${passes.length}) …`);
         await w.setParameters({ tessedit_pageseg_mode: psm });
@@ -473,7 +495,7 @@ const Receipt = (() => {
         const sum = r.items.reduce((a, it) => a + it.price, 0);
         if (r.total > 0 && !r.totalGuessed && r.items.length && Math.abs(sum - r.total) < 0.02) break; // passt genau → fertig
       }
-      await w.setParameters({ tessedit_pageseg_mode: '3' });
+      if (w) await w.setParameters({ tessedit_pageseg_mode: '3' });
       setProgress(1, '');
       for (const k of ['store', 'branch']) { const v = bestOf(heads.map((h) => h[k])); if (v) r[k] = v; }
       r.card = bestOf(cards);
@@ -539,6 +561,7 @@ const Receipt = (() => {
   function cardDigits(text) {
     const lines = String(text || '').split(/\r?\n/);
     for (const l of lines) {
+      if (/kdnr|kunden|payback|bonus|ust|steuer/i.test(l)) continue; // Kundennummer ist keine Karte
       const m = l.match(/[x*•#]{3,}\s*-?\s*(\d{4})\b/i)
         || (/(karte|card|visa|master|maestro|girocard|debit|kreditk|\bpan\b|kartennr|konto)/i.test(l) && l.match(/(?:nr\.?|nummer|pan|:)\s*[x*•#.\s]*(\d{4})\s*$/i));
       if (m) return m[1];
@@ -551,7 +574,8 @@ const Receipt = (() => {
     const el = $('#rcCardInfo'), me = state.settings.me, cards = state.settings.cards || {};
     el.hidden = false;
     if (!card) { el.className = 'card-info'; el.innerHTML = '💳 Keine Kartennummer auf dem Bon gefunden (bar bezahlt oder nicht lesbar).'; return; }
-    const owner = cards[card];
+    let owner = cards[card];
+    if (!owner && typeof Konto !== 'undefined' && Konto.ownLast4 && Konto.ownLast4().includes(card)) { owner = me; state.settings.cards = { ...cards, [card]: me }; save(); }
     if (owner === me) { el.className = 'card-info ok'; el.innerHTML = `💳 Bezahlt mit <b>deiner Karte</b> …${esc(card)}`; return; }
     if (owner) { el.className = 'card-info warn'; el.innerHTML = `⚠️ Bezahlt mit <b>${owner === '-' ? 'einer fremden Karte' : esc(owner) + 's Karte'}</b> …${esc(card)} – nicht mit deiner. <button type="button" class="btn btn-sm" data-card="?">ändern</button>`; return; }
     el.className = 'card-info warn';
