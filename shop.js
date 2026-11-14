@@ -82,7 +82,8 @@ const Shop = (() => {
     const open = state.shopping.filter((x) => !x.done);
     const cnt = (st) => open.filter((x) => x.store === st).length;
     $('#shopStores').innerHTML = `<button type="button" class="store-pick ${!shopStore ? 'on' : ''}" data-st=""><span class="store-badge" style="background:#f6efe4;color:#4a3a2c">🛒 Alle</span>${open.length ? `<b>${open.length}</b>` : ''}</button>`
-      + storeList().map((st) => `<button type="button" class="store-pick ${shopStore === st ? 'on' : ''}" data-st="${esc(st)}">${storeBadge(st)}${cnt(st) ? `<b>${cnt(st)}</b>` : ''}</button>`).join('')
+      // Läden mit offenen Einträgen zuerst (meiste oben), danach alle anderen alphabetisch
+      + [...storeList()].sort((a, b) => (cnt(b) > 0) - (cnt(a) > 0) || cnt(b) - cnt(a) || a.localeCompare(b, 'de', { sensitivity: 'base' })).map((st) => `<button type="button" class="store-pick ${shopStore === st ? 'on' : ''}" data-st="${esc(st)}">${storeBadge(st)}${cnt(st) ? `<b>${cnt(st)}</b>` : ''}</button>`).join('')
       + '<button type="button" class="store-pick" data-st="__edit"><span class="store-badge" style="background:#efe5d6;color:#4a3a2c">✏️ Läden &amp; Logos</span></button>';
     $('#shopStoreHint').innerHTML = shopStore ? `${storeBadge(shopStore, true)} <span>Neue Einträge kommen auf diese Liste. Einträge ohne Laden („egal wo“) stehen auch hier.</span>` : '';
   }
