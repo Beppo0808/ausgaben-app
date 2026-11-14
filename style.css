@@ -1068,3 +1068,17 @@ input[type="text"], input[type="search"], input[type="number"], input[type="date
   body.print-shop { background: #fff !important; }
 }
 @media print { body.print-shop #shopPrintArea { padding: 14mm 16mm; } }
+
+/* ===== Lesbarkeit (Grauer Star) ===== */
+.tabbar button { font-size: 13px !important; }
+.tabbar button span { font-size: 1.45rem; }
+.badge, .kpi-sub, .tx-mini, .sp-tags, .sh-sub, .muted { font-size: max(.82rem, 13px); }
+.chart text { font-size: 13px; }
+#toast { font-size: 1.05rem !important; padding: 14px 18px !important; }
+.btn-sm, #meChip { min-height: 44px; }
+/* Speichern/Abbrechen in Fenstern immer sichtbar */
+dialog form > .dialog-actions, dialog .rd > .dialog-actions { position: sticky; bottom: -1px; z-index: 2; margin: 12px -4px -4px; padding: 12px 4px calc(10px + env(safe-area-inset-bottom));
+  background: linear-gradient(180deg, rgba(246,239,228,0), var(--surface) 30%); }
+#catChips { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+#catChips .chip { width: 100%; justify-content: center; }
+.adv-toggle { width: 100%; margin: 4px 0 14px; }

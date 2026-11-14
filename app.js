@@ -1232,7 +1232,7 @@ function handleIncomingUrl() {
 
   const exp = {
     id: uid(), created: new Date().toISOString(), source: 'wallet', amount, merchant,
-    category: guessCategory(merchant), date, person, note: card, private: isPrivate,
+    category: guessCategory(merchant), date, person, note: card, private: true, capWant: !!isPrivate, // bleibt lokal, bis gewählt ist
   };
   state.expenses.push(exp);
   save();
@@ -1252,17 +1252,15 @@ function showCapturedSheet(exp) {
     save(); render();
     resetCapturedTimer();
   });
-  const pb = $('#capturedPrivate');
   const paint = () => {
     const e = state.expenses.find((x) => x.id === lastCapturedId);
-    pb.classList.toggle('selected', !!(e && e.private));
-    pb.textContent = e && e.private ? '🔒 Privat – wird nicht geteilt' : '🔓 Gemeinsam – tippen für privat';
+    const priv = e && ('capWant' in e ? e.capWant : e.private);
+    $$('#capturedKind button').forEach((b) => b.setAttribute('aria-pressed', String((b.dataset.v === 'private') === !!priv)));
   };
-  pb.onclick = () => {
-    const e = state.expenses.find((x) => x.id === lastCapturedId);
-    if (!e) return;
-    e.private = !e.private;
-    save(); render(); paint(); resetCapturedTimer();
+  $('#capturedKind').onclick = (ev) => {
+    const b = ev.target.closest('button[data-v]'); const e = state.expenses.find((x) => x.id === lastCapturedId);
+    if (!b || !e) return;
+    e.capWant = b.dataset.v === 'private'; paint(); resetCapturedTimer();
   };
   paint();
   $('#capturedSheet').hidden = false;
@@ -1270,7 +1268,14 @@ function showCapturedSheet(exp) {
 }
 function resetCapturedTimer() {
   clearTimeout(capturedTimer);
-  capturedTimer = setTimeout(() => { $('#capturedSheet').hidden = true; }, 20000);
+  capturedTimer = setTimeout(finishCaptured, 20000);
+}
+/** Erst jetzt wird die Wahl übernommen (vorher bleibt die Zahlung nur auf diesem Gerät) */
+function finishCaptured() {
+  clearTimeout(capturedTimer);
+  const e = state.expenses.find((x) => x.id === lastCapturedId);
+  if (e && 'capWant' in e) { e.private = !!e.capWant; delete e.capWant; save(); render(); }
+  $('#capturedSheet').hidden = true;
 }
 
 // ---------- Export / Import ----------
@@ -1324,7 +1329,7 @@ let toastTimer;
 function toast(msg) {
   const t = $('#toast');
   t.textContent = msg; t.classList.add('show');
-  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 4500);
 }
 
 // ---------- Events ----------
@@ -1557,6 +1562,7 @@ function bind() {
   };
   $('#syncNowBtn').onclick = () => Sync.syncNow();
   $('#syncRepairBtn').onclick = async () => { toast('🔧 Gleiche alles vollständig ab …'); await Sync.repair(); renderSync.at = 0; renderSync(); toast('✓ Abgleich vollständig nachgeholt'); };
+  $('#advToggle').onclick = () => { const on = $('.adv-card').hidden; $$('.adv-card').forEach((c) => { c.hidden = !on; }); $('#advToggle').textContent = on ? '⚙️ Erweitert ausblenden' : '⚙️ Erweitert anzeigen (Kurzbefehl, Personen, Datensicherung)'; };
   $('#syncMergeBtn').onclick = () => mergeIntoInvite($('#syncMergeLink').value.trim());
   $('#syncDisconnectBtn').onclick = () => {
     if (!confirm('Dieses Gerät vom gemeinsamen Haushalt trennen? Die Daten bleiben auf diesem Gerät und in der Cloud erhalten.')) return;
@@ -1577,7 +1583,9 @@ function bind() {
     state = defaultState(); save(); render(); toast('Daten auf diesem Gerät gelöscht');
   };
 
-  $('#capturedOk').onclick = () => { $('#capturedSheet').hidden = true; Lock.allowAutoBio(); };
+  $('#capturedOk').onclick = () => { finishCaptured(); Lock.allowAutoBio(); };
+  // Falls die App vorher geschlossen wird: offene Wahl beim nächsten Start übernehmen
+  state.expenses.forEach((e) => { if ('capWant' in e && e.id !== lastCapturedId) { e.private = !!e.capWant; delete e.capWant; } });
   $('#capturedUndo').onclick = () => {
     state.expenses = state.expenses.filter((e) => e.id !== lastCapturedId);
     save(); render(); $('#capturedSheet').hidden = true; toast('Rückgängig gemacht');

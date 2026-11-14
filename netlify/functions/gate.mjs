@@ -80,7 +80,7 @@ export default async (req) => {
   if (action === 'invite') {
     const name = String(body.name || '').replace(/[<>]/g, '').trim().slice(0, 30);
     if (!name) return json({ error: 'Bitte einen Namen angeben' }, 400);
-    const days = Math.min(14, Math.max(1, Math.floor(Number(body.days) || 7)));
+    const days = Math.min(14, Math.max(1, Math.floor(Number(body.days) || 3)));
     const role = body.role === 'owner' ? 'owner' : 'member';
     const id = randomId();
     const token = await sign({ t: 'i', id, name, role, exp: Date.now() + days * 864e5 }, secret);

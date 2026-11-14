@@ -66,8 +66,11 @@ const Shop = (() => {
   const storeList = () => (Array.isArray(state.settings.shopStores) && state.settings.shopStores.length ? state.settings.shopStores : DEFAULT_STORES);
   function storeBadge(name, big) {
     if (!name) return '';
-    const c = STORE_BADGES[name] || ['#e7dccb', '#4a3a2c'];
-    return `<span class="store-badge ${big ? 'big' : ''}" style="background:${c[0]};color:${c[1]};${c[2] ? `box-shadow: inset 0 -3px 0 ${c[2]};` : ''}">${esc(name)}</span>`;
+    const c = STORE_BADGES[name] || ['#8a6f55', '#4a3a2c'];
+    // gedämpft: helle, warme Fläche, Ladenfarbe nur als Rand und Schrift (blendet nicht)
+    const lum = (hx) => { const n = parseInt(hx.slice(1), 16); return (0.3 * (n >> 16) + 0.59 * ((n >> 8) & 255) + 0.11 * (n & 255)); };
+    const ink = [c[0], c[1]].sort((a, b) => lum(a) - lum(b))[0];
+    return `<span class="store-badge ${big ? 'big' : ''}" style="background:#f4ece0;color:${ink};border:2px solid ${c[0] === '#ffffff' ? ink : c[0]};border-left-width:8px">${esc(name)}</span>`;
   }
   let shopStore = '';
   try { shopStore = localStorage.getItem('shop-store') || ''; } catch (e) { /* egal */ }
