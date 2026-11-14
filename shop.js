@@ -160,7 +160,8 @@ const Shop = (() => {
     const where = 'store' in opts ? opts.store || '' : shopStore || '';
     let n = 0;
     for (const raw of texts) {
-      const { qty, name } = splitQty(raw);
+      const sp = splitQty(raw), qty = sp.qty;
+      const name = sp.name.replace(/\bfür mich\b/i, `für ${state.settings.me || 'mich'}`); // „für mich“ → „für Ute“, damit der andere weiß, für wen
       if (!name) continue;
       const k = norm(name);
       const same = state.shopping.find((x) => !x.done && norm(x.name) === k && (x.store || '') === where);
@@ -224,7 +225,8 @@ const Shop = (() => {
       f.text.value = (x.qty ? x.qty + ' ' : '') + x.name;
       f.group.innerHTML = GROUP_ORDER.map((g) => `<option value="${g}">${esc(GROUP_LABEL[g])}</option>`).join('');
       f.group.value = itemGroup(x.name);
-      f.store.innerHTML = '<option value="">— egal wo —</option>' + storeList().map((st) => `<option>${esc(st)}</option>`).join('');
+      const sl = storeList().concat(x.store && !storeList().includes(x.store) ? [x.store] : []); // eigener Laden des Eintrags immer wählbar (sonst würde er beim Speichern geändert)
+      f.store.innerHTML = '<option value="">— egal wo —</option>' + sl.map((st) => `<option>${esc(st)}</option>`).join('');
       f.store.value = x.store || '';
       $('#shEditDialog').showModal();
     }
