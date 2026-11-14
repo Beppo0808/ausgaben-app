@@ -61,6 +61,7 @@ function load() {
       shopping: Array.isArray(s.shopping) ? s.shopping : [],
       avatars: s.avatars && typeof s.avatars === 'object' ? s.avatars : {},
       recipes: Array.isArray(s.recipes) ? s.recipes : [],
+      products: Array.isArray(s.products) ? s.products : [],
     };
   } catch (e) {
     console.warn('Konnte Daten nicht laden', e);

@@ -139,7 +139,7 @@ const Product = (() => {
     const n = p.nutriments || {}, h = getH();
     const name = p.product_name_de || p.product_name || p.generic_name_de || 'Produkt';
     const brand = (p.brands || '').split(',')[0].trim();
-    current = { ean, name: [brand, name].filter(Boolean).join(' ').slice(0, 70), qty: p.quantity || '' };
+    current = { ean, name: [brand, name].filter(Boolean).join(' ').slice(0, 70), pname: name.slice(0, 80), brand, qty: p.quantity || '', img: /^https:\/\/images\.openfoodfacts\.org\//.test(p.image_front_small_url || '') ? p.image_front_small_url : '' };
     // Hinweise für alle Personen mit Einstellungen; bei mehreren mit Namen davor
     const people = (state.settings.persons || [meName()]).filter((x) => hasH(getH(x)));
     const notes = [], mark = {}, lv = { red: 3, yellow: 2, green: 1 };
@@ -211,6 +211,7 @@ const Product = (() => {
         count = t === seen ? count + 1 : 1; seen = t;
         if (count < 2) return; // zweimal gleich gelesen = sicher
         if (navigator.vibrate) navigator.vibrate(60);
+        try { const v = $('#prodVideo'); shot = Catalog.thumb(v, v.videoWidth, v.videoHeight); } catch (e) { shot = ''; }
         stopLive(); show(t);
       });
       $('#prodCamHint').textContent = 'Strichcode ins Bild halten – wird automatisch erkannt';
@@ -235,7 +236,9 @@ const Product = (() => {
       return items;
     } catch (e) { return []; }
   }
-  const myPrices = (ean) => ((state.settings.prices || {})[ean]) || {};
+  const myPrices = (ean) => ({ ...(((state.settings.prices || {})[ean]) || {}), ...Catalog.pricesFor(ean) });
+  let shot = '';
+  const meta = (ean) => ({ ean, name: current ? current.pname : ean, brand: current ? current.brand : '', qty: current ? current.qty : '', img: (current && current.img) || shot });
   function savePrice(ean, store, p, d) {
     const all = { ...(state.settings.prices || {}) };
     all[ean] = { ...(all[ean] || {}), [store]: { p, d: d || new Date().toISOString().slice(0, 10), t: Date.now() } };
@@ -299,6 +302,7 @@ const Product = (() => {
     $('#prodResult').innerHTML = '<p>🔍 Lese Strichcode …</p>'; $('#prodAdd').hidden = true; $('#prodPrices').innerHTML = ''; $('#prodTagForm').hidden = true;
     $('#prodDialog').showModal();
     try {
+      shot = await Catalog.thumbFromFile(file);
       const ean = await readBarcode(file);
       if (!ean) { $('#prodResult').innerHTML = '<p>Kein Strichcode erkannt.</p><p class="hint">Bitte den Strichcode nah, gerade und scharf fotografieren – oder die Nummer unten eintippen.</p>'; return; }
       await show(ean);
@@ -324,7 +328,7 @@ const Product = (() => {
     $('#ptSave').onclick = () => {
       const ean = $('#prodEan').value.replace(/\D/g, ''), p = parseFloat($('#ptPrice').value.replace(',', '.'));
       if (ean.length < 8 || !(p > 0 && p < 10000)) { toast('Bitte Strichcode und Preis prüfen'); return; }
-      savePrice(ean, $('#ptStore').value, Math.round(p * 100) / 100);
+      Catalog.setPrice(meta(ean), $('#ptStore').value, Math.round(p * 100) / 100);
       $('#prodTagForm').hidden = true; toast('💶 Preis gespeichert'); renderPrices(ean, current ? current.name : '');
     };
     $('#prodPrefs').onclick = openPrefs;
@@ -334,8 +338,9 @@ const Product = (() => {
     try { const old = localStorage.getItem('ausgaben-health-v1'); if (old && !(state.settings.health || {})[meName()]) { setH(meName(), { ...EMPTY(), ...JSON.parse(old) }); } localStorage.removeItem('ausgaben-health-v1'); } catch (e) { /* egal */ }
     $('#hpCancel').onclick = () => $('#prefDialog').close();
     $('#hpNone').onclick = () => { $$('#prefDialog input[data-g]').forEach((c) => { c.checked = false; }); $('#hpCustom').value = ''; };
-    $('#prodAdd').onclick = () => { if (!current) return; Shop.addItems([(current.qty ? '' : '') + current.name]); $('#prodDialog').close(); toast('🛒 auf der Einkaufsliste'); };
+    $('#prodAdd').onclick = () => { if (!current) return; const pid = Catalog.upsertScan(meta(current.ean)); Shop.addItems([current.pname || current.name], '', { pid }); $('#prodDialog').close(); toast('🛒 auf der Einkaufsliste'); };
     $('#prodEanBtn').onclick = () => { const v = $('#prodEan').value.replace(/\D/g, ''); if (v.length >= 8) show(v); else toast('Bitte die Ziffern unter dem Strichcode eintippen'); };
   }
-  return { handleFile, bind, openPrefs, startLive };
+  const showEan = (ean) => { bind(); shot = ''; $('#prodCam').hidden = true; if (!$('#prodDialog').open) $('#prodDialog').showModal(); show(ean); };
+  return { handleFile, bind, openPrefs, startLive, showEan };
 })();

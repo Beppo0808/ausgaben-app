@@ -156,15 +156,16 @@ const Shop = (() => {
     setTimeout(() => { window.print(); setTimeout(done, 1500); }, 50);
   }
 
-  function addItems(texts, source) {
+  function addItems(texts, source, opts = {}) {
+    const where = 'store' in opts ? opts.store || '' : shopStore || '';
     let n = 0;
     for (const raw of texts) {
       const { qty, name } = splitQty(raw);
       if (!name) continue;
       const k = norm(name);
-      const same = state.shopping.find((x) => !x.done && norm(x.name) === k && (x.store || '') === (shopStore || ''));
+      const same = state.shopping.find((x) => !x.done && norm(x.name) === k && (x.store || '') === where);
       if (same) { if (qty) same.qty = same.qty ? `${same.qty} + ${qty}` : qty; if (source) same.note = same.note || source; continue; }
-      state.shopping.push({ id: uid(), name: name.slice(0, 80), qty: qty.slice(0, 30), note: source || '', store: shopStore || '', done: false, by: state.settings.me, at: new Date().toISOString() });
+      state.shopping.push({ id: uid(), name: name.slice(0, 80), qty: qty.slice(0, 30), note: source || '', store: where, ...(opts.pid ? { pid: opts.pid } : {}), ...(opts.bk ? { bk: opts.bk } : {}), done: false, by: state.settings.me, at: new Date().toISOString() });
       n++;
     }
     save(); render();
@@ -437,7 +438,8 @@ const Shop = (() => {
     $$('#shopTabs button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.v === tab)));
     $('#shopPane').hidden = tab !== 'list';
     $('#recipePane').hidden = tab !== 'recipes';
-    if (tab === 'list') renderList(); else renderRecipes();
+    $('#catPane').hidden = tab !== 'prods';
+    if (tab === 'list') renderList(); else if (tab === 'prods') Catalog.render(); else renderRecipes();
   }
 
   function bind() {

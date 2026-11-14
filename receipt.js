@@ -504,7 +504,8 @@ const Receipt = (() => {
     render();
     $('#receiptDialog').close();
     current = null; resetPreview();
-    toast(`🧾 ${store || 'Bon'} · ${fmt(total)}${items.length ? ' · ' + items.length + ' Artikel' : ''} gespeichert ✓`);
+    const ticked = typeof Catalog !== 'undefined' ? Catalog.fromBon(exp) : 0;
+    toast(`🧾 ${store || 'Bon'} · ${fmt(total)}${items.length ? ' · ' + items.length + ' Artikel' : ''} gespeichert ✓${ticked ? ` · 🛒 ${ticked} auf der Liste abgehakt` : ''}`);
   }
   function timeFromCreated(e) {
     if (!e.created) return '';

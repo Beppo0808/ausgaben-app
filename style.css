@@ -1129,3 +1129,22 @@ dialog form > .dialog-actions, dialog .rd > .dialog-actions { position: sticky; 
 .prod-prices li small { grid-column: 1 / -1; color: var(--text-2); }
 .row-btns { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
 #prodTagForm { padding: 10px; border-radius: 12px; background: var(--surface-3); margin: 8px 0; }
+
+/* Unsere Produkte */
+#catSearch { width: 100%; margin: 6px 0; }
+.cat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 10px; }
+.cat-tile { position: relative; background: var(--surface); border-radius: 14px; padding: 6px; box-shadow: var(--shadow-sm); display: flex; flex-direction: column; gap: 4px; }
+.cat-pic { display: grid; place-items: center; width: 100%; aspect-ratio: 1; border: 0; border-radius: 10px; background: var(--surface-3); overflow: hidden; padding: 0; cursor: pointer; box-shadow: var(--shadow-sm); }
+.cat-pic img { width: 100%; height: 100%; object-fit: cover; }
+.cat-pic span { font-size: 2.6rem; }
+.cat-pic:active { transform: translateY(2px); }
+.cat-info { position: absolute; top: 8px; right: 8px; width: 30px; height: 30px; border-radius: 50%; border: 0; background: rgba(255,255,255,.9); font-size: 1rem; box-shadow: var(--shadow-sm); }
+.cat-name { font-size: .85rem; font-weight: 700; line-height: 1.2; overflow-wrap: anywhere; }
+.cat-name small, .cat-price small { display: block; font-weight: 400; color: var(--text-2); font-size: .75rem; }
+.cat-price { font-size: .8rem; font-weight: 800; color: #2f6b4f; }
+.cat-picks { display: grid; gap: 8px; }
+.cat-pick { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.cat-pick small { color: var(--text-2); }
+.ce-top { display: flex; gap: 12px; align-items: center; }
+.ce-pic { width: 110px; cursor: default; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }

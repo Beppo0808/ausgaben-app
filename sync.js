@@ -58,6 +58,7 @@ const Sync = (() => {
     state.categories.forEach((c) => { m['category:' + c.id] = c; });
     (state.shopping || []).forEach((x) => { m['shop:' + x.id] = x; });
     (state.recipes || []).forEach((x) => { m['recipe:' + x.id] = x; });
+    (state.products || []).forEach((x) => { m['product:' + x.id] = x; });
     Object.entries(state.avatars || {}).forEach(([n, av]) => { m['avatar:' + n] = av; });
     const { me, income, ...shared } = state.settings; // Gerät-Besitzer und eigenes Einkommen bleiben lokal
     m['settings:main'] = shared;
@@ -176,8 +177,9 @@ const Sync = (() => {
     if (local !== undefined && Number(r.mtime) <= local) return false; // lokal ist gleich/neuer
     cfg.mtimes[k] = Number(r.mtime);
     delete cfg.dirty[k];
-    const listFor = { expense: 'expenses', sub: 'subs', category: 'categories', shop: 'shopping', recipe: 'recipes' }[r.kind];
+    const listFor = { expense: 'expenses', sub: 'subs', category: 'categories', shop: 'shopping', recipe: 'recipes', product: 'products' }[r.kind];
     if (listFor) {
+      if (!Array.isArray(state[listFor])) state[listFor] = [];
       const arr = state[listFor];
       const idx = arr.findIndex((x) => x.id === r.id);
       if (idx > -1 && arr[idx].private) return true; // lokal privat gemacht → nicht überschreiben
@@ -392,7 +394,7 @@ const Sync = (() => {
     if (enabled() && !cfg.v5) { cfg.v4 = 1; cfg.v5 = 1; writeCfg(); setTimeout(() => repair().catch(() => {}), 1500); } // einmalige Reparatur auf jedem Gerät
     if (enabled() && !cfg.v4) {
       // Einkaufsliste/Rezepte neu: ältere App-Versionen haben solche Einträge evtl. schon „gesehen“, aber nicht gespeichert → einmal neu holen
-      Object.keys(cfg.mtimes).forEach((k) => { if (/^(shop|recipe|avatar):/.test(k) && !(k in (cfg.hashes || {}))) delete cfg.mtimes[k]; });
+      Object.keys(cfg.mtimes).forEach((k) => { if (/^(shop|recipe|avatar|product):/.test(k) && !(k in (cfg.hashes || {}))) delete cfg.mtimes[k]; });
       cfg.lastPull = null; cfg.v4 = 1; writeCfg();
     }
     if (enabled()) {

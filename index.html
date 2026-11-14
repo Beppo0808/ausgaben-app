@@ -232,6 +232,7 @@
     <section id="view-shop" class="view" aria-label="Einkauf">
       <div class="seg" id="shopTabs">
         <button type="button" data-v="list" aria-pressed="true">🛒 Einkaufsliste</button>
+        <button type="button" data-v="prods" aria-pressed="false">⭐ Produkte</button>
         <button type="button" data-v="recipes" aria-pressed="false">📖 Rezepte</button>
       </div>
 
@@ -257,6 +258,15 @@
           <p class="hint">Gemeinsam: Was einer hinzufügt oder abhakt, sieht der andere sofort. 💶 Preise stammen aus euren eigenen Kassenbons.</p>
         </div>
         <div id="shopList"></div>
+      </div>
+
+      <div id="catPane" hidden>
+        <div class="card">
+          <div class="card-head"><h2>⭐ Unsere Produkte</h2><span class="muted" id="catCount"></span></div>
+          <input type="search" id="catSearch" placeholder="Suchen, z. B. Butter" autocomplete="off" aria-label="Produkte suchen">
+          <p class="hint">Bild antippen = auf die Liste · ⓘ = Foto, Name, Preise</p>
+        </div>
+        <div class="cat-grid" id="catGrid"></div>
       </div>
 
       <div id="recipePane" hidden>
@@ -621,6 +631,32 @@
     </div>
   </dialog>
 
+  <!-- Dialog: Laden wählen (Produkt auf die Liste) -->
+  <dialog id="catPickDialog">
+    <div>
+      <h2 id="catPickTitle"></h2>
+      <p class="hint">In welchem Laden kaufen?</p>
+      <div class="cat-picks" id="catPickList"></div>
+      <div class="dialog-actions"><span class="spacer"></span><button type="button" class="btn btn-ghost" id="catPickCancel">Abbrechen</button></div>
+    </div>
+  </dialog>
+
+  <!-- Dialog: Produkt-Details -->
+  <dialog id="catEditDialog">
+    <div>
+      <h2>⭐ Produkt</h2>
+      <div class="ce-top"><div class="cat-pic ce-pic" id="cePic"></div>
+        <label class="btn btn-sm btn-file">📷 Foto<input type="file" id="cePhoto" accept="image/*"></label></div>
+      <label class="field">Name<input type="text" id="ceName" autocomplete="off"></label>
+      <div class="row2"><label class="field">Marke<input type="text" id="ceBrand" autocomplete="off"></label>
+        <label class="field">Menge<input type="text" id="ceQty" placeholder="z. B. 250 g" autocomplete="off"></label></div>
+      <h3 class="small-h">💶 Preise</h3>
+      <ul class="prod-prices" id="cePrices"></ul>
+      <div class="row-btns"><button type="button" class="btn btn-sm" id="ceAdd">🛒 Auf die Liste</button><button type="button" class="btn btn-sm" id="ceNut">🔍 Inhaltsstoffe</button><button type="button" class="btn btn-sm btn-ghost" id="ceDel">🗑️ Entfernen</button></div>
+      <div class="dialog-actions"><button type="button" class="btn btn-ghost" id="ceCancel">Abbrechen</button><span class="spacer"></span><button type="button" class="btn btn-primary" id="ceSave">Speichern</button></div>
+    </div>
+  </dialog>
+
   <!-- Dialog: Meine Hinweise (nur dieses Gerät) -->
   <dialog id="prefDialog">
     <div>
@@ -894,6 +930,7 @@
   <script src="recipes-data.js"></script>
   <script src="shop.js"></script>
   <script src="product.js"></script>
+  <script src="catalog.js"></script>
   <script src="app.js"></script>
   <div id="shopPrintArea" hidden></div>
   <script src="pull.js"></script>
