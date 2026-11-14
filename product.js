@@ -155,7 +155,6 @@ const Product = (() => {
       const imp = h.nut.includes(k);
       return `<tr class="${imp ? 'imp' : ''} ${mark[k] ? 'm-' + mark[k] : ''}"><td>${mark[k] ? `<span class="dot ${mark[k]}"></span>` : ''}${esc(label)}</td><td>${num(val)} ${unit}</td></tr>`;
     }).join('');
-    const price = Shop.priceFor(current.name) || Shop.priceFor(name);
     const allergens = (p.allergens_tags || []).map((t) => (ALLERGENS.find((a) => a[0] === t) || [, t.replace(/^\w+:/, '')])[1]);
     box.innerHTML = `<div class="prod-head">${p.image_front_small_url && /^https:\/\/images\.openfoodfacts\.org\//.test(p.image_front_small_url) ? `<img src="${esc(p.image_front_small_url)}" alt="">` : ''}
       <div><div class="prod-brand">${esc(brand)}</div><div class="prod-name">${esc(name)}</div><div class="muted">${esc(p.quantity || '')}${p.nutriscore_grade && /^[a-e]$/.test(p.nutriscore_grade) ? ` · Nutri-Score ${esc(p.nutriscore_grade.toUpperCase())}` : ''}</div></div></div>
@@ -163,7 +162,6 @@ const Product = (() => {
         : (people.length ? '<p class="prod-ok">🟢 Zu deinen Hinweisen nichts Auffälliges gefunden.</p>' : '')}
       <table class="prod-nut"><caption>Alle Nährwerte pro 100 g / 100 ml</caption>${rows || '<tr><td colspan="2">Keine Nährwerte erfasst</td></tr>'}</table>
       ${allergens.length ? `<p class="hint"><b>Allergene laut Hersteller:</b> ${esc(allergens.join(', '))}</p>` : ''}
-      <p class="prod-price">💶 ${price ? esc(price) : 'Preis: noch kein Bon mit diesem Produkt – nach dem Einkauf den Bon scannen'}</p>
       ${(p.ingredients_text_de || p.ingredients_text) ? `<details open><summary>Zutaten</summary><p class="hint">${esc(p.ingredients_text_de || p.ingredients_text)}</p></details>` : ''}
       <p class="hint">Angaben aus Open Food Facts – können unvollständig sein, die Verpackung gilt. Die Hinweise ersetzen keine ärztliche Beratung.</p>`;
     $('#prodAdd').hidden = false;
@@ -190,10 +188,113 @@ const Product = (() => {
     toast(`Hinweise für ${prefWho} gespeichert`);
   }
 
+  // ---------- Live-Kamera: Strichcode wird automatisch erkannt ----------
+  let live = null;
+  const eanOk = (c) => { if (!/^\d{8}$|^\d{12,13}$/.test(c)) return false; const d = c.padStart(13, '0').split('').map(Number); const sum = d.slice(0, 12).reduce((a, x, i) => a + x * (i % 2 ? 3 : 1), 0); return (10 - (sum % 10)) % 10 === d[12]; };
+  function stopLive() { try { live && live.reset(); } catch (e) { /* egal */ } live = null; const v = $('#prodVideo'); if (v) { v.srcObject && v.srcObject.getTracks && v.srcObject.getTracks().forEach((t) => t.stop()); v.srcObject = null; } $('#prodCam').hidden = true; }
+  async function startLive() {
+    bind();
+    current = null; lastP = null;
+    $('#prodResult').innerHTML = ''; $('#prodAdd').hidden = true; $('#prodEan').value = '';
+    $('#prodCam').hidden = false; $('#prodCamHint').textContent = '📷 Kamera startet …';
+    if (!$('#prodDialog').open) $('#prodDialog').showModal();
+    try {
+      await loadZxing();
+      const hints = new Map();
+      hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [ZXing.BarcodeFormat.EAN_13, ZXing.BarcodeFormat.EAN_8, ZXing.BarcodeFormat.UPC_A, ZXing.BarcodeFormat.UPC_E]);
+      live = new ZXing.BrowserMultiFormatReader(hints, 250);
+      let seen = '', count = 0;
+      await live.decodeFromConstraints({ video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } } }, $('#prodVideo'), (r) => {
+        if (!r || !live) return;
+        const t = r.getText();
+        if (!eanOk(t)) return;
+        count = t === seen ? count + 1 : 1; seen = t;
+        if (count < 2) return; // zweimal gleich gelesen = sicher
+        if (navigator.vibrate) navigator.vibrate(60);
+        stopLive(); show(t);
+      });
+      $('#prodCamHint').textContent = 'Strichcode ins Bild halten – wird automatisch erkannt';
+    } catch (e) {
+      stopLive();
+      $('#prodResult').innerHTML = `<p>⚠️ Kamera nicht verfügbar${e && e.name === 'NotAllowedError' ? ' – bitte den Kamerazugriff erlauben' : ''}.</p><p class="hint">Du kannst ein Foto machen oder die Nummer unten eintippen.</p>`;
+    }
+  }
+
+  // ---------- Preise: eigene (Preisschild/Bon) + freie Preisdatenbank Open Prices ----------
+  const PRICES = 'https://prices.openfoodfacts.org/api/v1/prices';
+  async function openPrices(ean) {
+    const key = 'op-' + ean;
+    try { const c = JSON.parse(localStorage.getItem(key) || 'null'); if (c && Date.now() - c.at < 864e5) return c.items; } catch (e) { /* egal */ }
+    try {
+      const r = await fetch(`${PRICES}?product_code=${encodeURIComponent(ean)}&currency=EUR&order_by=-date&size=50`);
+      if (!r.ok) return [];
+      const j = await r.json();
+      const items = (j.items || []).filter((x) => x.location && x.location.osm_address_country_code === 'DE' && x.price > 0)
+        .map((x) => ({ store: String(x.location.osm_brand || x.location.osm_name || '').slice(0, 40), city: String(x.location.osm_address_city || '').slice(0, 40), p: +x.price, d: String(x.date || '').slice(0, 10), deal: !!x.price_is_discounted }));
+      try { localStorage.setItem(key, JSON.stringify({ at: Date.now(), items })); } catch (e) { /* voll */ }
+      return items;
+    } catch (e) { return []; }
+  }
+  const myPrices = (ean) => ((state.settings.prices || {})[ean]) || {};
+  function savePrice(ean, store, p, d) {
+    const all = { ...(state.settings.prices || {}) };
+    all[ean] = { ...(all[ean] || {}), [store]: { p, d: d || new Date().toISOString().slice(0, 10), t: Date.now() } };
+    state.settings.prices = all; save();
+  }
+  const eur = (v) => (+v).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+  const dshort = (d) => (d ? d.split('-').reverse().join('.') : '');
+  async function renderPrices(ean, name) {
+    const box = $('#prodPrices'); if (!box) return;
+    const mine = Object.entries(myPrices(ean)).map(([store, v]) => ({ store, p: v.p, d: v.d, own: true }));
+    const bon = Shop.priceFor(name);
+    const known = Shop.stores().map((x) => x.toLowerCase());
+    const draw = (others) => {
+      const ownStores = new Set(mine.map((x) => x.store.toLowerCase()));
+      const best = new Map();
+      for (const o of others) { const k = o.store.toLowerCase(); if (!o.store || ownStores.has(k)) continue; if (!best.has(k)) best.set(k, o); }
+      const ext = [...best.values()].sort((a, b) => (known.some((k) => b.store.toLowerCase().includes(k)) - known.some((k) => a.store.toLowerCase().includes(k))) || a.p - b.p).slice(0, 6);
+      const rows = [...mine.sort((a, b) => a.p - b.p).map((x) => `<li><b>${esc(x.store)}</b><span>${eur(x.p)}</span><small>dein Preis · ${esc(dshort(x.d))}</small></li>`),
+        ...ext.map((x) => `<li><b>${esc(x.store)}</b><span>${eur(x.p)}${x.deal ? ' %' : ''}</span><small>${esc(x.city)} · ${esc(dshort(x.d))}</small></li>`)];
+      box.innerHTML = `<h3 class="small-h">💶 Wo gibt es das – und zu welchem Preis?</h3>
+        ${rows.length ? `<ul class="prod-prices">${rows.join('')}</ul>` : '<p class="hint">Noch kein Preis bekannt.</p>'}
+        ${bon ? `<p class="hint">Aus deinen Bons: ${esc(bon)}</p>` : ''}
+        <label class="btn btn-sm btn-file">🏷️ Preisschild fotografieren<input type="file" id="prodTag" accept="image/*" capture="environment"></label>
+        <button type="button" class="btn btn-sm" id="prodPriceManual">✏️ Preis eintragen</button>
+        <p class="hint">Fremde Preise: freie Preisdatenbank „Open Prices“ (von Nutzern gemeldet, nur Deutschland). Live-Preise der Märkte gibt es leider nicht öffentlich.</p>`;
+    };
+    draw([]);
+    draw(await openPrices(ean));
+  }
+
+  /** Preisschild am Regal lesen: Preis (größte Zahl), Laden, Strichcode-Nummer */
+  async function readTag(file) {
+    const ean = $('#prodEan').value.replace(/\D/g, '');
+    $('#prodTagForm').hidden = false; $('#ptHint').textContent = '🔍 Lese Preisschild …';
+    const st = Shop.stores();
+    $('#ptStore').innerHTML = st.map((x) => `<option>${esc(x)}</option>`).join('');
+    $('#ptPrice').value = '';
+    try {
+      const canvas = await Receipt._toCanvas(file);
+      const w = await Receipt._getWorker(() => {});
+      const { data } = await w.recognize(canvas);
+      const words = (data.words || []).map((x) => ({ t: x.text, h: x.bbox.y1 - x.bbox.y0, cx: (x.bbox.x0 + x.bbox.x1) / 2 }));
+      const text = data.text || '';
+      const eanW = words.find((x) => ean && x.t.replace(/\D/g, '') === ean);
+      const cands = words.map((x) => ({ ...x, v: (x.t.match(/^(\d{1,3})[,.](\d{2})$/) || [])[0] })).filter((x) => x.v && !/kg|ltr|l=|=/i.test(x.t));
+      if (eanW) cands.forEach((x) => { x.h -= Math.abs(x.cx - eanW.cx) / 20; }); // bei 2 Schildern: das mit „unserem“ Strichcode
+      cands.sort((a, b) => b.h - a.h);
+      if (cands[0]) $('#ptPrice').value = cands[0].v.replace('.', ',');
+      const low = text.toLowerCase();
+      const hit = st.find((x) => low.includes(x.toLowerCase().split(' ')[0]));
+      if (hit) $('#ptStore').value = hit;
+      $('#ptHint').textContent = cands[0] ? 'Bitte kurz prüfen und speichern.' : 'Preis nicht erkannt – bitte eintippen.';
+    } catch (e) { $('#ptHint').textContent = 'Konnte das Schild nicht lesen – bitte eintippen.'; }
+  }
+
   async function handleFile(file) {
     if (!file) return;
     bind();
-    $('#prodResult').innerHTML = '<p>🔍 Lese Strichcode …</p>'; $('#prodAdd').hidden = true;
+    $('#prodResult').innerHTML = '<p>🔍 Lese Strichcode …</p>'; $('#prodAdd').hidden = true; $('#prodPrices').innerHTML = ''; $('#prodTagForm').hidden = true;
     $('#prodDialog').showModal();
     try {
       const ean = await readBarcode(file);
@@ -202,14 +303,28 @@ const Product = (() => {
     } catch (e) { $('#prodResult').innerHTML = `<p>⚠️ ${esc(e.message)}</p>`; }
   }
   async function show(ean) {
+    stopLive();
     $('#prodEan').value = ean;
     $('#prodResult').innerHTML = `<p>🔍 Suche Produkt ${esc(ean)} …</p>`;
     try { render(ean, await lookup(ean)); } catch (e) { $('#prodResult').innerHTML = `<p>⚠️ ${esc(e.message)}</p>`; }
+    renderPrices(ean, current ? current.name : '');
   }
 
   function bind() {
     if (bound) return; bound = true;
     $('#prodClose').onclick = () => $('#prodDialog').close();
+    $('#prodDialog').addEventListener('close', stopLive);
+    $('#prodRescan').onclick = startLive;
+    $('#prodPhoto2').addEventListener('change', (e) => { const f = e.target.files[0]; e.target.value = ''; if (f) { stopLive(); handleFile(f); } });
+    $('#prodPrices').addEventListener('change', (e) => { if (e.target.id === 'prodTag') { const f = e.target.files[0]; e.target.value = ''; if (f) readTag(f); } });
+    $('#prodPrices').addEventListener('click', (e) => { if (e.target.id === 'prodPriceManual') { $('#ptStore').innerHTML = Shop.stores().map((x) => `<option>${esc(x)}</option>`).join(''); $('#ptPrice').value = ''; $('#ptHint').textContent = ''; $('#prodTagForm').hidden = false; $('#ptPrice').focus(); } });
+    $('#ptCancel').onclick = () => { $('#prodTagForm').hidden = true; };
+    $('#ptSave').onclick = () => {
+      const ean = $('#prodEan').value.replace(/\D/g, ''), p = parseFloat($('#ptPrice').value.replace(',', '.'));
+      if (ean.length < 8 || !(p > 0 && p < 10000)) { toast('Bitte Strichcode und Preis prüfen'); return; }
+      savePrice(ean, $('#ptStore').value, Math.round(p * 100) / 100);
+      $('#prodTagForm').hidden = true; toast('💶 Preis gespeichert'); renderPrices(ean, current ? current.name : '');
+    };
     $('#prodPrefs').onclick = openPrefs;
     $('#hpSave').onclick = savePrefs;
     $('#hpWho').onclick = (e) => { const b = e.target.closest('[data-who]'); if (b) openPrefs(b.dataset.who); };
@@ -220,5 +335,5 @@ const Product = (() => {
     $('#prodAdd').onclick = () => { if (!current) return; Shop.addItems([(current.qty ? '' : '') + current.name]); $('#prodDialog').close(); toast('🛒 auf der Einkaufsliste'); };
     $('#prodEanBtn').onclick = () => { const v = $('#prodEan').value.replace(/\D/g, ''); if (v.length >= 8) show(v); else toast('Bitte die Ziffern unter dem Strichcode eintippen'); };
   }
-  return { handleFile, bind, openPrefs };
+  return { handleFile, bind, openPrefs, startLive };
 })();

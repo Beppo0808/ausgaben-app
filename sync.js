@@ -191,6 +191,16 @@ const Sync = (() => {
       if (budget !== undefined) state.settings.budget = budget;
       if (Array.isArray(shopStores)) state.settings.shopStores = shopStores;
       if (r.data.storeLogos && typeof r.data.storeLogos === 'object') state.settings.storeLogos = r.data.storeLogos;
+      if (r.data.prices && typeof r.data.prices === 'object') { // Preise je Produkt und Laden: neuere gewinnt
+        const loc = { ...(state.settings.prices || {}) };
+        for (const [ean, byStore] of Object.entries(r.data.prices)) {
+          if (!byStore || typeof byStore !== 'object') continue;
+          const m = { ...(loc[ean] || {}) };
+          for (const [st, v] of Object.entries(byStore)) if (v && (!m[st] || (v.t || 0) > (m[st].t || 0))) m[st] = v;
+          loc[ean] = m;
+        }
+        state.settings.prices = loc;
+      }
       if (r.data.health && typeof r.data.health === 'object') { // je Person die neuere Fassung behalten
         const loc = state.settings.health || {}, merged = { ...loc };
         for (const [who, v] of Object.entries(r.data.health)) if (v && typeof v === 'object' && (!loc[who] || (v.t || 0) > (loc[who].t || 0))) merged[who] = v;

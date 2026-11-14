@@ -446,7 +446,7 @@ const Shop = (() => {
     $('#shopForm').addEventListener('submit', submitInput);
     $('#shopList').addEventListener('click', onListClick);
     $('#shopStores').addEventListener('click', onStorePick);
-    $('#prodPhoto').addEventListener('change', (e) => { const f = e.target.files[0]; e.target.value = ''; if (f && typeof Product !== 'undefined') Product.handleFile(f); });
+    $('#prodScanBtn').onclick = () => { if (typeof Product !== 'undefined') Product.startLive(); };
     $('#storeDlgList').addEventListener('change', (e) => { const i = e.target.closest('[data-logo]'); if (i && i.files[0]) setLogo(i.dataset.logo, i.files[0]); });
     $('#storeDlgList').addEventListener('click', (e) => {
       const nl = e.target.closest('[data-nologo]'), rm = e.target.closest('[data-rm]');
@@ -527,5 +527,5 @@ const Shop = (() => {
   /** Preis-Text aus den eigenen Bons (für den Produkt-Scanner) */
   function priceFor(name) { const p = priceInfo(name); return p ? priceText(p) : ''; }
 
-  return { priceFor, render, calendar, askCalendar, addItems, _parseRecipeText: parseRecipeText, _splitInput: splitInput, _splitQty: splitQty };
+  return { priceFor, stores: storeList, render, calendar, askCalendar, addItems, _parseRecipeText: parseRecipeText, _splitInput: splitInput, _splitQty: splitQty };
 })();

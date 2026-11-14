@@ -249,7 +249,7 @@
             <button type="button" class="btn" id="shopVoice">🎤 Sprechen</button>
             <label class="btn btn-file">📷 Gedruckter Zettel<input type="file" id="shopPhoto" accept="image/*,application/pdf"></label>
             <button type="button" class="btn" id="shopPasteBtn">✍️ Handzettel einfügen</button>
-            <label class="btn btn-file">🔍 Produkt scannen<input type="file" id="prodPhoto" accept="image/*" capture="environment"></label>
+            <button type="button" class="btn" id="prodScanBtn">🔍 Produkt scannen</button>
             <button type="button" class="btn btn-ghost" id="shopCal">📅 Erinnerung</button>
             <button type="button" class="btn" id="shopShare">📤 Senden</button>
             <button type="button" class="btn" id="shopPrint">🖨️ Drucken</button>
@@ -604,9 +604,18 @@
   <dialog id="prodDialog">
     <div>
       <h2>🔍 Produkt</h2>
+      <div class="prod-cam" id="prodCam" hidden><video id="prodVideo" playsinline muted autoplay></video><div class="prod-aim"></div><p class="hint" id="prodCamHint"></p></div>
       <div id="prodResult"></div>
+      <div id="prodPrices"></div>
+      <div class="card-lite" id="prodTagForm" hidden>
+        <p class="hint" id="ptHint"></p>
+        <label class="field">Laden<select id="ptStore"></select></label>
+        <label class="field">Preis (€)<input type="text" id="ptPrice" inputmode="decimal" autocomplete="off"></label>
+        <div class="dialog-actions"><button type="button" class="btn btn-ghost" id="ptCancel">Abbrechen</button><span class="spacer"></span><button type="button" class="btn btn-primary" id="ptSave">Preis speichern</button></div>
+      </div>
       <label class="field">Strichcode-Nummer <span class="muted">(falls nicht lesbar)</span>
         <span class="shop-add"><input type="text" id="prodEan" inputmode="numeric" autocomplete="off"><button type="button" class="btn" id="prodEanBtn">Suchen</button></span></label>
+      <div class="row-btns"><button type="button" class="btn btn-sm" id="prodRescan">🔄 Nächstes Produkt</button><label class="btn btn-sm btn-file">📷 Foto statt Kamera<input type="file" id="prodPhoto2" accept="image/*" capture="environment"></label></div>
       <button type="button" class="btn btn-sm" id="prodPrefs">⚙️ Hinweise (Wichtiges, Diagnosen, Allergien)</button>
       <div class="dialog-actions"><button type="button" class="btn btn-ghost" id="prodClose">Schließen</button><span class="spacer"></span><button type="button" class="btn btn-primary" id="prodAdd" hidden>🛒 Auf die Einkaufsliste</button></div>
     </div>
