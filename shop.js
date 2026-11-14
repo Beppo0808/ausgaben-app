@@ -65,6 +65,7 @@ const Shop = (() => {
   const DEFAULT_STORES = ['ALDI SÜD', 'ALDI Nord', 'LIDL', 'REWE', 'EDEKA', 'Marktkauf', 'Netto', 'Penny', 'Kaufland', 'dm', 'Rossmann'];
   const storeList = () => (Array.isArray(state.settings.shopStores) && state.settings.shopStores.length ? state.settings.shopStores : DEFAULT_STORES);
   function storeBadge(name, big) {
+    if (!name) return '';
     const c = STORE_BADGES[name] || ['#e7dccb', '#4a3a2c'];
     return `<span class="store-badge ${big ? 'big' : ''}" style="background:${c[0]};color:${c[1]};${c[2] ? `box-shadow: inset 0 -3px 0 ${c[2]};` : ''}">${esc(name)}</span>`;
   }
@@ -88,6 +89,42 @@ const Shop = (() => {
       state.settings.shopStores = list; save(); setShopStore(n); return;
     }
     setShopStore(shopStore === b.dataset.st ? '' : b.dataset.st);
+  }
+
+  // ---------- Senden & Drucken (aktueller Laden oder alles, nach Laden und Gruppe sortiert) ----------
+  function exportGroups() {
+    const open = state.shopping.filter((x) => !x.done && (!shopStore || !x.store || x.store === shopStore));
+    const byStore = new Map();
+    const stores = shopStore ? [shopStore] : [...new Set(open.map((x) => x.store || ''))].sort((a, b) => (a === '') - (b === '') || a.localeCompare(b, 'de'));
+    stores.forEach((st) => byStore.set(st, open.filter((x) => (shopStore ? true : (x.store || '') === st))));
+    return [...byStore.entries()].filter(([, l]) => l.length).map(([st, l]) => {
+      const groups = new Map();
+      l.forEach((x) => { const g = itemGroup(x.name); if (!groups.has(g)) groups.set(g, []); groups.get(g).push(x); });
+      return { store: st || 'Egal wo', groups: GROUP_ORDER.filter((g) => groups.has(g)).map((g) => ({ label: GROUP_LABEL[g], items: groups.get(g) })) };
+    });
+  }
+  const line = (x) => `${x.qty ? x.qty + ' ' : ''}${x.name}${shopStore && !x.store ? ' (egal wo)' : ''}`;
+  async function shareList() {
+    const parts = exportGroups();
+    if (!parts.length) { toast('Die Liste ist leer'); return; }
+    const title = shopStore ? `🛒 Einkaufsliste ${shopStore}` : '🛒 Einkaufsliste';
+    const text = title + '\n' + parts.map((p) => (shopStore ? '' : `\n■ ${p.store}\n`) + p.groups.map((g) => `${g.label.replace(/^\S+\s/, '')}:\n` + g.items.map((x) => `☐ ${line(x)}`).join('\n')).join('\n')).join('\n');
+    try { if (navigator.share) { await navigator.share({ title, text }); return; } } catch (e) { if (e.name === 'AbortError') return; }
+    try { await navigator.clipboard.writeText(text); toast('Liste kopiert ✓ – zum Einfügen z. B. in Nachrichten'); } catch (e) { prompt('Liste kopieren:', text); }
+  }
+  function printList() {
+    const parts = exportGroups();
+    if (!parts.length) { toast('Die Liste ist leer'); return; }
+    const d = new Date().toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
+    const area = $('#shopPrintArea');
+    area.innerHTML = `<h1>🛒 Einkaufsliste${shopStore ? ' ' + esc(shopStore) : ''}</h1><p class="pr-date">${esc(d)}</p>`
+      + parts.map((p) => `<section>${shopStore ? '' : `<h2>${storeBadge(p.store === 'Egal wo' ? '' : p.store) || ''} ${p.store === 'Egal wo' ? 'Egal wo' : ''}</h2>`}`
+        + p.groups.map((g) => `<h3>${esc(g.label)}</h3><ul>${g.items.map((x) => `<li><span class="pr-box"></span>${esc(line(x))}</li>`).join('')}</ul>`).join('') + '</section>').join('');
+    area.hidden = false;
+    document.body.classList.add('print-shop');
+    const done = () => { document.body.classList.remove('print-shop'); area.hidden = true; window.removeEventListener('afterprint', done); };
+    window.addEventListener('afterprint', done);
+    setTimeout(() => { window.print(); setTimeout(done, 1500); }, 50);
   }
 
   function addItems(texts, source) {
@@ -353,6 +390,8 @@ const Shop = (() => {
     $('#shopForm').addEventListener('submit', submitInput);
     $('#shopList').addEventListener('click', onListClick);
     $('#shopStores').addEventListener('click', onStorePick);
+    $('#shopShare').onclick = shareList;
+    $('#shopPrint').onclick = printList;
     $('#shEditForm').addEventListener('submit', saveShEdit);
     $('#shEditCancel').onclick = () => { $('#shEditDialog').close(); shEditing = null; };
     $('#shEditDelete').onclick = () => { if (shEditing) { state.shopping = state.shopping.filter((s) => s.id !== shEditing.id); save(); } $('#shEditDialog').close(); shEditing = null; render(); };

@@ -1051,3 +1051,20 @@ input[type="text"], input[type="search"], input[type="number"], input[type="date
 .store-hint { display: flex; gap: 8px; align-items: center; margin-top: 0; }
 .store-hint:empty { display: none; }
 .sh-any { font-size: .72rem; font-weight: 600; color: var(--text-2); margin-left: 4px; }
+
+/* Einkaufsliste drucken */
+#shopPrintArea { font-family: var(--font-text); color: #222; }
+#shopPrintArea h1 { font-size: 22pt; margin: 0; }
+#shopPrintArea .pr-date { margin: 2pt 0 10pt; color: #555; }
+#shopPrintArea h2 { font-size: 15pt; margin: 14pt 0 4pt; border-bottom: 1.5pt solid #999; padding-bottom: 3pt; }
+#shopPrintArea h2 .store-badge { box-shadow: none; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+#shopPrintArea h3 { font-size: 11pt; margin: 8pt 0 2pt; color: #555; }
+#shopPrintArea ul { list-style: none; margin: 0; padding: 0; columns: 2; column-gap: 20pt; }
+#shopPrintArea li { font-size: 13pt; padding: 3pt 0; break-inside: avoid; display: flex; align-items: center; gap: 8pt; }
+#shopPrintArea .pr-box { width: 11pt; height: 11pt; border: 1.5pt solid #444; border-radius: 2pt; flex: none; }
+@media print {
+  body.print-shop > *:not(#shopPrintArea) { display: none !important; }
+  body.print-shop #shopPrintArea { display: block !important; }
+  body.print-shop { background: #fff !important; }
+}
+@media print { body.print-shop #shopPrintArea { padding: 14mm 16mm; } }
