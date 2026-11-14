@@ -247,7 +247,8 @@
           <p class="hint store-hint" id="shopStoreHint"></p>
           <div class="btn-row shop-tools">
             <button type="button" class="btn" id="shopVoice">🎤 Sprechen</button>
-            <label class="btn btn-file">📷 Zettel / Foto<input type="file" id="shopPhoto" accept="image/*,application/pdf"></label>
+            <label class="btn btn-file">📷 Gedruckter Zettel<input type="file" id="shopPhoto" accept="image/*,application/pdf"></label>
+            <button type="button" class="btn" id="shopPasteBtn">✍️ Handzettel einfügen</button>
             <button type="button" class="btn btn-ghost" id="shopCal">📅 Erinnerung</button>
             <button type="button" class="btn" id="shopShare">📤 Senden</button>
             <button type="button" class="btn" id="shopPrint">🖨️ Drucken</button>
@@ -560,6 +561,7 @@
     <form method="dialog" id="shopImportForm">
       <h2>📷 Vom Foto übernehmen</h2>
       <p class="hint" id="ocrStatus" hidden></p>
+      <p class="hint">✍️ <b>Handschrift:</b> Zettel in der Kamera oder in Fotos öffnen → unten rechts auf das Text-Symbol tippen → „Alles auswählen“ → „Kopieren“ → hier einsetzen.</p>
       <label class="field">Eine Zeile = ein Eintrag (bitte prüfen)
         <textarea id="shopImportText" rows="8"></textarea>
       </label>

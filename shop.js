@@ -240,6 +240,31 @@ const Shop = (() => {
     save(); $('#shEditDialog').close(); shEditing = null; render(); toast('Gespeichert ✓');
   }
 
+  /** Mehrzeiligen Text übernehmen (z. B. von iPhone-„Live Text“ eines Handzettels): Überschriften wie „Aldi“, „Rossmann:“ wählen den Laden */
+  function addFromText(text) {
+    const lines = String(text || '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    const known = storeList();
+    const asStore = (l) => {
+      const t = l.replace(/[:：]\s*$/, '').trim();
+      if (t.length > 25 || /\d/.test(t)) return null;
+      const n = norm(t);
+      const hit = known.find((st) => { const k = norm(st); return k === n || k.split(' ')[0] === n || n.startsWith(k.split(' ')[0]); });
+      if (hit) return hit;
+      return /[:：]\s*$/.test(l) ? t : null; // unbekannter Laden mit Doppelpunkt → neu anlegen
+    };
+    const before = shopStore; let n = 0, stores = new Set();
+    for (const l of lines) {
+      const st = asStore(l);
+      if (st) {
+        if (!known.includes(st)) { state.settings.shopStores = [...storeList(), st]; known.push(st); }
+        shopStore = st; stores.add(st); continue;
+      }
+      n += addItems(splitInput(l));
+    }
+    shopStore = before; save(); render();
+    return { n, stores: [...stores] };
+  }
+
   function submitInput(ev) {
     ev.preventDefault();
     const inp = $('#shopInput');
@@ -439,9 +464,24 @@ const Shop = (() => {
     $('#shopPhoto').addEventListener('change', (e) => { const f = e.target.files[0]; e.target.value = ''; if (f) openImport(f); });
     $('#shopImportForm').addEventListener('submit', (e) => {
       e.preventDefault();
-      const n = addItems($('#shopImportText').value.split('\n').map((l) => l.trim()).filter(Boolean));
-      $('#shopImportDialog').close(); toast(`🛒 ${n} Einträge hinzugefügt`);
+      const r = addFromText($('#shopImportText').value);
+      $('#shopImportDialog').close(); toast(`🛒 ${r.n} Einträge hinzugefügt${r.stores.length ? ' (' + r.stores.join(', ') + ')' : ''}`);
     });
+    // Einfügen von mehrzeiligem Text ins Eingabefeld: Zeilen (und Laden-Überschriften) erhalten
+    $('#shopInput').addEventListener('paste', (e) => {
+      const t = (e.clipboardData || window.clipboardData)?.getData('text') || '';
+      if (!/\n/.test(t)) return;
+      e.preventDefault();
+      const r = addFromText(t);
+      toast(`🛒 ${r.n} Einträge hinzugefügt${r.stores.length ? ' (' + r.stores.join(', ') + ')' : ''}`);
+    });
+    $('#shopPasteBtn').onclick = async () => {
+      let t = '';
+      try { t = await navigator.clipboard.readText(); } catch (err) { /* nicht erlaubt */ }
+      $('#shopImportText').value = t || ''; $('#ocrStatus').hidden = false;
+      $('#ocrStatus').textContent = t ? 'Eingefügt – Überschriften wie „Aldi“ oder „Rossmann:“ ordnen die Zeilen darunter dem Laden zu. Bitte kurz prüfen.' : 'Ins Feld tippen und „Einsetzen“ wählen.';
+      $('#shopImportDialog').showModal();
+    };
     $('#shopImportCancel').onclick = () => $('#shopImportDialog').close();
     $('#shopCal').onclick = () => {
       const open = state.shopping.filter((x) => !x.done);
