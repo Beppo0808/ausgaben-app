@@ -260,6 +260,8 @@ const Product = (() => {
         ${bon ? `<p class="hint">Aus deinen Bons: ${esc(bon)}</p>` : ''}
         <label class="btn btn-sm btn-file">🏷️ Preisschild fotografieren<input type="file" id="prodTag" accept="image/*" capture="environment"></label>
         <button type="button" class="btn btn-sm" id="prodPriceManual">✏️ Preis eintragen</button>
+        <div class="row-btns">${(() => { const q = encodeURIComponent(((current && current.name) || name || ean) + (current && current.qty ? ' ' + current.qty : ''));
+          return `<a class="btn btn-sm" target="_blank" rel="noopener noreferrer" href="https://www.google.de/search?tbm=shop&q=${q}">🌐 Preis online suchen</a><a class="btn btn-sm" target="_blank" rel="noopener noreferrer" href="https://www.idealo.de/preisvergleich/MainSearchProductCategory.html?q=${q}">idealo</a>`; })()}</div>
         <p class="hint">Fremde Preise: freie Preisdatenbank „Open Prices“ (von Nutzern gemeldet, nur Deutschland). Live-Preise der Märkte gibt es leider nicht öffentlich.</p>`;
     };
     draw([]);
