@@ -461,6 +461,8 @@ const Shop = (() => {
     $('#shopStores').addEventListener('click', onStorePick);
     $('#prodScanBtn').onclick = () => { if (typeof Product !== 'undefined') Product.startLive(); };
     $('#catSeries').onclick = () => Product.startSeries();
+    $('#catSingle').onclick = () => Product.startLive();
+    $('#catNew').onclick = () => Catalog.openNew();
     $('#prodSeriesBtn').onclick = () => Product.startSeries();
     $('#storeDlgList').addEventListener('change', (e) => { const i = e.target.closest('[data-logo]'); if (i && i.files[0]) setLogo(i.dataset.logo, i.files[0]); });
     $('#storeDlgList').addEventListener('click', (e) => {

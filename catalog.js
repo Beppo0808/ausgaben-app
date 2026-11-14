@@ -122,6 +122,8 @@ const Catalog = (() => {
     $('#ceNut').hidden = !x.ean; $('#ceDel').hidden = !x.saved;
     $('#catEditDialog').showModal();
   }
+  /** Neues Produkt ohne Strichcode (z. B. Obst, Fleisch von der Theke) */
+  function openNew() { openEdit({ saved: false, key: '', name: '', brand: '', qty: '', img: '', stores: {} }); $('#ceName').focus(); }
   function saveEdit() {
     const x = editing; if (!x) return;
     const name = $('#ceName').value.trim().slice(0, 80); if (!name) { toast('Bitte einen Namen eintragen'); return; }
@@ -222,5 +224,5 @@ const Catalog = (() => {
     };
   }
 
-  return { imgForItem, photoForItem, render, fromBon, upsertScan, setPrice, pricesFor, packFor, setPack, byEan, imgFor, setImg, thumb, thumbFromFile };
+  return { openNew, imgForItem, photoForItem, render, fromBon, upsertScan, setPrice, pricesFor, packFor, setPack, byEan, imgFor, setImg, thumb, thumbFromFile };
 })();

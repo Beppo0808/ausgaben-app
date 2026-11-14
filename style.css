@@ -1198,3 +1198,7 @@ body.viewer-open { overflow: hidden; }
 .cam-ctrl { display: flex; gap: 8px; align-items: center; margin: -4px 0 10px; }
 .cam-ctrl .seg { flex: 1; margin: 0; }
 .cam-ctrl .btn { margin: 0; flex: none; }
+
+.cat-add { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 6px 0 10px; }
+.cat-add #catSingle { grid-column: 1 / -1; }
+.cat-add .btn { margin: 0; }

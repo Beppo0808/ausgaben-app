@@ -264,7 +264,11 @@
       <div id="catPane" hidden>
         <div class="card">
           <div class="card-head"><h2>⭐ Unsere Produkte</h2><span class="muted" id="catCount"></span></div>
-          <button type="button" class="btn btn-primary" id="catSeries">⚡ Mehrere Produkte scannen</button>
+          <div class="cat-add">
+            <button type="button" class="btn btn-primary" id="catSingle">🔍 Ein Produkt scannen</button>
+            <button type="button" class="btn" id="catSeries">⚡ Mehrere scannen</button>
+            <button type="button" class="btn" id="catNew">➕ Ohne Strichcode anlegen</button>
+          </div>
           <input type="search" id="catSearch" placeholder="Suchen, z. B. Butter" autocomplete="off" aria-label="Produkte suchen">
           <p class="hint">Bild antippen = auf die Liste · ⓘ = Foto, Name, Preise</p>
         </div>
