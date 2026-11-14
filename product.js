@@ -212,7 +212,7 @@ const Product = (() => {
     if (live) { clearInterval(live.timer); live.stream && live.stream.getTracks().forEach((t) => t.stop()); }
     live = null;
     const v = $('#prodVideo'); if (v) { try { v.pause(); } catch (e) { /* egal */ } v.srcObject = null; }
-    $('#prodCam').hidden = true;
+    $('#prodCam').hidden = true; $('#camCtrl').hidden = true;
   }
   /** Eigene Kamera-Schleife: alle 0,2 s den mittleren Bildausschnitt nach einem Strichcode absuchen */
   async function startLive(keepSeries) {
@@ -220,7 +220,7 @@ const Product = (() => {
     bind(); stopLive();
     current = null; lastP = null; shot = '';
     $('#prodResult').innerHTML = ''; $('#prodPrices').innerHTML = ''; $('#prodTagForm').hidden = true; $('#prodAdd').hidden = true; $('#prodEan').value = '';
-    $('#prodCam').hidden = false; $('#prodCamHint').textContent = '📷 Kamera startet …';
+    $('#prodCam').hidden = false; $('#camCtrl').hidden = false; $('#prodCamHint').textContent = '📷 Kamera startet …'; markMode();
     if (!$('#prodDialog').open) $('#prodDialog').showModal();
     const zx = loadZxing(); // parallel laden
     try {
@@ -238,7 +238,7 @@ const Product = (() => {
       const reader = new ZXing.MultiFormatReader(); reader.setHints(hints);
       const c = document.createElement('canvas'), x = c.getContext('2d', { willReadFrequently: true });
       let seen = '', count = 0, busy = false;
-      $('#prodCamHint').textContent = series ? `⚡ Serien-Scan: ein Produkt nach dem anderen ins Bild halten${seriesN ? ' · ' + seriesN + ' gemerkt' : ''}` : 'Strichcode ins Bild halten – wird automatisch erkannt';
+      camHint();
       live.timer = setInterval(() => {
         if (!live || busy || !v.videoWidth) return;
         busy = true;
@@ -385,13 +385,17 @@ const Product = (() => {
     else toast(`❔ ${ean} nicht in der Datenbank – später einzeln scannen`);
     setTimeout(() => { if (series && $('#prodDialog').open) startLive(true); }, 1200);
   }
+  const camHint = () => { $('#prodCamHint').textContent = series ? `⚡ Serie: ein Produkt nach dem anderen ins Bild halten${seriesN ? ' · ' + seriesN + ' gemerkt' : ''}` : 'Strichcode ins Bild halten – wird automatisch erkannt'; };
+  const markMode = () => $$('#camMode button').forEach((b) => b.setAttribute('aria-pressed', String((b.dataset.m === 'series') === series)));
   function startSeries() { series = true; seriesN = 0; lastSeries = ''; startLive(true); }
 
   function bind() {
     if (bound) return; bound = true;
     $('#prodClose').onclick = () => $('#prodDialog').close();
     $('#prodDialog').addEventListener('close', () => { stopLive(); if (series && seriesN) toast(`⭐ ${seriesN} Produkte unter „Produkte“ gemerkt`); series = false; });
-    $('#prodRescan').onclick = startLive;
+    $('#prodRescan').onclick = () => startLive(series);
+    $('#camMode').onclick = (e) => { const b = e.target.closest('[data-m]'); if (!b) return; series = b.dataset.m === 'series'; lastSeries = ''; markMode(); camHint(); };
+    $('#camStop').onclick = () => $('#prodDialog').close();
     const ownPhoto = async (e) => {
       const f = e.target.files[0]; e.target.value = ''; const ean = $('#prodEan').value.replace(/\D/g, '');
       if (!f || ean.length < 8) { toast('Erst Strichcode scannen oder eintippen'); return; }
