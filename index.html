@@ -249,6 +249,7 @@
             <button type="button" class="btn" id="shopVoice">🎤 Sprechen</button>
             <label class="btn btn-file">📷 Gedruckter Zettel<input type="file" id="shopPhoto" accept="image/*,application/pdf"></label>
             <button type="button" class="btn" id="shopPasteBtn">✍️ Handzettel einfügen</button>
+            <label class="btn btn-file">🔍 Produkt scannen<input type="file" id="prodPhoto" accept="image/*" capture="environment"></label>
             <button type="button" class="btn btn-ghost" id="shopCal">📅 Erinnerung</button>
             <button type="button" class="btn" id="shopShare">📤 Senden</button>
             <button type="button" class="btn" id="shopPrint">🖨️ Drucken</button>
@@ -599,6 +600,17 @@
     </div>
   </dialog>
 
+  <!-- Dialog: Produkt (Strichcode) -->
+  <dialog id="prodDialog">
+    <div>
+      <h2>🔍 Produkt</h2>
+      <div id="prodResult"></div>
+      <label class="field">Strichcode-Nummer <span class="muted">(falls nicht lesbar)</span>
+        <span class="shop-add"><input type="text" id="prodEan" inputmode="numeric" autocomplete="off"><button type="button" class="btn" id="prodEanBtn">Suchen</button></span></label>
+      <div class="dialog-actions"><button type="button" class="btn btn-ghost" id="prodClose">Schließen</button><span class="spacer"></span><button type="button" class="btn btn-primary" id="prodAdd" hidden>🛒 Auf die Einkaufsliste</button></div>
+    </div>
+  </dialog>
+
   <!-- Dialog: Rezept ansehen -->
   <dialog id="recipeDialog">
     <div class="rd">
@@ -851,6 +863,7 @@
   <script src="receipt.js"></script>
   <script src="recipes-data.js"></script>
   <script src="shop.js"></script>
+  <script src="product.js"></script>
   <script src="app.js"></script>
   <div id="shopPrintArea" hidden></div>
   <script src="pull.js"></script>

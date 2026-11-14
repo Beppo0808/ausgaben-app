@@ -1090,3 +1090,16 @@ dialog form > .dialog-actions, dialog .rd > .dialog-actions { position: sticky; 
 .store-dlg { list-style: none; margin: 10px 0; padding: 0; display: grid; gap: 10px; }
 .store-dlg li { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .store-dlg li .store-badge { margin-right: auto; }
+
+/* Produkt-Scanner */
+.prod-head { display: flex; gap: 12px; align-items: center; }
+.prod-head img { width: 72px; height: 72px; object-fit: contain; border-radius: 10px; background: #fff; border: 1px solid var(--border); }
+.prod-brand { font-weight: 800; color: var(--text-2); }
+.prod-name { font-weight: 800; font-size: 1.15rem; }
+.prod-flag { font-weight: 800; margin: 10px 0 4px; }
+.prod-nut { width: 100%; border-collapse: collapse; margin: 6px 0; font-size: 1rem; }
+.prod-nut caption { text-align: left; color: var(--text-2); font-size: .85rem; padding-bottom: 4px; }
+.prod-nut td { padding: 6px 4px; border-top: 1px solid var(--border); }
+.prod-nut td:last-child { text-align: right; font-weight: 700; }
+.prod-nut tr.hl td { background: color-mix(in srgb, var(--accent) 10%, transparent); font-weight: 800; }
+.prod-price { font-weight: 700; color: var(--good, #2f6b4f); }

@@ -11,7 +11,7 @@
 [[headers]]
   for = "/*"
   [headers.values]
-    Content-Security-Policy = "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/ https://cdn.jsdelivr.net/npm/tesseract.js@v5.1.1/ https://cdn.jsdelivr.net/npm/tesseract.js-core@v5.1.1/ https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.1/ https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/ 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; connect-src 'self' https://cdn.jsdelivr.net/npm/ blob: data:; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; font-src 'self'; manifest-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
+    Content-Security-Policy = "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/ https://cdn.jsdelivr.net/npm/tesseract.js@v5.1.1/ https://cdn.jsdelivr.net/npm/tesseract.js-core@v5.1.1/ https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.1/ https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/ https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/ 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; connect-src 'self' https://cdn.jsdelivr.net/npm/ https://world.openfoodfacts.org blob: data:; img-src 'self' data: blob: https://images.openfoodfacts.org; style-src 'self' 'unsafe-inline'; font-src 'self'; manifest-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "no-referrer"
     X-Frame-Options = "DENY"
