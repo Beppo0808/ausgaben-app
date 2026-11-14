@@ -251,6 +251,7 @@
             <label class="btn btn-file">📷 Gedruckter Zettel<input type="file" id="shopPhoto" accept="image/*,application/pdf"></label>
             <button type="button" class="btn" id="shopPasteBtn">✍️ Handzettel einfügen</button>
             <button type="button" class="btn" id="prodScanBtn">🔍 Produkt scannen</button>
+            <button type="button" class="btn" id="prodSeriesBtn">⚡ Mehrere Produkte scannen</button>
             <button type="button" class="btn btn-ghost" id="shopCal">📅 Erinnerung</button>
             <button type="button" class="btn" id="shopShare">📤 Senden</button>
             <button type="button" class="btn" id="shopPrint">🖨️ Drucken</button>
@@ -263,7 +264,7 @@
       <div id="catPane" hidden>
         <div class="card">
           <div class="card-head"><h2>⭐ Unsere Produkte</h2><span class="muted" id="catCount"></span></div>
-          <button type="button" class="btn btn-primary" id="catSeries">⚡ Produkte per Strichcode erfassen</button>
+          <button type="button" class="btn btn-primary" id="catSeries">⚡ Mehrere Produkte scannen</button>
           <input type="search" id="catSearch" placeholder="Suchen, z. B. Butter" autocomplete="off" aria-label="Produkte suchen">
           <p class="hint">Bild antippen = auf die Liste · ⓘ = Foto, Name, Preise</p>
         </div>
@@ -616,7 +617,7 @@
     <div>
       <h2>🔍 Produkt</h2>
       <div class="prod-cam" id="prodCam" hidden><video id="prodVideo" playsinline muted autoplay></video><div class="prod-aim"></div><p class="hint" id="prodCamHint"></p></div>
-      <div class="cam-ctrl" id="camCtrl" hidden><div class="seg" id="camMode"><button type="button" data-m="one" aria-pressed="true">🔍 Einzeln</button><button type="button" data-m="series" aria-pressed="false">⚡ Serie</button></div>
+      <div class="cam-ctrl" id="camCtrl" hidden><div class="seg" id="camMode"><button type="button" data-m="one" aria-pressed="true">🔍 Ein Produkt</button><button type="button" data-m="series" aria-pressed="false">⚡ Mehrere</button></div>
         <button type="button" class="btn btn-ghost" id="camStop">✕ Abbrechen</button></div>
       <div id="prodResult"></div>
       <div id="prodPrices"></div>

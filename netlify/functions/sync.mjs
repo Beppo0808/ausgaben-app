@@ -56,9 +56,17 @@ async function compact(s, hid, keys) {
       if (!cur || r.mtime >= cur.mtime) merged.set(id, r);
     }
   }
-  const last = old[old.length - 1];
-  await s.setJSON(`${hid}/log/${stamp(keyTime(last))}-snapshot`, [...merged.values()]);
-  for (const k of old) if (k !== `${hid}/log/${stamp(keyTime(last))}-snapshot`) await s.delete(k);
+  // In Teile von max. ~1 MB schreiben (Antworten der Funktion dürfen nicht zu groß werden)
+  const parts = [[]]; let size = 0;
+  for (const r of merged.values()) {
+    const len = (r.data && typeof r.data.e === 'string' ? r.data.e.length : 0) + 200;
+    if (parts[parts.length - 1].length && size + len > 1_000_000) { parts.push([]); size = 0; }
+    parts[parts.length - 1].push(r); size += len;
+  }
+  const t = keyTime(old[old.length - 1]);
+  const names = parts.map((_, i) => `${hid}/log/${stamp(t - (parts.length - 1 - i))}-snapshot`);
+  for (let i = 0; i < parts.length; i++) await s.setJSON(names[i], parts[i]);
+  for (const k of old) if (!names.includes(k)) await s.delete(k);
 }
 
 async function pull(hid, since) {
@@ -67,14 +75,14 @@ async function pull(hid, since) {
   const s = store();
   const { blobs } = await s.list({ prefix: `${hid}/log/` });
   const keys = blobs.map((b) => b.key).sort();
-  const rows = [];
+  const rows = []; let bytes = 0;
   for (const k of keys) {
     const t = keyTime(k);
     if (t <= sinceMs) continue;
     const batch = (await s.get(k, { type: 'json' })) || [];
     const updated_at = new Date(t).toISOString();
-    for (const r of batch) rows.push({ ...r, updated_at });
-    if (rows.length >= PAGE) break; // Rest beim nächsten Abruf
+    for (const r of batch) { rows.push({ ...r, updated_at }); bytes += (r.data && typeof r.data.e === "string" ? r.data.e.length : 0) + 200; }
+    if (rows.length >= PAGE || bytes > 3_500_000) break; // Rest beim nächsten Abruf (Antwort-Grenze der Funktionen)
   }
   if (keys.length > 400) compact(s, hid, keys).catch(() => {});
   return json(rows);

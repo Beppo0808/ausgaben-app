@@ -385,7 +385,7 @@ const Product = (() => {
     else toast(`❔ ${ean} nicht in der Datenbank – später einzeln scannen`);
     setTimeout(() => { if (series && $('#prodDialog').open) startLive(true); }, 1200);
   }
-  const camHint = () => { $('#prodCamHint').textContent = series ? `⚡ Serie: ein Produkt nach dem anderen ins Bild halten${seriesN ? ' · ' + seriesN + ' gemerkt' : ''}` : 'Strichcode ins Bild halten – wird automatisch erkannt'; };
+  const camHint = () => { $('#prodCamHint').textContent = series ? `⚡ Mehrere: ein Produkt nach dem anderen ins Bild halten${seriesN ? ' · ' + seriesN + ' gemerkt' : ''}` : 'Strichcode ins Bild halten – wird automatisch erkannt'; };
   const markMode = () => $$('#camMode button').forEach((b) => b.setAttribute('aria-pressed', String((b.dataset.m === 'series') === series)));
   function startSeries() { series = true; seriesN = 0; lastSeries = ''; startLive(true); }
 

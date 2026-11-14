@@ -42,6 +42,7 @@ function defaultState() {
     shopping: [], // gemeinsame Einkaufsliste
     avatars: {}, // Bild je Person: { t: 'emoji'|'img', v }
     recipes: [], // eigene Rezepte
+    products: [], // Unsere Produkte (Katalog)
   };
 }
 

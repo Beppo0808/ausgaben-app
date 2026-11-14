@@ -15,10 +15,10 @@ const Catalog = (() => {
 
   /** Kleines Vorschaubild (für die Kachel) aus Bild oder Kamera */
   function thumb(src, w0, h0) {
-    const s = 220 / Math.max(w0, h0), c = document.createElement('canvas');
+    const s = Math.min(1, 160 / Math.max(w0, h0)), c = document.createElement('canvas');
     c.width = Math.max(1, Math.round(w0 * s)); c.height = Math.max(1, Math.round(h0 * s));
     c.getContext('2d').drawImage(src, 0, 0, c.width, c.height);
-    return c.toDataURL('image/jpeg', 0.72);
+    return c.toDataURL('image/jpeg', 0.66);
   }
   function thumbFromFile(file) {
     return new Promise((res) => {

@@ -156,19 +156,24 @@ const Sync = (() => {
     const keys = Object.keys(cfg.dirty);
     if (!keys.length) return;
     const m = items();
-    for (let i = 0; i < keys.length; i += 500) {
-      const slice = keys.slice(i, i + 500);
-      const batch = await Promise.all(slice.map(async (k) => {
-        const [kind, id] = splitKey(k);
-        const del = !(k in m);
-        // Auch bei Löschungen die (verschlüsselte) lokale Kennung mitschicken, damit andere Geräte wissen, was weg ist
-        return { kind, id: await remoteId(kind, id), data: await encrypt({ i: id, d: del ? null : m[k] }), deleted: del, mtime: cfg.mtimes[k] || Date.now(), _k: k };
-      }));
-      const { hid } = await getKeys();
+    const { hid } = await getKeys();
+    let batch = [], size = 0;
+    const send = async () => {
+      if (!batch.length) return;
       await rpc('sync_push', { p_household: hid, p_items: batch.map(({ _k, ...b }) => b) }, opts);
       batch.forEach((b) => { if (cfg.mtimes[b._k] === b.mtime) delete cfg.dirty[b._k]; });
-      writeCfg();
+      writeCfg(); batch = []; size = 0;
+    };
+    for (const k of keys) {
+      const [kind, id] = splitKey(k);
+      const del = !(k in m);
+      // Auch bei Löschungen die (verschlüsselte) lokale Kennung mitschicken, damit andere Geräte wissen, was weg ist
+      const b = { kind, id: await remoteId(kind, id), data: await encrypt({ i: id, d: del ? null : m[k] }), deleted: del, mtime: cfg.mtimes[k] || Date.now(), _k: k };
+      const len = (b.data && b.data.e ? b.data.e.length : 0) + 200;
+      if (batch.length && (size + len > 1_200_000 || batch.length >= 500)) await send(); // Pakete klein halten (Server-Grenze 2 MB)
+      batch.push(b); size += len;
     }
+    await send();
   }
 
   function applyRow(r) {
@@ -242,7 +247,7 @@ const Sync = (() => {
         if (applyRow(row)) applied.add(row.kind + ':' + row.id);
       }
       if (rows.length) cursor = rows[rows.length - 1].updated_at;
-    } while (rows.length >= PAGE);
+    } while (rows.length >= PAGE || (rows.length && JSON.stringify(rows).length > 3_000_000)); // große Antwort = evtl. mehr da
     // 30 s Überlappung, falls gleichzeitige Uploads minimal versetzt gespeichert werden
     const t = new Date(cursor).getTime();
     if (Number.isFinite(t)) cfg.lastPull = new Date(Math.max(0, t - 30000)).toISOString();
