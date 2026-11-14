@@ -215,7 +215,8 @@ const Product = (() => {
     $('#prodCam').hidden = true;
   }
   /** Eigene Kamera-Schleife: alle 0,2 s den mittleren Bildausschnitt nach einem Strichcode absuchen */
-  async function startLive() {
+  async function startLive(keepSeries) {
+    if (keepSeries !== true) series = false;
     bind(); stopLive();
     current = null; lastP = null; shot = '';
     $('#prodResult').innerHTML = ''; $('#prodPrices').innerHTML = ''; $('#prodTagForm').hidden = true; $('#prodAdd').hidden = true; $('#prodEan').value = '';
@@ -237,7 +238,7 @@ const Product = (() => {
       const reader = new ZXing.MultiFormatReader(); reader.setHints(hints);
       const c = document.createElement('canvas'), x = c.getContext('2d', { willReadFrequently: true });
       let seen = '', count = 0, busy = false;
-      $('#prodCamHint').textContent = 'Strichcode ins Bild halten – wird automatisch erkannt';
+      $('#prodCamHint').textContent = series ? `⚡ Serien-Scan: ein Produkt nach dem anderen ins Bild halten${seriesN ? ' · ' + seriesN + ' gemerkt' : ''}` : 'Strichcode ins Bild halten – wird automatisch erkannt';
       live.timer = setInterval(() => {
         if (!live || busy || !v.videoWidth) return;
         busy = true;
@@ -249,12 +250,13 @@ const Product = (() => {
           x.drawImage(v, sx, sy, cw, ch, 0, 0, c.width, c.height);
           let t = '';
           try { t = reader.decode(new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(new ZXing.HTMLCanvasElementLuminanceSource(c)))).getText(); } catch (e) { /* noch nichts */ }
-          if (t && eanOk(t)) {
+          if (t && eanOk(t) && !(series && t === lastSeries)) {
             count = t === seen ? count + 1 : 1; seen = t;
             if (count >= 2) { // zweimal gleich gelesen = sicher
               if (navigator.vibrate) navigator.vibrate(60);
               try { shot = Catalog.thumb(v, vw, vh); } catch (e) { shot = ''; }
-              stopLive(); show(t);
+              stopLive();
+              if (series) { $('#prodEan').value = t; seriesHit(t); } else show(t);
             }
           }
         } finally { busy = false; }
@@ -355,18 +357,40 @@ const Product = (() => {
       await show(ean);
     } catch (e) { $('#prodResult').innerHTML = `<p>⚠️ ${esc(e.message)}</p>`; }
   }
+  /** Produktbild aus der Datenbank als kleines Bild speichern (dann auch offline und bei Ute sichtbar) */
+  async function offThumb(url) {
+    if (!/^https:\/\/images\.openfoodfacts\.org\//.test(url || '')) return '';
+    try { const b = await (await fetch(url)).blob(); const bm = await createImageBitmap(b); return Catalog.thumb(bm, bm.width, bm.height); } catch (e) { return ''; }
+  }
+  /** Gefundenes Produkt automatisch unter ⭐ Produkte merken */
+  async function remember(ean) {
+    if (!current || current.unknown) return '';
+    const img = (await offThumb(current.img)) || shot;
+    return Catalog.upsertScan({ ...meta(ean), img });
+  }
   async function show(ean) {
     stopLive();
     $('#prodEan').value = ean;
     $('#prodResult').innerHTML = `<p>🔍 Suche Produkt ${esc(ean)} …</p>`;
     try { render(ean, await lookup(ean)); } catch (e) { $('#prodResult').innerHTML = `<p>⚠️ ${esc(e.message)}</p>`; }
     renderPrices(ean, current ? current.name : '');
+    remember(ean);
   }
+  // ---------- Serien-Scan: Vorrat in einem Rutsch erfassen ----------
+  let series = false, seriesN = 0, lastSeries = '';
+  async function seriesHit(ean) {
+    lastSeries = ean;
+    let p = null; try { p = await lookup(ean); } catch (e) { /* offline */ }
+    if (p) { render(ean, p); await remember(ean); seriesN++; toast(`⭐ ${current ? current.name : ean} gemerkt (${seriesN})`); }
+    else toast(`❔ ${ean} nicht in der Datenbank – später einzeln scannen`);
+    setTimeout(() => { if (series && $('#prodDialog').open) startLive(true); }, 1200);
+  }
+  function startSeries() { series = true; seriesN = 0; lastSeries = ''; startLive(true); }
 
   function bind() {
     if (bound) return; bound = true;
     $('#prodClose').onclick = () => $('#prodDialog').close();
-    $('#prodDialog').addEventListener('close', stopLive);
+    $('#prodDialog').addEventListener('close', () => { stopLive(); if (series && seriesN) toast(`⭐ ${seriesN} Produkte unter „Produkte“ gemerkt`); series = false; });
     $('#prodRescan').onclick = startLive;
     const ownPhoto = async (e) => {
       const f = e.target.files[0]; e.target.value = ''; const ean = $('#prodEan').value.replace(/\D/g, '');
@@ -402,5 +426,5 @@ const Product = (() => {
     $('#prodEanBtn').onclick = () => { const v = $('#prodEan').value.replace(/\D/g, ''); if (v.length >= 8) show(v); else toast('Bitte die Ziffern unter dem Strichcode eintippen'); };
   }
   const showEan = (ean) => { bind(); shot = ''; $('#prodCam').hidden = true; if (!$('#prodDialog').open) $('#prodDialog').showModal(); show(ean); };
-  return { handleFile, bind, openPrefs, startLive, showEan };
+  return { handleFile, bind, openPrefs, startLive, startSeries, showEan };
 })();
