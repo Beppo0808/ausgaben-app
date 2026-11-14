@@ -1164,3 +1164,20 @@ dialog form > .dialog-actions, dialog .rd > .dialog-actions { position: sticky; 
 .prod-nut.multi { font-size: .86rem; }
 .prod-nut.multi td { padding: 6px 2px; }
 .prod-nut.multi td:first-child { hyphens: auto; overflow-wrap: anywhere; }
+
+/* Bon-Ansicht: schmale Leiste oben, Knöpfe unten, Bild frei scrollbar */
+body.viewer-open { overflow: hidden; }
+.bon-viewer .bon-bar { display: flex; align-items: center; gap: 8px; padding: calc(env(safe-area-inset-top) + 8px) 10px 8px; }
+.bon-head { flex: 1; min-width: 0; text-align: center; color: #fbf5ec; line-height: 1.2; }
+.bon-head .bon-title { margin: 0; font-size: 1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bon-head b { font-size: .8rem; opacity: .85; font-weight: 600; }
+.bon-ic { flex: none; width: 44px; height: 44px; border-radius: 50%; border: 1px solid rgba(251,245,236,.35); background: rgba(251,245,236,.14); color: #fbf5ec; font-size: 1.1rem; cursor: pointer; }
+.bon-ic:disabled { opacity: .3; }
+.bon-x { margin-left: 4px; }
+.bon-scroll { touch-action: pan-x pan-y pinch-zoom; overscroll-behavior: contain; }
+.bon-scroll img, .bon-paper img { touch-action: pan-x pan-y pinch-zoom; }
+.bon-viewer .bon-actions { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; padding: 6px 6px calc(env(safe-area-inset-bottom) + 6px); background: var(--surface); border-top: 1px solid var(--border); box-shadow: 0 -2px 10px rgba(0,0,0,.08); }
+.bon-viewer .bon-btn { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 2px; border: 0; border-radius: 10px; background: transparent; color: var(--text); font: 700 .72rem var(--font-text); }
+.bon-viewer .bon-btn span { font-size: 1.35rem; }
+.bon-viewer .bon-btn.danger { color: #b0412a; }
+.bon-viewer .bon-btn:active { background: var(--surface-3); }

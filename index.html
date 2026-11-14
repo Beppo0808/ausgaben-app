@@ -860,27 +860,24 @@
   <!-- Bon-Ansicht -->
   <div class="bon-viewer" id="bonViewer" hidden>
     <div class="bon-bar">
-      <div class="bon-title" id="bonTitle"></div>
-      <div class="bon-actions">
-        <button type="button" class="bon-btn" id="bonEdit">✏️ Bearbeiten</button>
-        <button type="button" class="bon-btn" id="bonShare">📤 Senden</button>
-        <button type="button" class="bon-btn" id="bonPrint">🖨️ Drucken</button>
-        <button type="button" class="bon-btn" id="bonDownload">⬇️ Download</button>
-        <button type="button" class="bon-btn danger" id="bonDelete">🗑️ Löschen</button>
-        <button type="button" class="bon-btn" id="bonClose">✕ Schließen</button>
-      </div>
+      <button type="button" class="bon-ic" id="bonPrev" aria-label="Vorheriger Bon">◀</button>
+      <div class="bon-head"><div class="bon-title" id="bonTitle"></div><b id="bonPos">1 / 1</b></div>
+      <button type="button" class="bon-ic" id="bonNext" aria-label="Nächster Bon">▶</button>
+      <button type="button" class="bon-ic bon-x" id="bonClose" aria-label="Schließen">✕</button>
     </div>
     <div class="bon-scroll" id="bonScroll">
-      <div class="bon-nav">
-        <button type="button" class="btn" id="bonPrev">◀<br>Vorheriger</button>
-        <div class="bon-pos"><b id="bonPos">1 / 1</b><span>Wischen · Pfeiltasten</span></div>
-        <button type="button" class="btn" id="bonNext">▶<br>Nächster</button>
-      </div>
       <div class="bon-paper">
         <p class="hint" id="bonLoading">Lade Bon …</p>
         <img id="bonImg" alt="Kassenbon" hidden>
         <div class="bon-data" id="bonData"></div>
       </div>
+    </div>
+    <div class="bon-actions">
+      <button type="button" class="bon-btn" id="bonEdit"><span>✏️</span>Bearbeiten</button>
+      <button type="button" class="bon-btn" id="bonShare"><span>📤</span>Senden</button>
+      <button type="button" class="bon-btn" id="bonPrint"><span>🖨️</span>Drucken</button>
+      <button type="button" class="bon-btn" id="bonDownload"><span>⬇️</span>Laden</button>
+      <button type="button" class="bon-btn danger" id="bonDelete"><span>🗑️</span>Löschen</button>
     </div>
   </div>
 
