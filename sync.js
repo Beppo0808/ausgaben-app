@@ -193,6 +193,7 @@ const Sync = (() => {
       if (budget !== undefined) state.settings.budget = budget;
       if (Array.isArray(shopStores)) state.settings.shopStores = shopStores;
       if (r.data.storeLogos && typeof r.data.storeLogos === 'object') state.settings.storeLogos = r.data.storeLogos;
+      if (r.data.cards && typeof r.data.cards === 'object') state.settings.cards = { ...(state.settings.cards || {}), ...r.data.cards };
       if (r.data.prices && typeof r.data.prices === 'object') { // Preise je Produkt und Laden: neuere gewinnt
         const loc = { ...(state.settings.prices || {}) };
         for (const [ean, byStore] of Object.entries(r.data.prices)) {

@@ -1151,3 +1151,7 @@ dialog form > .dialog-actions, dialog .rd > .dialog-actions { position: sticky; 
 
 .prod-nut th { font-size: .78rem; color: var(--text-2); text-align: right; font-weight: 700; padding: 4px; }
 .prod-nut td + td { text-align: right; font-weight: 700; white-space: nowrap; }
+
+.card-info { margin: 8px 0; padding: 10px 12px; border-radius: 12px; background: var(--surface-3); font-weight: 600; }
+.card-info.ok { background: #dcebdc; } .card-info.warn { background: #f4e7c4; }
+.card-who { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }

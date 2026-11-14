@@ -388,6 +388,8 @@ const Receipt = (() => {
     $('#rcStatus').textContent = text || '';
   }
   function fillForm(r) {
+    $('#rcCardInfo').hidden = true; $('#rcDupInfo').hidden = true; rcCard = r.card || '';
+    if (r.card) setTimeout(() => showCard(r.card), 0);
     const storeCat = guessCategory(r.store || '') || 'lebensmittel';
     $('#rcStore').value = r.store || '';
     $('#rcBranch').value = r.branch || '';
@@ -452,7 +454,7 @@ const Receipt = (() => {
         const off = real ? Math.abs(sum - r.total) / r.total : 1;
         return r.items.length * 2 - Math.min(off, 1) * 20 + (real ? 6 : 0) + (r.date ? 1 : 0);
       };
-      let r = null; const heads = [];
+      let r = null; const heads = [], cards = [];
       const passes = [['plain', '3'], ['clean', '3'], ['plain', '6'], ['clean', '6']];
       for (const [i, [kind, psm]] of passes.entries()) {
         if (i) setProgress(0.35, `Lese Bon noch einmal anders (${i + 1}/${passes.length}) …`);
@@ -461,6 +463,7 @@ const Receipt = (() => {
         if (window.__ocrLog) window.__ocrLog.push(data.text || ''); // nur für Tests
         const cand = parse(data.text || '');
         heads.push({ store: cand.store, branch: cand.branch });
+        cards.push(cardDigits(data.text || ''));
         if (!r || score(cand) > score(r)) {
           // Kopfdaten (Laden, Datum …) aus der besseren Lesart, fehlende aus der vorigen ergänzen
           if (r) for (const k of ['store', 'branch', 'date', 'time']) if (!cand[k] && r[k]) cand[k] = r[k];
@@ -473,6 +476,7 @@ const Receipt = (() => {
       await w.setParameters({ tessedit_pageseg_mode: '3' });
       setProgress(1, '');
       for (const k of ['store', 'branch']) { const v = bestOf(heads.map((h) => h[k])); if (v) r[k] = v; }
+      r.card = bestOf(cards);
       if (editing) {
         const cur = readItems();
         r.items = cur.length ? cur : r.items;
@@ -483,8 +487,14 @@ const Receipt = (() => {
       }
       const match = !editing && r.date && r.total > 0 ? findMatch(r.date, r.total) : null;
       if (match) { r.person = match.person; r.private = match.private; }
+      const owner = r.card ? (state.settings.cards || {})[r.card] : undefined;
+      if (!editing && owner && (state.settings.persons || []).includes(owner)) r.person = owner;
       fillForm(r);
       $('#rcForm').hidden = false;
+      showCard(r.card);
+      const dupScan = !editing && r.date && r.total > 0 ? findSameBon(r.date, r.total, r.store, r.time) : null;
+      $('#rcDupInfo').hidden = !dupScan;
+      if (dupScan) $('#rcDupInfo').textContent = `⚠️ Diesen Bon hast du schon gespeichert (${dupScan.merchant || 'Bon'} · ${fmt(dupScan.amount)} · ${dupScan.date.split('-').reverse().join('.')}${dupScan.time ? ' · ' + dupScan.time + ' Uhr' : ''}).`;
       $('#rcStatus').textContent = (r.items.length ? `${r.items.length} Artikel erkannt – bitte kurz prüfen.` : 'Keine Artikel sicher erkannt – bitte prüfen und ggf. ergänzen.')
         + (match ? ` Passt zur Zahlung von ${match.person || '–'} (${match.merchant || 'Ausgabe'}, ${fmt(match.amount)}).` : '');
     }
@@ -522,6 +532,39 @@ const Receipt = (() => {
     state.expenses = state.expenses.filter((e) => !ids.has(e.id));
     save(); render();
     return drop.length;
+  }
+
+  // ---------- Mit welcher Karte bezahlt? (letzte 4 Ziffern auf dem Bon) ----------
+  /** „************1234“, „VISA xxxx 1234“, „Karte: …1234“, „PAN 1234“ → „1234“ */
+  function cardDigits(text) {
+    const lines = String(text || '').split(/\r?\n/);
+    for (const l of lines) {
+      const m = l.match(/[x*•#]{3,}\s*-?\s*(\d{4})\b/i)
+        || (/(karte|card|visa|master|maestro|girocard|debit|kreditk|\bpan\b|kartennr|konto)/i.test(l) && l.match(/(?:nr\.?|nummer|pan|:)\s*[x*•#.\s]*(\d{4})\s*$/i));
+      if (m) return m[1];
+    }
+    return '';
+  }
+  let rcCard = '';
+  function showCard(card) {
+    rcCard = card || '';
+    const el = $('#rcCardInfo'), me = state.settings.me, cards = state.settings.cards || {};
+    el.hidden = false;
+    if (!card) { el.className = 'card-info'; el.innerHTML = '💳 Keine Kartennummer auf dem Bon gefunden (bar bezahlt oder nicht lesbar).'; return; }
+    const owner = cards[card];
+    if (owner === me) { el.className = 'card-info ok'; el.innerHTML = `💳 Bezahlt mit <b>deiner Karte</b> …${esc(card)}`; return; }
+    if (owner) { el.className = 'card-info warn'; el.innerHTML = `⚠️ Bezahlt mit <b>${owner === '-' ? 'einer fremden Karte' : esc(owner) + 's Karte'}</b> …${esc(card)} – nicht mit deiner. <button type="button" class="btn btn-sm" data-card="?">ändern</button>`; return; }
+    el.className = 'card-info warn';
+    el.innerHTML = `⚠️ Karte …${esc(card)} kennt die App noch nicht. Wessen Karte ist das?<span class="card-who">${(state.settings.persons || []).map((p) => `<button type="button" class="btn btn-sm" data-card="${esc(p)}">${p === me ? 'Meine' : esc(p) + 's'}</button>`).join('')}<button type="button" class="btn btn-sm btn-ghost" data-card="-">Fremde Karte</button></span>`;
+  }
+  function onCardClick(e) {
+    const b = e.target.closest('[data-card]'); if (!b || !rcCard) return;
+    const who = b.dataset.card;
+    if (who === '?') { const c = { ...(state.settings.cards || {}) }; delete c[rcCard]; state.settings.cards = c; save(); showCard(rcCard); return; }
+    state.settings.cards = { ...(state.settings.cards || {}), [rcCard]: who }; save();
+    if (who !== '-' && (state.settings.persons || []).includes(who)) $('#rcPerson').value = who;
+    showCard(rcCard);
+    if (who !== state.settings.me) toast(who === '-' ? 'Gemerkt: fremde Karte' : `Gemerkt: Karte von ${who}`);
   }
 
   /** Kleine Auswahl mit mehreren Knöpfen – liefert die gewählte Kennung */
@@ -568,7 +611,7 @@ const Receipt = (() => {
       receipt = { id: newId(), w: current.w, h: current.h };
       await idbPut(receipt.id, current.blob);
     }
-    const fields = { branch, time, items, ...(receipt ? { receipt } : {}) };
+    const fields = { branch, time, items, ...(receipt ? { receipt } : {}), ...(rcCard ? { card: rcCard } : {}) };
     if (exp && editing) Object.assign(exp, { amount: total, merchant: store || exp.merchant, date, person, private: priv, cash, ...fields });
     else if (exp) Object.assign(exp, { merchant: store || exp.merchant, ...fields, time: time || exp.time || timeFromCreated(exp) }); // per Handy erfasst: Person/Betrag bleiben, Laden/Uhrzeit vom Bon sind genauer
     else {
@@ -719,6 +762,7 @@ const Receipt = (() => {
     $('#rcTotal').addEventListener('input', updateSum);
     $('#rcCancel').onclick = () => { $('#receiptDialog').close(); current = null; resetPreview(); };
     $('#rcSave').onclick = saveReceipt;
+    $('#rcCardInfo').addEventListener('click', onCardClick);
   }
 
   function init() {
