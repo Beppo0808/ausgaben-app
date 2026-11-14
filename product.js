@@ -439,6 +439,18 @@ const Product = (() => {
       if (current.unknown) { const v = ($('#prodOwnName') || {}).value || ''; if (!v.trim()) { toast('Bitte einen Produktnamen eintragen'); return ''; } current.name = current.pname = v.trim().slice(0, 80); }
       const id = Catalog.upsertScan(meta(current.ean)); savedMsg(id); return id;
     };
+    $('#prodLinkBtn').onclick = async () => {
+      const ean = $('#prodEan').value.replace(/\D/g, '');
+      if (ean.length < 8) { toast('Erst Strichcode scannen oder eintippen'); return; }
+      const d = await Catalog.fromLink($('#prodLink').value); if (!d) return;
+      if (current && current.unknown) {
+        const inp = $('#prodOwnName'); if (inp && !inp.value.trim() && d.name) inp.value = d.name.slice(0, 80);
+        if (!current.brand && d.brand) current.brand = d.brand;
+        if (!saveUnknown()) return;
+      }
+      if (d.img) { const pid = Catalog.setImg(meta(ean), d.img); savedMsg(pid); const head = $('#prodResult .prod-head img'); if (head) head.src = d.img; else if ($('#prodResult .prod-nopic')) $('#prodResult .prod-nopic').outerHTML = `<img src="${d.img}" alt="">`; }
+      $('#prodLink').value = ''; toast('🔗 Übernommen');
+    };
     $('#prodSave').onclick = () => { if (saveUnknown()) { $('#prodSave').hidden = true; toast('⭐ Gespeichert'); } };
     $('#prodAdd').onclick = () => { const id = $('#prodAdd').dataset.pid || saveUnknown(); if (id) Catalog.pickById(id); };
     $('#prodEanBtn').onclick = () => { const v = $('#prodEan').value.replace(/\D/g, ''); if (v.length >= 8) show(v); else toast('Bitte die Ziffern unter dem Strichcode eintippen'); };

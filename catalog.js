@@ -61,6 +61,22 @@ const Catalog = (() => {
     });
   }
 
+  /** Produktseite (Link) über den eigenen Server lesen → { name, brand, ean, img (zugeschnitten) } */
+  async function fromLink(url) {
+    url = String(url || '').trim();
+    if (!/^https:\/\//i.test(url)) { toast('Bitte einen Link einfügen, der mit https:// beginnt'); return null; }
+    toast('🔗 Lese die Seite …');
+    let d;
+    try { const r = await fetch('/api/linkinfo?url=' + encodeURIComponent(url)); d = await r.json(); if (!r.ok) throw new Error(d.error || 'Fehler'); }
+    catch (e) { toast('⚠️ ' + (e.message || 'Seite konnte nicht gelesen werden')); return null; }
+    let img = '';
+    if (d.image && /^data:image\/(jpeg|png|webp);base64,/.test(d.image)) {
+      const blob = await (await fetch(d.image)).blob();
+      img = await cropFromFile(blob);
+    } else toast('Kein Bild auf der Seite gefunden – Name wurde übernommen');
+    return { name: d.name || '', brand: d.brand || '', ean: d.ean || '', img };
+  }
+
   /** Ladenname wie in der Ladenleiste schreiben („EDEKA“ → „Edeka“) */
   const niceStore = (st) => { const n = norm(st); if (!n) return ''; return Shop.stores().find((s) => { const k = norm(s); return k === n || k.split(' ')[0] === n.split(' ')[0]; }) || st; };
 
@@ -218,6 +234,7 @@ const Catalog = (() => {
     let p = x.saved ? list().find((y) => y.id === x.id) : null;
     if (!p) { p = { id: uid(), aliases: x.key ? [x.key] : [], stores: {}, at: new Date().toISOString() }; list().push(p); }
     Object.assign(p, { name, brand: $('#ceBrand').value.trim().slice(0, 40), qty: $('#ceQty').value.trim().slice(0, 20), img: imgOk(img) ? img : '' });
+    if (x.linkEan && !p.ean && !list().some((y) => y.ean === x.linkEan)) p.ean = x.linkEan;
     save(); $('#catEditDialog').close(); render(); toast('Gespeichert ✓');
   }
 
@@ -340,6 +357,14 @@ const Catalog = (() => {
     $('#catPickCancel').onclick = () => $('#catPickDialog').close();
     $('#cePhoto').addEventListener('change', async (e) => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; const t = await cropFromFile(f); if (t) { $('#cePic').dataset.img = t; $('#cePic').innerHTML = `<img src="${t}" alt="">`; } });
     $('#ceSave').onclick = saveEdit;
+    $('#ceLinkBtn').onclick = async () => {
+      const d = await fromLink($('#ceLink').value); if (!d) return;
+      if (d.img) { $('#cePic').dataset.img = d.img; $('#cePic').innerHTML = `<img src="${d.img}" alt="">`; }
+      if (!$('#ceName').value.trim() && d.name) $('#ceName').value = d.name.slice(0, 80);
+      if (!$('#ceBrand').value.trim() && d.brand) $('#ceBrand').value = d.brand;
+      if (editing && d.ean && !editing.ean) editing.linkEan = d.ean;
+      $('#ceLink').value = '';
+    };
     $('#ceCancel').onclick = () => $('#catEditDialog').close();
     $('#ceAdd').onclick = () => { if (editing) { $('#catEditDialog').close(); addToList(editing); } };
     $('#ceNut').onclick = () => { if (editing && editing.ean) { $('#catEditDialog').close(); Product.showEan(editing.ean); } };
@@ -349,5 +374,5 @@ const Catalog = (() => {
     };
   }
 
-  return { cropFromFile, bestPrice, pickById, openNew, imgForItem, photoForItem, render, fromBon, upsertScan, setPrice, pricesFor, packFor, setPack, byEan, imgFor, setImg, thumb, thumbFromFile };
+  return { fromLink, cropFromFile, bestPrice, pickById, openNew, imgForItem, photoForItem, render, fromBon, upsertScan, setPrice, pricesFor, packFor, setPack, byEan, imgFor, setImg, thumb, thumbFromFile };
 })();

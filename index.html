@@ -639,6 +639,8 @@
       <details class="prod-more" id="prodMore"><summary>Strichcode eintippen · Foto vom Strichcode · Hinweise</summary>
         <label class="field">Strichcode-Nummer
           <span class="shop-add"><input type="text" id="prodEan" inputmode="numeric" autocomplete="off"><button type="button" class="btn" id="prodEanBtn">Suchen</button></span></label>
+        <label class="field">🔗 Bild & Name von einer Produktseite (Link einfügen)
+          <span class="shop-add"><input type="url" id="prodLink" placeholder="https://…" autocomplete="off" autocapitalize="off"><button type="button" class="btn" id="prodLinkBtn">Holen</button></span></label>
         <div class="row-btns"><label class="btn btn-sm btn-file">📷 Foto vom Strichcode<input type="file" id="prodPhoto2" accept="image/*" capture="environment"></label>
           <button type="button" class="btn btn-sm" id="prodPrefs">⚙️ Hinweise (Diagnosen, Allergien)</button></div>
       </details>
@@ -680,6 +682,8 @@
       <label class="field">Name<input type="text" id="ceName" autocomplete="off"></label>
       <div class="row2"><label class="field">Marke<input type="text" id="ceBrand" autocomplete="off"></label>
         <label class="field">Menge<input type="text" id="ceQty" placeholder="z. B. 250 g" autocomplete="off"></label></div>
+      <label class="field">🔗 Bild & Name von einer Produktseite (Link einfügen)
+        <span class="shop-add"><input type="url" id="ceLink" placeholder="https://…" autocomplete="off" autocapitalize="off"><button type="button" class="btn" id="ceLinkBtn">Holen</button></span></label>
       <h3 class="small-h">💶 Preise</h3>
       <ul class="prod-prices" id="cePrices"></ul>
       <div class="row-btns"><button type="button" class="btn btn-sm" id="ceAdd">🛒 Auf die Liste</button><button type="button" class="btn btn-sm" id="ceNut">🔍 Inhaltsstoffe</button><button type="button" class="btn btn-sm btn-ghost" id="ceDel">🗑️ Entfernen</button></div>
