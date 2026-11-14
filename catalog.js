@@ -143,6 +143,13 @@ const Catalog = (() => {
     p.stores = { ...(p.stores || {}), [store]: { p: price, d: today() } };
     save();
   }
+  const byEan = (ean) => list().find((y) => ean && y.ean === ean) || null;
+  const imgFor = (ean) => { const p = byEan(ean); return p && imgOk(p.img) && p.img.startsWith('data:') ? p.img : ''; };
+  function setImg(meta, img) {
+    const id = upsertScan(meta); const p = list().find((y) => y.id === id); if (!p || !imgOk(img)) return;
+    p.img = img; if (meta.name && (!p.name || p.name === p.ean)) p.name = meta.name.slice(0, 80);
+    save();
+  }
   const pricesFor = (ean) => { const p = list().find((y) => ean && y.ean === ean); return p ? entries().find((x) => x.id === p.id).stores : {}; };
 
   // Wortvergleich, der Kassenbon-Kürzel versteht: „BUTT.“ = Butter, „H-Vollmilch“ = Milch, aber nicht „Milchschokolade“ = Milch
@@ -194,5 +201,5 @@ const Catalog = (() => {
     };
   }
 
-  return { render, fromBon, upsertScan, setPrice, pricesFor, thumb, thumbFromFile };
+  return { render, fromBon, upsertScan, setPrice, pricesFor, byEan, imgFor, setImg, thumb, thumbFromFile };
 })();

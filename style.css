@@ -1148,3 +1148,6 @@ dialog form > .dialog-actions, dialog .rd > .dialog-actions { position: sticky; 
 .ce-top { display: flex; gap: 12px; align-items: center; }
 .ce-pic { width: 110px; cursor: default; }
 .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+.prod-nut th { font-size: .78rem; color: var(--text-2); text-align: right; font-weight: 700; padding: 4px; }
+.prod-nut td + td { text-align: right; font-weight: 700; white-space: nowrap; }

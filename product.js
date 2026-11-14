@@ -6,7 +6,7 @@
 const Product = (() => {
   const ZXING_URL = 'https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js';
   const OFF = 'https://world.openfoodfacts.org/api/v2/product/';
-  const FIELDS = 'product_name,product_name_de,generic_name_de,brands,quantity,nutriments,ingredients_text_de,ingredients_text,nutriscore_grade,image_front_small_url,allergens_tags,traces_tags';
+  const FIELDS = 'product_name,product_name_de,generic_name_de,brands,quantity,nutriments,ingredients_text_de,ingredients_text,nutriscore_grade,image_front_small_url,allergens_tags,traces_tags,product_quantity,product_quantity_unit,serving_size,serving_quantity';
   let current = null, bound = false;
 
   function loadZxing() {
@@ -133,8 +133,12 @@ const Product = (() => {
     const box = $('#prodResult');
     if (!p) {
       current = null;
-      box.innerHTML = `<p>Strichcode <b>${esc(ean)}</b> ist in der freien Datenbank (noch) nicht erfasst.</p><p class="hint">Du kannst das Produkt trotzdem von Hand auf die Einkaufsliste setzen.</p>`;
-      $('#prodAdd').hidden = true; return;
+      const own = Catalog.byEan(ean);
+      box.innerHTML = `${own && own.img ? `<div class="prod-head"><img src="${esc(own.img)}" alt=""></div>` : ''}<p>Strichcode <b>${esc(ean)}</b> ist in der freien Datenbank (noch) nicht erfasst.</p>
+        <label class="field">Produktname<input type="text" id="prodOwnName" value="${esc(own && own.name !== ean ? own.name : '')}" placeholder="z. B. Doppelherz Kollagen Pulver 200 g" autocomplete="off"></label>
+        <p class="hint">Mach unten ein 🖼️ Produktfoto – dann erkennst du es unter ⭐ Produkte wieder.</p>`;
+      current = { ean, name: own ? own.name : '', pname: own ? own.name : '', brand: own ? own.brand || '' : '', qty: '', img: '', unknown: true };
+      $('#prodAdd').hidden = false; return;
     }
     const n = p.nutriments || {}, h = getH();
     const name = p.product_name_de || p.product_name || p.generic_name_de || 'Produkt';
@@ -149,18 +153,28 @@ const Product = (() => {
       for (const [k, c] of Object.entries(r.mark)) if (!mark[k] || lv[c] > lv[mark[k]]) mark[k] = c;
     }
     const ord = { red: 0, yellow: 1, green: 2 }; notes.sort((x, y) => ord[x.c] - ord[y.c]);
+    // Spalten: pro 100 g/ml · pro Portion · ganze Packung
+    const per = /ml|\bl\b|liter/i.test(p.product_quantity_unit || p.quantity || '') ? 'ml' : 'g';
+    const qm = String(p.quantity || '').replace(',', '.').match(/(\d+(?:\.\d+)?)\s*(kg|g|ml|cl|l)\b/i);
+    const qParsed = qm ? +qm[1] * ({ kg: 1000, l: 1000, cl: 10 }[qm[2].toLowerCase()] || 1) : 0;
+    const packQ = +p.product_quantity > 0 && +p.product_quantity <= 20000 ? +p.product_quantity : qParsed > 0 && qParsed <= 20000 ? qParsed : 0;
+    const servQ = +p.serving_quantity > 0 && +p.serving_quantity < 5000 ? +p.serving_quantity : 0;
+    const cols = [['100', (v) => v]];
+    if (servQ && Math.abs(servQ - 100) > 0.5 && !(packQ && Math.abs(servQ - packQ) <= 0.5)) cols.push([`Portion (${num(servQ)} ${per})`, (v) => v * servQ / 100]);
+    if (packQ && Math.abs(packQ - 100) > 0.5) cols.push([`Packung (${num(packQ)} ${per})`, (v) => v * packQ / 100]);
     const rows = NUTS.map(([k, label, unit, f]) => {
       const v = nv(n, k); if (v === null || !Number.isFinite(v)) return '';
-      const val = f ? v * f : v;
       const imp = h.nut.includes(k);
-      return `<tr class="${imp ? 'imp' : ''} ${mark[k] ? 'm-' + mark[k] : ''}"><td>${mark[k] ? `<span class="dot ${mark[k]}"></span>` : ''}${esc(label)}</td><td>${num(val)} ${unit}</td></tr>`;
+      return `<tr class="${imp ? 'imp' : ''} ${mark[k] ? 'm-' + mark[k] : ''}"><td>${mark[k] ? `<span class="dot ${mark[k]}"></span>` : ''}${esc(label)}</td>${cols.map(([, fn]) => `<td>${num(fn(f ? v * f : v))} ${unit}</td>`).join('')}</tr>`;
     }).join('');
+    const thead = `<tr><th></th>${cols.map(([l]) => `<th>${l === '100' ? `100 ${per}` : esc(l)}</th>`).join('')}</tr>`;
+    const ownImg = Catalog.imgFor(ean);
     const allergens = (p.allergens_tags || []).map((t) => (ALLERGENS.find((a) => a[0] === t) || [, t.replace(/^\w+:/, '')])[1]);
-    box.innerHTML = `<div class="prod-head">${p.image_front_small_url && /^https:\/\/images\.openfoodfacts\.org\//.test(p.image_front_small_url) ? `<img src="${esc(p.image_front_small_url)}" alt="">` : ''}
+    box.innerHTML = `<div class="prod-head">${ownImg ? `<img src="${esc(ownImg)}" alt="">` : p.image_front_small_url && /^https:\/\/images\.openfoodfacts\.org\//.test(p.image_front_small_url) ? `<img src="${esc(p.image_front_small_url)}" alt="">` : ''}
       <div><div class="prod-brand">${esc(brand)}</div><div class="prod-name">${esc(name)}</div><div class="muted">${esc(p.quantity || '')}${p.nutriscore_grade && /^[a-e]$/.test(p.nutriscore_grade) ? ` · Nutri-Score ${esc(p.nutriscore_grade.toUpperCase())}` : ''}</div></div></div>
       ${notes.length ? `<ul class="prod-notes">${notes.map((x) => `<li class="${x.c}"><span class="dot ${x.c}"></span>${esc(x.t)}</li>`).join('')}</ul>`
         : (people.length ? '<p class="prod-ok">🟢 Zu deinen Hinweisen nichts Auffälliges gefunden.</p>' : '')}
-      <table class="prod-nut"><caption>Alle Nährwerte pro 100 g / 100 ml</caption>${rows || '<tr><td colspan="2">Keine Nährwerte erfasst</td></tr>'}</table>
+      <table class="prod-nut"><caption>Nährwerte</caption>${rows ? thead + rows : '<tr><td>Keine Nährwerte erfasst</td></tr>'}</table>
       ${allergens.length ? `<p class="hint"><b>Allergene laut Hersteller:</b> ${esc(allergens.join(', '))}</p>` : ''}
       ${(p.ingredients_text_de || p.ingredients_text) ? `<details open><summary>Zutaten</summary><p class="hint">${esc(p.ingredients_text_de || p.ingredients_text)}</p></details>` : ''}
       <p class="hint">Angaben aus Open Food Facts – können unvollständig sein, die Verpackung gilt. Die Hinweise ersetzen keine ärztliche Beratung.</p>`;
@@ -321,6 +335,14 @@ const Product = (() => {
     $('#prodClose').onclick = () => $('#prodDialog').close();
     $('#prodDialog').addEventListener('close', stopLive);
     $('#prodRescan').onclick = startLive;
+    $('#prodOwnPhoto').addEventListener('change', async (e) => {
+      const f = e.target.files[0]; e.target.value = ''; const ean = $('#prodEan').value.replace(/\D/g, '');
+      if (!f || ean.length < 8) { toast('Erst Strichcode scannen oder eintippen'); return; }
+      const t = await Catalog.thumbFromFile(f); if (!t) return;
+      if (current && current.unknown) { const v = ($('#prodOwnName') || {}).value || ''; if (v.trim()) current.name = current.pname = v.trim().slice(0, 80); }
+      Catalog.setImg(meta(ean), t); toast('📷 Foto gespeichert');
+      const head = $('#prodResult .prod-head img'); if (head) head.src = t; else $('#prodResult').insertAdjacentHTML('afterbegin', `<div class="prod-head"><img src="${t}" alt=""></div>`);
+    });
     $('#prodPhoto2').addEventListener('change', (e) => { const f = e.target.files[0]; e.target.value = ''; if (f) { stopLive(); handleFile(f); } });
     $('#prodPrices').addEventListener('change', (e) => { if (e.target.id === 'prodTag') { const f = e.target.files[0]; e.target.value = ''; if (f) readTag(f); } });
     $('#prodPrices').addEventListener('click', (e) => { if (e.target.id === 'prodPriceManual') { $('#ptStore').innerHTML = Shop.stores().map((x) => `<option>${esc(x)}</option>`).join(''); $('#ptPrice').value = ''; $('#ptHint').textContent = ''; $('#prodTagForm').hidden = false; $('#ptPrice').focus(); } });
@@ -338,7 +360,7 @@ const Product = (() => {
     try { const old = localStorage.getItem('ausgaben-health-v1'); if (old && !(state.settings.health || {})[meName()]) { setH(meName(), { ...EMPTY(), ...JSON.parse(old) }); } localStorage.removeItem('ausgaben-health-v1'); } catch (e) { /* egal */ }
     $('#hpCancel').onclick = () => $('#prefDialog').close();
     $('#hpNone').onclick = () => { $$('#prefDialog input[data-g]').forEach((c) => { c.checked = false; }); $('#hpCustom').value = ''; };
-    $('#prodAdd').onclick = () => { if (!current) return; const pid = Catalog.upsertScan(meta(current.ean)); Shop.addItems([current.pname || current.name], '', { pid }); $('#prodDialog').close(); toast('🛒 auf der Einkaufsliste'); };
+    $('#prodAdd').onclick = () => { if (!current) return; if (current.unknown) { const v = ($('#prodOwnName') || {}).value || ''; if (!v.trim()) { toast('Bitte einen Produktnamen eintragen'); return; } current.name = current.pname = v.trim().slice(0, 80); } const pid = Catalog.upsertScan(meta(current.ean)); Shop.addItems([current.pname || current.name], '', { pid }); $('#prodDialog').close(); toast('🛒 auf der Einkaufsliste'); };
     $('#prodEanBtn').onclick = () => { const v = $('#prodEan').value.replace(/\D/g, ''); if (v.length >= 8) show(v); else toast('Bitte die Ziffern unter dem Strichcode eintippen'); };
   }
   const showEan = (ean) => { bind(); shot = ''; $('#prodCam').hidden = true; if (!$('#prodDialog').open) $('#prodDialog').showModal(); show(ean); };
