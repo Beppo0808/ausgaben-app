@@ -509,7 +509,7 @@ const Receipt = (() => {
     const key = (e) => `${e.date}|${Math.round(e.amount * 100)}|${e.time || ''}|${storeOf(e.merchant || '') || String(e.merchant || '').toLowerCase()}`;
     const rank = (e) => (e.items || []).length * 10 + (e.receipt ? 5 : 0) + (e.category && e.category !== 'sonstiges' ? 2 : 0);
     for (const e of state.expenses) {
-      if (!(e.items && e.items.length) || !e.time) continue;
+      if (!(e.items && e.items.length) || !e.time || e.dupOk) continue;
       const k = key(e), o = seen.get(k);
       if (!o) { seen.set(k, e); continue; }
       if (o.person !== e.person || !!o.private !== !!e.private) continue;
@@ -522,6 +522,18 @@ const Receipt = (() => {
     state.expenses = state.expenses.filter((e) => !ids.has(e.id));
     save(); render();
     return drop.length;
+  }
+
+  /** Kleine Auswahl mit mehreren Knöpfen – liefert die gewählte Kennung */
+  function askChoice(title, text, buttons) {
+    return new Promise((res) => {
+      const d = document.createElement('dialog');
+      d.innerHTML = `<div><h2>${esc(title)}</h2><p>${esc(text)}</p><div class="cat-picks">${buttons.map(([v, l, c]) => `<button type="button" class="btn ${c}" data-v="${v}">${esc(l)}</button>`).join('')}</div></div>`;
+      let val = '';
+      d.addEventListener('click', (e) => { const b = e.target.closest('[data-v]'); if (b) { val = b.dataset.v; d.close(); } });
+      d.addEventListener('close', () => { d.remove(); res(val); });
+      document.body.appendChild(d); d.showModal();
+    });
   }
 
   async function saveReceipt() {
@@ -538,11 +550,16 @@ const Receipt = (() => {
     // Gelernt: Artikel-Kategorie merken (wird wie Händler-Regeln geteilt)
     items.forEach((it) => { if (it.cat) state.rules[itemKey(it.name)] = it.cat; });
 
-    let exp = editing ? state.expenses.find((e) => e.id === editing.expenseId) : null;
+    let exp = editing ? state.expenses.find((e) => e.id === editing.expenseId) : null, allowDup = false;
     if (!exp) {
       const m = findMatch(date, total);
       const dup = findSameBon(date, total, store, time);
-      if (dup) exp = dup; // gleicher Bon nochmal gescannt → vorhandenen aktualisieren, nicht doppelt
+      if (dup) { // gleicher Bon schon gespeichert → nachfragen
+        const c = await askChoice('🧾 Diesen Bon gibt es schon', `${dup.merchant || 'Bon'} · ${fmt(dup.amount)} · ${dup.date.split('-').reverse().join('.')}${dup.time ? ' · ' + dup.time + ' Uhr' : ''}`,
+          [['replace', 'Ersetzen', 'btn-primary'], ['add', 'Zusätzlich hinzufügen', ''], ['cancel', 'Abbrechen', 'btn-ghost']]);
+        if (c === 'cancel' || !c) return;
+        if (c === 'replace') exp = dup; else allowDup = true;
+      }
       else if (m && confirm(`Diese Zahlung gibt es schon:\n${m.merchant || 'Ausgabe'} · ${fmt(m.amount)} · ${m.person || ''} · ${m.date.split('-').reverse().join('.')}\n\nOK = Bon dort hinterlegen (empfohlen)\nAbbrechen = als neue Ausgabe speichern`)) exp = m;
     }
     let receipt = exp && exp.receipt ? exp.receipt : null;
@@ -556,6 +573,7 @@ const Receipt = (() => {
     else if (exp) Object.assign(exp, { merchant: store || exp.merchant, ...fields, time: time || exp.time || timeFromCreated(exp) }); // per Handy erfasst: Person/Betrag bleiben, Laden/Uhrzeit vom Bon sind genauer
     else {
       exp = { id: uid(), created: new Date().toISOString(), source: 'receipt', amount: total, merchant: store, category: guessCategory(store), date, person, note: '', private: priv, cash, ...fields };
+      if (allowDup) exp.dupOk = true; // bewusst zweimal gekauft – nicht als Doppelung entfernen
       state.expenses.push(exp);
     }
     save();
