@@ -64,8 +64,11 @@ const Shop = (() => {
   };
   const DEFAULT_STORES = ['ALDI SÜD', 'ALDI Nord', 'LIDL', 'REWE', 'EDEKA', 'Marktkauf', 'Netto', 'Penny', 'Kaufland', 'dm', 'Rossmann'];
   const storeList = () => (Array.isArray(state.settings.shopStores) && state.settings.shopStores.length ? state.settings.shopStores : DEFAULT_STORES);
+  const logoOf = (name) => { const l = state.settings.storeLogos && state.settings.storeLogos[name]; return l && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(l) ? l : ''; };
   function storeBadge(name, big) {
     if (!name) return '';
+    const logo = logoOf(name);
+    if (logo) return `<span class="store-badge store-logo ${big ? 'big' : ''}"><img src="${logo}" alt="${esc(name)}"></span>`;
     const c = STORE_BADGES[name] || ['#8a6f55', '#4a3a2c'];
     // gedämpft: helle, warme Fläche, Ladenfarbe nur als Rand und Schrift (blendet nicht)
     const lum = (hx) => { const n = parseInt(hx.slice(1), 16); return (0.3 * (n >> 16) + 0.59 * ((n >> 8) & 255) + 0.11 * (n & 255)); };
@@ -80,11 +83,33 @@ const Shop = (() => {
     const cnt = (st) => open.filter((x) => x.store === st).length;
     $('#shopStores').innerHTML = `<button type="button" class="store-pick ${!shopStore ? 'on' : ''}" data-st=""><span class="store-badge" style="background:#f6efe4;color:#4a3a2c">🛒 Alle</span>${open.length ? `<b>${open.length}</b>` : ''}</button>`
       + storeList().map((st) => `<button type="button" class="store-pick ${shopStore === st ? 'on' : ''}" data-st="${esc(st)}">${storeBadge(st)}${cnt(st) ? `<b>${cnt(st)}</b>` : ''}</button>`).join('')
-      + '<button type="button" class="store-pick" data-st="__add"><span class="store-badge" style="background:#efe5d6;color:#4a3a2c">＋ Laden</span></button>';
+      + '<button type="button" class="store-pick" data-st="__edit"><span class="store-badge" style="background:#efe5d6;color:#4a3a2c">✏️ Läden &amp; Logos</span></button>';
     $('#shopStoreHint').innerHTML = shopStore ? `${storeBadge(shopStore, true)} <span>Neue Einträge kommen auf diese Liste. Einträge ohne Laden („egal wo“) stehen auch hier.</span>` : '';
   }
+  // Läden verwalten: eigenes Logo-Bild je Laden (z. B. Screenshot von der Website), hinzufügen, entfernen
+  function openStoreDialog() {
+    $('#storeDlgList').innerHTML = storeList().map((st, i) => `<li data-i="${i}">${storeBadge(st)}
+      <label class="btn btn-sm btn-file">🖼️ Logo<input type="file" accept="image/*" data-logo="${esc(st)}"></label>
+      ${logoOf(st) ? `<button type="button" class="btn btn-sm btn-ghost" data-nologo="${esc(st)}">Logo weg</button>` : ''}
+      <button type="button" class="sh-del" data-rm="${esc(st)}" aria-label="Laden entfernen">✕</button></li>`).join('');
+    if (!$('#storeDlg').open) $('#storeDlg').showModal();
+  }
+  function setLogo(name, file) {
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onload = () => {
+      const H = 64, W = Math.min(240, Math.round(img.naturalWidth * H / img.naturalHeight)) || H;
+      const c = document.createElement('canvas'); c.width = W; c.height = H;
+      c.getContext('2d').drawImage(img, 0, 0, W, H); URL.revokeObjectURL(url);
+      state.settings.storeLogos = { ...(state.settings.storeLogos || {}), [name]: c.toDataURL('image/png') };
+      save(); render(); openStoreDialog(); toast('Logo gespeichert ✓');
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); toast('Bild konnte nicht geöffnet werden'); };
+    img.src = url;
+  }
+
   function onStorePick(e) {
     const b = e.target.closest('[data-st]'); if (!b) return;
+    if (b.dataset.st === '__edit') { openStoreDialog(); return; }
     if (b.dataset.st === '__add') {
       const n = (prompt('Name des Ladens (z. B. „Hit“, „Wochenmarkt“):') || '').trim().slice(0, 30);
       if (!n) return;
@@ -393,6 +418,18 @@ const Shop = (() => {
     $('#shopForm').addEventListener('submit', submitInput);
     $('#shopList').addEventListener('click', onListClick);
     $('#shopStores').addEventListener('click', onStorePick);
+    $('#storeDlgList').addEventListener('change', (e) => { const i = e.target.closest('[data-logo]'); if (i && i.files[0]) setLogo(i.dataset.logo, i.files[0]); });
+    $('#storeDlgList').addEventListener('click', (e) => {
+      const nl = e.target.closest('[data-nologo]'), rm = e.target.closest('[data-rm]');
+      if (nl) { const l = { ...(state.settings.storeLogos || {}) }; delete l[nl.dataset.nologo]; state.settings.storeLogos = l; save(); render(); openStoreDialog(); }
+      if (rm && confirm(`„${rm.dataset.rm}“ aus der Ladenleiste entfernen?`)) { state.settings.shopStores = storeList().filter((x) => x !== rm.dataset.rm); if (shopStore === rm.dataset.rm) shopStore = ''; save(); render(); openStoreDialog(); }
+    });
+    $('#storeDlgAdd').onclick = () => {
+      const n = (prompt('Name des Ladens (z. B. „Hit“, „Wochenmarkt“):') || '').trim().slice(0, 30); if (!n) return;
+      const list = [...storeList()]; if (!list.some((x) => x.toLowerCase() === n.toLowerCase())) list.push(n);
+      state.settings.shopStores = list; save(); render(); openStoreDialog();
+    };
+    $('#storeDlgClose').onclick = () => $('#storeDlg').close();
     $('#shopShare').onclick = shareList;
     $('#shopPrint').onclick = printList;
     $('#shEditForm').addEventListener('submit', saveShEdit);

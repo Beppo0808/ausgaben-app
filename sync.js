@@ -190,6 +190,7 @@ const Sync = (() => {
       const { budget, persons, shopStores } = r.data; // Einkommen wird bewusst NICHT übernommen
       if (budget !== undefined) state.settings.budget = budget;
       if (Array.isArray(shopStores)) state.settings.shopStores = shopStores;
+      if (r.data.storeLogos && typeof r.data.storeLogos === 'object') state.settings.storeLogos = r.data.storeLogos;
       if (Array.isArray(persons) && persons.length) {
         const list = persons.slice(), me = state.settings.me;
         if (me && !['Ich', 'Partner', ''].includes(me) && !list.includes(me)) { // eigenen Namen nicht verlieren (statt einfach „Person 1“ zu werden)

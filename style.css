@@ -1082,3 +1082,11 @@ dialog form > .dialog-actions, dialog .rd > .dialog-actions { position: sticky; 
 #catChips { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 #catChips .chip { width: 100%; justify-content: center; }
 .adv-toggle { width: 100%; margin: 4px 0 14px; }
+
+.store-badge.store-logo { padding: 4px 8px; background: #fff; border: 2px solid #e2d6c4; display: inline-flex; align-items: center; }
+.store-badge.store-logo img { height: 34px; width: auto; max-width: 130px; display: block; }
+.sh-name .store-badge.store-logo img { height: 18px; }
+.store-badge.store-logo.big img { height: 26px; }
+.store-dlg { list-style: none; margin: 10px 0; padding: 0; display: grid; gap: 10px; }
+.store-dlg li { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.store-dlg li .store-badge { margin-right: auto; }
