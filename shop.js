@@ -253,8 +253,10 @@ const Shop = (() => {
       return /[:：]\s*$/.test(l) ? t : null; // unbekannter Laden mit Doppelpunkt → neu anlegen
     };
     const before = shopStore; let n = 0, stores = new Set();
-    for (const l of lines) {
-      const st = asStore(l);
+    for (let l of lines) {
+      const inl = l.match(/^([^:：]{2,25})[:：]\s*(.+)$/); // „Rossmann: Alufolie, Zahnseide“
+      if (inl && asStore(inl[1] + ':')) { const st0 = asStore(inl[1] + ':'); if (!known.includes(st0)) { state.settings.shopStores = [...storeList(), st0]; known.push(st0); } shopStore = st0; stores.add(st0); l = inl[2]; }
+      const st = inl ? null : asStore(l);
       if (st) {
         if (!known.includes(st)) { state.settings.shopStores = [...storeList(), st]; known.push(st); }
         shopStore = st; stores.add(st); continue;
