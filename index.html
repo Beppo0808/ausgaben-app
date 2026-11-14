@@ -243,6 +243,8 @@
             <button type="submit" class="btn btn-primary" aria-label="Hinzufügen">＋</button>
           </form>
           <datalist id="shopSuggest"></datalist>
+          <div class="store-row" id="shopStores"></div>
+          <p class="hint store-hint" id="shopStoreHint"></p>
           <div class="btn-row shop-tools">
             <button type="button" class="btn" id="shopVoice">🎤 Sprechen</button>
             <label class="btn btn-file">📷 Zettel / Foto<input type="file" id="shopPhoto" accept="image/*,application/pdf"></label>
@@ -571,6 +573,7 @@
       <h2>🛒 Eintrag ändern</h2>
       <label class="field">Artikel (mit Menge, z. B. „2 Butter“) <input type="text" name="text" autocomplete="off"></label>
       <label class="field">Gruppe <select name="group"></select></label>
+      <label class="field">Laden <select name="store"></select></label>
       <p class="hint">Die App merkt sich die Gruppe für diesen Artikel.</p>
       <div class="dialog-actions">
         <button type="button" class="btn btn-danger" id="shEditDelete">Löschen</button>

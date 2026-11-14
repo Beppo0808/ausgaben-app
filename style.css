@@ -1036,3 +1036,18 @@ input[type="text"], input[type="search"], input[type="number"], input[type="date
   box-shadow: inset 0 2px 0 rgba(255, 255, 255, .8), 0 4px 0 #cdbda6, 0 14px 22px -12px rgba(60, 35, 15, .5) !important;
   border: 1px solid #d8c9b3 !important;
 }
+
+/* Läden in der Einkaufsliste */
+.store-row { display: flex; gap: 8px; overflow-x: auto; padding: 4px 2px 12px; margin: 10px -4px 0; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+.store-row::-webkit-scrollbar { display: none; }
+.store-pick { flex: none; position: relative; border: 0; background: none; padding: 0 0 6px; cursor: pointer; }
+.store-pick b { position: absolute; top: -6px; right: -6px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 99px; background: var(--accent); color: #fff; font-size: .72rem; line-height: 20px; }
+.store-badge { display: inline-block; padding: 8px 12px; border-radius: 10px; font: 900 .85rem/1.1 var(--font-text); letter-spacing: .02em; white-space: nowrap;
+  border: 1px solid rgba(0,0,0,.15); box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 4px 0 rgba(80,50,25,.35), 0 8px 12px -6px rgba(60,35,15,.45); }
+.store-pick:active .store-badge { transform: translateY(3px); box-shadow: inset 0 2px 4px rgba(0,0,0,.25); }
+.store-pick.on .store-badge { outline: 3px solid var(--accent); outline-offset: 2px; transform: translateY(2px); }
+.sh-name .store-badge { padding: 2px 7px; font-size: .68rem; border-radius: 6px; box-shadow: none; vertical-align: 2px; margin-left: 4px; }
+.store-badge.big { padding: 4px 9px; font-size: .8rem; box-shadow: none; }
+.store-hint { display: flex; gap: 8px; align-items: center; margin-top: 0; }
+.store-hint:empty { display: none; }
+.sh-any { font-size: .72rem; font-weight: 600; color: var(--text-2); margin-left: 4px; }
