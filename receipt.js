@@ -497,6 +497,33 @@ const Receipt = (() => {
       .sort((a) => (a.date === date ? -1 : 1))[0];
   }
 
+  /** Derselbe Bon schon gespeichert? (gleicher Tag, Betrag, Laden bzw. Uhrzeit) */
+  const sameShop = (a, b) => { const x = storeOf(a || '') || String(a || '').toLowerCase(), y = storeOf(b || '') || String(b || '').toLowerCase(); return !!x && x === y; };
+  function findSameBon(date, total, store, time, exceptId) {
+    return state.expenses.find((e) => e.id !== exceptId && e.items && e.items.length && e.date === date && Math.abs(e.amount - total) < 0.015
+      && (sameShop(e.merchant, store) || (time && e.time === time)));
+  }
+  /** Doppelt gespeicherte Bons entfernen (behält den mit den meisten Angaben) */
+  function dedupeBons() {
+    const seen = new Map(), drop = [];
+    const key = (e) => `${e.date}|${Math.round(e.amount * 100)}|${e.time || ''}|${storeOf(e.merchant || '') || String(e.merchant || '').toLowerCase()}`;
+    const rank = (e) => (e.items || []).length * 10 + (e.receipt ? 5 : 0) + (e.category && e.category !== 'sonstiges' ? 2 : 0);
+    for (const e of state.expenses) {
+      if (!(e.items && e.items.length) || !e.time) continue;
+      const k = key(e), o = seen.get(k);
+      if (!o) { seen.set(k, e); continue; }
+      if (o.person !== e.person || !!o.private !== !!e.private) continue;
+      const [keep, del] = rank(e) > rank(o) ? [e, o] : [o, e];
+      seen.set(k, keep); drop.push(del);
+    }
+    if (!drop.length) return 0;
+    drop.forEach((d) => { if (d.receipt) idbDel(d.receipt.id).catch(() => {}); });
+    const ids = new Set(drop.map((d) => d.id));
+    state.expenses = state.expenses.filter((e) => !ids.has(e.id));
+    save(); render();
+    return drop.length;
+  }
+
   async function saveReceipt() {
     const total = parseAmount($('#rcTotal').value);
     if (!(total > 0)) { toast('Bitte die Bon-Summe eintragen'); return; }
@@ -514,7 +541,9 @@ const Receipt = (() => {
     let exp = editing ? state.expenses.find((e) => e.id === editing.expenseId) : null;
     if (!exp) {
       const m = findMatch(date, total);
-      if (m && confirm(`Diese Zahlung gibt es schon:\n${m.merchant || 'Ausgabe'} · ${fmt(m.amount)} · ${m.person || ''} · ${m.date.split('-').reverse().join('.')}\n\nOK = Bon dort hinterlegen (empfohlen)\nAbbrechen = als neue Ausgabe speichern`)) exp = m;
+      const dup = findSameBon(date, total, store, time);
+      if (dup) exp = dup; // gleicher Bon nochmal gescannt → vorhandenen aktualisieren, nicht doppelt
+      else if (m && confirm(`Diese Zahlung gibt es schon:\n${m.merchant || 'Ausgabe'} · ${fmt(m.amount)} · ${m.person || ''} · ${m.date.split('-').reverse().join('.')}\n\nOK = Bon dort hinterlegen (empfohlen)\nAbbrechen = als neue Ausgabe speichern`)) exp = m;
     }
     let receipt = exp && exp.receipt ? exp.receipt : null;
     if (current && current.blob) {
@@ -676,6 +705,7 @@ const Receipt = (() => {
 
   function init() {
     if (typeof Scanner !== 'undefined') Scanner.bind();
+    setTimeout(() => { const n = dedupeBons(); if (n) toast(`🧾 ${n} doppelt gespeicherte${n > 1 ? '' : 'n'} Bon entfernt`); }, 2500);
     $('#bonClose').onclick = closeViewer;
     $('#bonEdit').onclick = edit;
     $('#bonShare').onclick = share;
