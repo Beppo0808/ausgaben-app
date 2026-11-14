@@ -375,7 +375,7 @@ const Receipt = (() => {
     const price = it.price === '' ? '' : String(it.price).replace('.', ',');
     const cat = it.cat || itemCategory(it.name, fallbackCat || 'lebensmittel');
     const qty = Number(it.qty) ? `${String(Number(it.qty)).replace('.', ',')} ${it.unitLabel ? it.unitLabel + ' ×' : '×'} ${fmt(Number(it.unit) || 0)}${it.unitLabel ? '/' + it.unitLabel : ''}` : '';
-    return `<li class="item-edit" data-qty="${Number(it.qty) || ''}" data-unit="${Number(it.unit) || ''}" data-ul="${esc(it.unitLabel || '')}">
+    return `<li class="item-edit" data-orig="${esc(it.orig || '')}" data-qty="${Number(it.qty) || ''}" data-unit="${Number(it.unit) || ''}" data-ul="${esc(it.unitLabel || '')}">
       <input class="it-name" value="${esc(it.name)}" placeholder="Artikel" aria-label="Artikel">
       <input class="it-price" value="${esc(price)}" inputmode="decimal" placeholder="0,00" aria-label="Preis">
       <button type="button" class="it-del" aria-label="Artikel entfernen">✕</button>
@@ -385,6 +385,7 @@ const Receipt = (() => {
   function readItems() {
     return $$('#rcItems li').map((li) => {
       const it = { name: $('.it-name', li).value.trim(), price: parseSigned($('.it-price', li).value), cat: $('.it-cat', li).value };
+      if (li.dataset.orig) it.orig = li.dataset.orig;
       if (li.dataset.qty) { it.qty = +li.dataset.qty; it.unit = +li.dataset.unit; if (li.dataset.ul) it.unitLabel = li.dataset.ul; }
       return it;
     }).filter((it) => it.name && Number.isFinite(it.price));
@@ -405,6 +406,44 @@ const Receipt = (() => {
     $('#rcProgress .progress-fill').style.width = Math.round(p * 100) + '%';
     $('#rcStatus').textContent = text || '';
   }
+  // ---------- Korrekturen lernen: einmal von Hand verbessert → beim nächsten Bon automatisch richtig ----------
+  const fixKey = (s) => String(s || '').toLowerCase().replace(/[^a-zäöüß0-9]/g, '');
+  function lev(a, b) {
+    if (a === b) return 0; if (!a.length || !b.length) return Math.max(a.length, b.length);
+    let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+    for (let i = 1; i <= a.length; i++) {
+      const cur = [i];
+      for (let j = 1; j <= b.length; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      prev = cur;
+    }
+    return prev[b.length];
+  }
+  const similar = (a, b) => { const x = fixKey(a), y = fixKey(b); return x.length >= 4 && y.length >= 4 && lev(x, y) / Math.max(x.length, y.length) <= 0.25; };
+  /** Gemerkte Schreibweise für Laden/Filiale/Artikel suchen: erst genau, dann ähnlich */
+  function learned(kind, raw) {
+    if (!raw) return raw;
+    const exact = state.rules[`fix${kind}:${fixKey(raw)}`];
+    if (exact) return exact;
+    const pre = `fix${kind}:`;
+    for (const [k, v] of Object.entries(state.rules)) if (k.startsWith(pre) && (similar(k.slice(pre.length), raw) || similar(v, raw))) return v;
+    return raw;
+  }
+  function applyLearned(r) {
+    r._orig = { store: r.store, branch: r.branch };
+    r.store = learned('s', r.store); r.branch = learned('b', r.branch);
+    r.items = (r.items || []).map((it) => {
+      const orig = it.name;
+      return { ...it, name: learned('i', orig), orig };
+    });
+  }
+  /** Beim Speichern: was von Hand geändert wurde, merken */
+  function learnFixes(items, store, branch) {
+    const set = (kind, orig, val) => { if (orig && val && orig !== val && fixKey(orig) !== fixKey(val) && fixKey(orig).length >= 3) state.rules[`fix${kind}:${fixKey(orig)}`] = val.slice(0, 80); };
+    if (scanOrig) { set('s', scanOrig.store, store); set('b', scanOrig.branch, branch); }
+    items.forEach((it) => set('i', it.orig, it.name));
+  }
+  let scanOrig = null;
+
   function fillForm(r) {
     $('#rcCardInfo').hidden = true; $('#rcDupInfo').hidden = true; rcCard = r.card || '';
     if (r.card) setTimeout(() => showCard(r.card), 0);
@@ -509,6 +548,7 @@ const Receipt = (() => {
       }
       const match = !editing && r.date && r.total > 0 ? findMatch(r.date, r.total) : null;
       if (match) { r.person = match.person; r.private = match.private; }
+      if (!editing) { applyLearned(r); scanOrig = r._orig; } else scanOrig = null;
       const owner = r.card ? (state.settings.cards || {})[r.card] : undefined;
       if (!editing && owner && (state.settings.persons || []).includes(owner)) r.person = owner;
       fillForm(r);
@@ -616,6 +656,8 @@ const Receipt = (() => {
     const cash = $('#rcCash').checked || undefined;
     // Gelernt: Artikel-Kategorie merken (wird wie Händler-Regeln geteilt)
     items.forEach((it) => { if (it.cat) state.rules[itemKey(it.name)] = it.cat; });
+    learnFixes(items, store, branch); scanOrig = null;
+    items.forEach((it) => { delete it.orig; });
 
     let exp = editing ? state.expenses.find((e) => e.id === editing.expenseId) : null, allowDup = false;
     if (!exp) {
