@@ -577,23 +577,27 @@ const Receipt = (() => {
   }
   /** Doppelt gespeicherte Bons entfernen (behält den mit den meisten Angaben) */
   function dedupeBons() {
-    const seen = new Map(), drop = [];
-    const key = (e) => `${e.date}|${Math.round(e.amount * 100)}|${e.time || ''}|${storeOf(e.merchant || '') || String(e.merchant || '').toLowerCase()}`;
-    const rank = (e) => (e.items || []).length * 10 + (e.receipt ? 5 : 0) + (e.category && e.category !== 'sonstiges' ? 2 : 0);
-    for (const e of state.expenses) {
-      if (!(e.items && e.items.length) || !e.time || e.dupOk) continue;
-      const k = key(e), o = seen.get(k);
-      if (!o) { seen.set(k, e); continue; }
-      if (o.person !== e.person || !!o.private !== !!e.private) continue;
-      const [keep, del] = rank(e) > rank(o) ? [e, o] : [o, e];
-      seen.set(k, keep); drop.push(del);
+    const shop = (e) => storeOf(e.merchant || '') || String(e.merchant || '').toLowerCase().split(/\s+/).slice(0, 2).join(' ');
+    const sig = (e) => (e.items || []).map((it) => Math.round(it.price * 100)).sort((a, b) => a - b).join(',');
+    const rank = (e) => (e.items || []).length * 10 + (e.receipt ? 5 : 0) + (e.category && e.category !== 'sonstiges' ? 2 : 0) + (e.private ? 0 : 1) + (e.branch ? 1 : 0);
+    const bons = state.expenses.filter((e) => e.items && e.items.length && !e.dupOk);
+    const drop = new Set();
+    for (let i = 0; i < bons.length; i++) {
+      const a = bons[i]; if (drop.has(a.id)) continue;
+      for (let j = i + 1; j < bons.length; j++) {
+        const b = bons[j]; if (drop.has(b.id)) continue;
+        if (a.date !== b.date || Math.round(a.amount * 100) !== Math.round(b.amount * 100) || (a.person || '') !== (b.person || '') || shop(a) !== shop(b)) continue;
+        // gleiche Uhrzeit oder gleiche Artikelpreise = derselbe Bon
+        if (!((a.time && a.time === b.time) || sig(a) === sig(b))) continue;
+        drop.add(rank(b) > rank(a) ? a.id : b.id);
+        if (drop.has(a.id)) break;
+      }
     }
-    if (!drop.length) return 0;
-    drop.forEach((d) => { if (d.receipt) idbDel(d.receipt.id).catch(() => {}); });
-    const ids = new Set(drop.map((d) => d.id));
-    state.expenses = state.expenses.filter((e) => !ids.has(e.id));
+    if (!drop.size) return 0;
+    state.expenses.filter((e) => drop.has(e.id)).forEach((d) => { if (d.receipt) idbDel(d.receipt.id).catch(() => {}); });
+    state.expenses = state.expenses.filter((e) => !drop.has(e.id));
     save(); render();
-    return drop.length;
+    return drop.size;
   }
 
   // ---------- Mit welcher Karte bezahlt? (letzte 4 Ziffern auf dem Bon) ----------
@@ -833,7 +837,9 @@ const Receipt = (() => {
 
   function init() {
     if (typeof Scanner !== 'undefined') Scanner.bind();
-    setTimeout(() => { const n = dedupeBons(); if (n) toast(`🧾 ${n} doppelt gespeicherte${n > 1 ? '' : 'n'} Bon entfernt`); }, 2500);
+    const dd = () => { const n = dedupeBons(); if (n) toast(`🧾 ${n} doppelt gespeicherte${n > 1 ? '' : 'n'} Bon entfernt`); };
+    setTimeout(dd, 2500);
+    if (typeof Sync !== 'undefined') Sync.onStatus((st) => { if (st.state === 'ok') setTimeout(dd, 800); });
     $('#bonClose').onclick = closeViewer;
     $('#bonEdit').onclick = edit;
     $('#bonShare').onclick = share;
