@@ -176,10 +176,40 @@ const Sync = (() => {
     await send();
   }
 
+  let settingsMerged = false;
+  /** Zusammenführbare Einstellungen; newer = die andere Fassung ist neuer (gewinnt bei Gleichstand) */
+  function mergeSettings(d, newer) {
+    const before = JSON.stringify([state.settings.storeLogos, state.settings.shopStores, state.settings.cards, state.settings.prices, state.settings.health]);
+    const both = (a, b) => (newer ? { ...(a || {}), ...(b || {}) } : { ...(b || {}), ...(a || {}) }); // a = lokal, b = andere
+    if (d.storeLogos && typeof d.storeLogos === 'object') state.settings.storeLogos = both(state.settings.storeLogos, d.storeLogos);
+    if (d.cards && typeof d.cards === 'object') state.settings.cards = both(state.settings.cards, d.cards);
+    if (!newer && Array.isArray(d.shopStores) && !(Array.isArray(state.settings.shopStores) && state.settings.shopStores.length)) state.settings.shopStores = d.shopStores;
+    if (d.prices && typeof d.prices === 'object') { // Preise je Produkt und Laden: neuere gewinnt
+      const loc = { ...(state.settings.prices || {}) };
+      for (const [ean, byStore] of Object.entries(d.prices)) {
+        if (!byStore || typeof byStore !== 'object') continue;
+        const m = { ...(loc[ean] || {}) };
+        for (const [st, v] of Object.entries(byStore)) if (v && (!m[st] || (v.t || 0) > (m[st].t || 0))) m[st] = v;
+        loc[ean] = m;
+      }
+      state.settings.prices = loc;
+    }
+    if (d.health && typeof d.health === 'object') { // je Person die neuere Fassung behalten
+      const loc = state.settings.health || {}, merged = { ...loc };
+      for (const [who, v] of Object.entries(d.health)) if (v && typeof v === 'object' && (!loc[who] || (v.t || 0) > (loc[who].t || 0))) merged[who] = v;
+      state.settings.health = merged;
+    }
+    return before !== JSON.stringify([state.settings.storeLogos, state.settings.shopStores, state.settings.cards, state.settings.prices, state.settings.health]);
+  }
+
   function applyRow(r) {
     const k = r.kind + ':' + r.id;
     const local = cfg.mtimes[k];
-    if (local !== undefined && Number(r.mtime) <= local) return false; // lokal ist gleich/neuer
+    if (local !== undefined && Number(r.mtime) <= local) {
+      // Einstellungen: auch ältere Fassung zusammenführen (Logos, Läden, Karten, Preise, Hinweise), damit nichts verloren geht
+      if (r.kind === 'settings' && !r.deleted && r.data && mergeSettings(r.data, false)) settingsMerged = true; // danach wieder hochladen
+      return false; // lokal ist gleich/neuer
+    }
     cfg.mtimes[k] = Number(r.mtime);
     delete cfg.dirty[k];
     const listFor = { expense: 'expenses', sub: 'subs', category: 'categories', shop: 'shopping', recipe: 'recipes', product: 'products' }[r.kind];
@@ -197,23 +227,7 @@ const Sync = (() => {
       const { budget, persons, shopStores } = r.data; // Einkommen wird bewusst NICHT übernommen
       if (budget !== undefined) state.settings.budget = budget;
       if (Array.isArray(shopStores)) state.settings.shopStores = shopStores;
-      if (r.data.storeLogos && typeof r.data.storeLogos === 'object') state.settings.storeLogos = r.data.storeLogos;
-      if (r.data.cards && typeof r.data.cards === 'object') state.settings.cards = { ...(state.settings.cards || {}), ...r.data.cards };
-      if (r.data.prices && typeof r.data.prices === 'object') { // Preise je Produkt und Laden: neuere gewinnt
-        const loc = { ...(state.settings.prices || {}) };
-        for (const [ean, byStore] of Object.entries(r.data.prices)) {
-          if (!byStore || typeof byStore !== 'object') continue;
-          const m = { ...(loc[ean] || {}) };
-          for (const [st, v] of Object.entries(byStore)) if (v && (!m[st] || (v.t || 0) > (m[st].t || 0))) m[st] = v;
-          loc[ean] = m;
-        }
-        state.settings.prices = loc;
-      }
-      if (r.data.health && typeof r.data.health === 'object') { // je Person die neuere Fassung behalten
-        const loc = state.settings.health || {}, merged = { ...loc };
-        for (const [who, v] of Object.entries(r.data.health)) if (v && typeof v === 'object' && (!loc[who] || (v.t || 0) > (loc[who].t || 0))) merged[who] = v;
-        state.settings.health = merged;
-      }
+      mergeSettings(r.data, true);
       if (Array.isArray(persons) && persons.length) {
         const list = persons.slice(), me = state.settings.me;
         if (me && !['Ich', 'Partner', ''].includes(me) && !list.includes(me)) { // eigenen Namen nicht verlieren (statt einfach „Person 1“ zu werden)
@@ -293,8 +307,10 @@ const Sync = (() => {
       try {
         diff();
         await push();
+        settingsMerged = false;
         const n = await pull();
-        if (n) { save(); render(); }
+        if (n || settingsMerged) { save(); render(); }
+        if (settingsMerged) { diff(); await push(); } // zusammengeführte Einstellungen auch dem anderen Gerät geben
         cfg.lastOk = new Date().toISOString(); writeCfg();
         setStatus('ok', 'Synchronisiert ' + new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }));
       } catch (e) {
