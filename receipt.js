@@ -76,7 +76,7 @@ const Receipt = (() => {
           pdfText += [...rows.entries()].sort((a, b) => b[0] - a[0]).map(([, its]) => its.sort((a, b) => a.transform[4] - b.transform[4]).map((x) => x.str).join(' ')).join('\n') + '\n';
         } catch (e) { /* ohne Text weiter */ }
         const v1 = page.getViewport({ scale: 1 });
-        const vp = page.getViewport({ scale: Math.min(3, 1400 / v1.width) });
+        const vp = page.getViewport({ scale: Math.min(4, 1900 / v1.width) });
         const c = document.createElement('canvas'); c.width = Math.round(vp.width); c.height = Math.round(vp.height);
         const ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
         await page.render({ canvasContext: ctx, viewport: vp }).promise;
@@ -211,6 +211,8 @@ const Receipt = (() => {
     ['Marktkauf', /marktkauf/i], ['Mix Markt', /mix\s*markt/i], ['Netto Marken-Discount', /netto\s*marken/i], ['Trinkgut', /trinkgut/i], ['Fressnapf', /fressnapf/i], ['Hit', /\bhit\b/i], ['real', /\breal\b/i], ['dm', /\bdm[- ]?(drogerie|markt)|\bdm\b/i], ['Rossmann', /rossmann/i], ['Müller', /m[üu]ller/i],
     ['denn’s Biomarkt', /denn.?s/i], ['Alnatura', /alnatura/i], ['IKEA', /ikea/i], ['OBI', /\bobi\b/i], ['Hornbach', /hornbach/i],
     ['Bauhaus', /bauhaus/i], ['toom', /toom/i], ['Action', /\baction\b/i], ['Tedi', /tedi/i], ['Apotheke', /apotheke/i],
+    ["McDonald's", /mc\s?donald|mcdonalds/i], ['Burger King', /burger\s*king/i], ['KFC', /\bkfc\b/i], ['Subway', /subway/i], ['Starbucks', /starbucks/i],
+    ['BackWerk', /backwerk/i], ['Tchibo', /tchibo/i], ['Aral', /\baral\b/i], ['Shell', /\bshell\b/i], ['Esso', /\besso\b/i], ['dm', /\bdm[- ]drogerie|\bdm\b/i], ['Rossmann', /rossmann/i], ['Müller', /m(ü|ue)ller drog/i],
   ];
   const SUM_FUZZY = /^\W*s[a-zäöü]{1,6}\W*\s+eur\b/i;
   const SKIP = /(summe|gesamt|\btotal\b|zu zahlen|\bmwst\b|\bust\b|steuer|netto ?umsatz|brutto|\bnetto\b|\bbar\b|gegeben|r[üu]ckgeld|wechselgeld|ec[- ]?karte|girocard|kartenzahlung|\bvisa\b|mastercard|maestro|kontaktlos|betrag\s*eur|\beur\s*$|datum|uhrzeit|\bkasse\b|bon[- ]?nr|\bbeleg\b|terminal|\btrace\b|\btse\b|signatur|transaktion|steuer-?nr|ust-?id|\btel\b\.?|telefon|www\.|danke|vielen dank|öffnungszeiten|payback|punkte|kundenkarte|filiale|markt\s*\d)/i;
@@ -291,13 +293,16 @@ const Receipt = (() => {
       const l = lines[i];
       if (/zwischensumme/i.test(l)) continue;
       if (/(^|\s)(summe|zu zahlen|gesamtbetrag|gesamt|total|endbetrag|betrag)\b/i.test(l) || SUM_FUZZY.test(l)) {
-        const m = l.match(PRICE_END) || (lines[i + 1] || '').match(PRICE_END);
+        const nx = lines[i + 1] || '';
+        const m = l.match(PRICE_END) || (!/[a-zäöü]{2,}/i.test(nx.replace(/eur|€/gi, '')) && nx.match(PRICE_END)); // nächste Zeile nur, wenn dort nur ein Betrag steht
         if (m) { const v = num(m[1]); if (v > 0) { result.total = round2(v); totalIdx = i; break; } }
       }
     }
 
     // Artikel + Mengenzeilen („2 x 0,49“, „0,512 kg x 2,99 EUR/kg“)
-    const end = totalIdx > -1 ? totalIdx : lines.length;
+    // Artikel enden spätestens an der Summen-Zeile – auch wenn deren Betrag unlesbar war („INNEN TOTAL“)
+    const sumLine = lines.findIndex((l) => !/zwischensumme/i.test(l) && (/(^|\s)(summe|total|zu zahlen|endbetrag)\b/i.test(l) || SUM_FUZZY.test(l)));
+    const end = Math.min(totalIdx > -1 ? totalIdx : lines.length, sumLine > -1 ? sumLine : lines.length);
     let pendingQty = null, nameCand = '';
     // Mengenzeile, die zu keinem Artikel passte, aber einen Namen davor hat („Natives Olivenöl …“ / „1 x 19,45“) → eigener Artikel
     const flush = () => {
@@ -316,7 +321,7 @@ const Receipt = (() => {
         nameCand = '';
         continue;
       }
-      if (SKIP.test(l) || SUM_FUZZY.test(l) || /gespart|ersparnis heute|kdnr/i.test(l)) continue;
+      if (SKIP.test(l) || SUM_FUZZY.test(l) || /gespart|ersparnis heute|kdnr|\b\d{1,2}[,.]\d{2}\s?%/i.test(l)) continue; // Steuersatz-Zeilen („7,00%“) sind keine Artikel
       if (!PRICE_END.test(l) && /[a-zäöü]{4,}/i.test(l)) {
         // Artikel beginnen meist groß („Jordan Olivenöl …“), Fortsetzungszeilen klein („matt schwarz …“)
         const c = l.replace(/^[^A-Za-zÄÖÜäöü]+/, '').replace(/(\s+\S*\d\S*|\s+[^\wÄÖÜäöü\s]+)+\s*$/, '').replace(/[\s.:*\-—]+$/, '').trim();
@@ -341,7 +346,7 @@ const Receipt = (() => {
       if (price < 0 && !DISC.test(l)) price = Math.abs(price);
       if (price > 0 && /coupon|rabatt|nachlass|gutschein|preisvorteil|ersparnis/i.test(l)) price = -price; // Coupon zieht ab
       const eanM = name.match(/^(\d{8}|\d{12,14})\s+/);
-      const clean = name.replace(/^\d{8,14}\s+/, '').replace(/\s+\d{1,2}$/, '').replace(/[\s\-—€]+$/, '');
+      const clean = name.replace(/^\d{8,14}\s+/, '').replace(/^[|\]\[]?\d{1,2}[\]|]?\s+(?=.*[A-Za-zÄÖÜäöü]{2})/, '').replace(/[\]|\[]+$/, '').replace(/\s+\d{1,2}$/, '').replace(/[\s\-—€]+$/, '');
       const it = { name: clean.slice(0, 60), price: round2(price), ...(eanM && !/coupon/i.test(l) ? { ean: eanM[1] } : {}) };
       if (pendingQty && Math.abs(it.price - pendingQty.qty * pendingQty.unit) < 0.02) { const { name: _n, ...pq } = pendingQty; Object.assign(it, pq); pendingQty = null; }
       else flush();
@@ -398,7 +403,7 @@ const Receipt = (() => {
     const total = parseAmount($('#rcTotal').value);
     const el = $('#rcCheck');
     if (!items.length) { el.textContent = ''; return; }
-    if (Number.isFinite(total) && Math.abs(total - sum) > 0.01) { el.textContent = `⚠️ Summe der Artikel ${fmt(sum)} ≠ Bon-Summe ${fmt(total)} – bitte Artikel prüfen.`; el.className = 'hint warn'; }
+    if (Number.isFinite(total) && Math.abs(total - sum) > 0.01) { el.textContent = total > sum ? `⚠️ Es fehlen ${fmt(round2(total - sum))} – ein Artikel war wohl nicht lesbar. Bitte mit „+ Artikel“ ergänzen.` : `⚠️ Artikel ergeben ${fmt(round2(sum - total))} zu viel – bitte prüfen.`; el.className = 'hint warn'; }
     else { el.textContent = `✓ Summe der Artikel ${fmt(sum)} passt.`; el.className = 'hint ok'; }
   }
   function setProgress(p, text) {
