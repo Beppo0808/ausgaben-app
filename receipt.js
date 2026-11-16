@@ -354,6 +354,21 @@ const Receipt = (() => {
       result.items.push(it);
     }
     flush();
+    // Fehlt genau ein Betrag zur Summe? Dann Zeilen mit halb gelesenem Preis („2,1“ statt „2,10“) prüfen
+    if (result.total > 0 && result.items.length) {
+      const gap = round2(result.total - result.items.reduce((a, it) => a + it.price, 0));
+      if (gap > 0 && gap < 200) {
+        for (let i = 0; i < end; i++) {
+          const l = lines[i], m = l.match(/^(.*?[a-zäöü]{2,}.*?)\s+(\d{1,3})[,.](\d)\s*[A-D]?\s*$/i);
+          if (!m || SKIP.test(l) || /\d[,.]\d{2}/.test(l)) continue;
+          const v = +(m[2] + '.' + m[3]);
+          if (Math.abs(gap - v) < 0.1 && Math.floor(gap * 10 + 1e-6) === Math.round(v * 10)) { // 2,1 → 2,10 … 2,19 passt zur Lücke
+            const nm = m[1].replace(/^[|\]\[]?\d{1,2}[\]|]?\s+(?=.*[A-Za-zÄÖÜäöü]{2})/, '').replace(/[\s.:*\-—]+$/, '').trim();
+            result.items.push({ name: nm.slice(0, 60), price: gap, guessed: true }); break;
+          }
+        }
+      }
+    }
     if (!(result.total > 0) && result.items.length) { result.total = round2(result.items.reduce((a, it) => a + it.price, 0)); result.totalGuessed = true; }
     return result;
   }
