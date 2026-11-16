@@ -323,7 +323,7 @@ const Konto = (() => {
   }
   // ---------- Buchung aufteilen (z. B. Einkauf + Bargeld) ----------
   let txSplits = [], txCashHint = 0;
-  const num2 = (s) => Math.round(parseFloat(String(s).replace(/\./g, '').replace(',', '.')) * 100) / 100;
+  const num2 = (s) => { const v = parseAmount(s); return Number.isFinite(v) ? Math.round(v * 100) / 100 : NaN; }; // „80.50“ und „80,50“ = 80,50 €
   const SPLIT_KINDS = { cash: '💵 Bargeld – erst mal meins', personal: '🔒 Nur für mich', shared: '👫 Gemeinsam' };
   function drawSplits() {
     const on = txSplits.length > 0;

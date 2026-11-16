@@ -269,6 +269,9 @@ function renamePerson(oldN, newN) {
   state.expenses.forEach((e) => { if (e.person === oldN) e.person = newN; });
   state.subs.forEach((s) => { if (s.payer === oldN) s.payer = newN; if (s.to === oldN) s.to = newN; });
   if (state.avatars && state.avatars[oldN]) { state.avatars[newN] = state.avatars[oldN]; delete state.avatars[oldN]; }
+  const hl = state.settings.health; if (hl && hl[oldN]) { hl[newN] = { ...hl[oldN], t: Date.now() }; delete hl[oldN]; }
+  const cards = state.settings.cards; if (cards) Object.keys(cards).forEach((k) => { if (cards[k] === oldN) cards[k] = newN; });
+  (state.shopping || []).forEach((x) => { if (x.by === oldN) x.by = newN; if (x.doneBy === oldN) x.doneBy = newN; });
   if (state.settings.me === oldN || !state.settings.me) state.settings.me = state.settings.me === oldN ? newN : state.settings.me;
   return true;
 }
@@ -741,7 +744,7 @@ function renderList() {
   const q = $('#searchInput').value.trim().toLowerCase();
   const items = expensesForMonth(viewY, viewM)
     .filter((e) => (isPersonal() ? isMine(e) : !e.private))
-    .filter((e) => !fc.value || e.category === fc.value)
+    .filter((e) => !fc.value || e.category === fc.value || (e.items || []).some((it) => it.cat === fc.value))
     .filter((e) => !fp.value || (fp.value === '__private' ? e.private : fp.value === '__shared' ? !e.private : e.person === fp.value))
     .filter((e) => !storeFilter || (!e.virtual && storeOf(e.merchant) === storeFilter))
     .filter((e) => !q || `${e.merchant} ${e.branch || ''} ${e.note} ${catById(e.category).name} ${(e.items || []).map((it) => it.name).join(' ')}`.toLowerCase().includes(q))

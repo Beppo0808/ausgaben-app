@@ -361,14 +361,15 @@ const Product = (() => {
   /** Produktbild aus der Datenbank als kleines Bild speichern (dann auch offline und bei Ute sichtbar) */
   async function offThumb(url) {
     if (!/^https:\/\/images\.openfoodfacts\.org\//.test(url || '')) return '';
-    try { const b = await (await fetch(url)).blob(); const bm = await createImageBitmap(b); return Catalog.thumb(bm, bm.width, bm.height); } catch (e) { return ''; }
+    try { const ctl = new AbortController(); setTimeout(() => ctl.abort(), 6000); const b = await (await fetch(url, { signal: ctl.signal })).blob(); const bm = await createImageBitmap(b); return Catalog.thumb(bm, bm.width, bm.height); } catch (e) { return ''; }
   }
   /** Gefundenes Produkt automatisch unter ⭐ Produkte merken */
   async function remember(ean) {
     if (!current || current.unknown) return '';
-    const img = (await offThumb(current.img)) || shot;
-    const id = Catalog.upsertScan({ ...meta(ean), img });
-    savedMsg(id);
+    const m = meta(ean), url = current.img, own = shot; // jetzt festhalten – current kann sich während des Bild-Ladens ändern
+    const id = Catalog.upsertScan({ ...m, img: '' });
+    if ($('#prodEan').value === ean) savedMsg(id);
+    offThumb(url).then((t) => { const img = t || own || url; if (img) Catalog.setImgIfEmpty(id, img); }); // Bild im Hintergrund
     return id;
   }
   function savedMsg(id) {

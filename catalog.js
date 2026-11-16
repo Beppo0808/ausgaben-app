@@ -273,6 +273,7 @@ const Catalog = (() => {
     p.img = img; x.pid = p.id; save();
     return p.id;
   }
+  function setImgIfEmpty(id, img) { const p = list().find((y) => y.id === id); if (p && !p.img && imgOk(img)) { p.img = img; save(); if (!$('#catPane').hidden) render(); } }
   const byEan = (ean) => list().find((y) => ean && y.ean === ean) || null;
   const imgFor = (ean) => { const p = byEan(ean); return p && imgOk(p.img) && p.img.startsWith('data:') ? p.img : ''; };
   function setImg(meta, img) {
@@ -374,5 +375,5 @@ const Catalog = (() => {
     };
   }
 
-  return { fromLink, cropFromFile, bestPrice, pickById, openNew, imgForItem, photoForItem, render, fromBon, upsertScan, setPrice, pricesFor, packFor, setPack, byEan, imgFor, setImg, thumb, thumbFromFile };
+  return { setImgIfEmpty, fromLink, cropFromFile, bestPrice, pickById, openNew, imgForItem, photoForItem, render, fromBon, upsertScan, setPrice, pricesFor, packFor, setPack, byEan, imgFor, setImg, thumb, thumbFromFile };
 })();
