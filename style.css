@@ -1263,3 +1263,4 @@ body[data-view="home"] .mode-line, body[data-view="shop"] .mode-line, body[data-
 .cart-done { width: 100%; margin: 6px 0 14px; }
 #shopPane .card-head h2 { flex: 1; white-space: nowrap; }
 body[data-view="overview"] .mode-line { display: none; }
+.sh-has { display: block; color: #3e7a52; font-weight: 700; font-size: .8rem; }

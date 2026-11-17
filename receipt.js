@@ -888,14 +888,16 @@ const Receipt = (() => {
   }
 
   /** Nur Text aus einem Bild lesen (Einkaufszettel, Rezept, Verpackung) – alles auf dem Gerät */
-  async function ocrFile(file, onProgress = () => {}) {
+  async function ocrFile(file, onProgress = () => {}, opts = {}) {
     const canvas = await toCanvas(file);
     const w = await getWorker(onProgress);
     onProgress(0.35, 'Lese Text …');
-    const { data } = await w.recognize(forOcr(canvas));
+    if (opts.psm) await w.setParameters({ tessedit_pageseg_mode: opts.psm }); // „6“ = Zeilen zusammenhalten (Menge + Zutat in einer Zeile)
+    const { data } = await w.recognize(opts.plain ? forOcrPlain(canvas) : forOcr(canvas));
+    if (opts.psm) await w.setParameters({ tessedit_pageseg_mode: '3' });
     onProgress(1, '');
     return data.text || '';
   }
 
-  return { _forOcr: forOcr, _toCanvas: toCanvas, _getWorker: getWorker, ocrFile, open, startScan, editExpense, parse, view, init, itemCategory, uploadPending, bonList, prefetch, _scanCanvas: (c) => scanCanvas(c) };
+  return { _forOcrPlain: forOcrPlain, _forOcr: forOcr, _toCanvas: toCanvas, _getWorker: getWorker, ocrFile, open, startScan, editExpense, parse, view, init, itemCategory, uploadPending, bonList, prefetch, _scanCanvas: (c) => scanCanvas(c) };
 })();

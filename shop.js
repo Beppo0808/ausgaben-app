@@ -341,10 +341,12 @@ const Shop = (() => {
     curRecipe = r;
     $('#rdTitle').textContent = r.title;
     $('#rdMeta').textContent = [r.time ? `⏱ ${r.time} Minuten` : '', r.servings ? `${r.servings} Portionen` : (r.own ? '' : '2 Portionen'), (r.tags || []).join(' · ')].filter(Boolean).join(' · ');
+    const onList = (name) => state.shopping.some((x) => !x.done && (Catalog.nameFits(x.name, name, '') || Catalog.nameFits(name, x.name, '')));
     $('#rdIngr').innerHTML = (r.ingredients || []).map((ing, i) => {
       const { name } = splitQty(ing);
       const p = priceInfo(name);
-      return `<li><label class="check"><input type="checkbox" data-i="${i}" ${PANTRY.test(ing) ? '' : 'checked'}> <span>${esc(ing)}${p ? `<small class="sh-price">💶 ${esc(priceText(p))}</small>` : ''}</span></label></li>`;
+      const has = onList(name.replace(/,.*$/, ''));
+      return `<li><label class="check"><input type="checkbox" data-i="${i}" ${PANTRY.test(ing) || has ? '' : 'checked'}> <span>${esc(ing)}${has ? '<small class="sh-has">✓ steht schon auf der Einkaufsliste</small>' : PANTRY.test(ing) ? '<small class="sh-has">meist im Vorrat</small>' : ''}${p ? `<small class="sh-price">💶 ${esc(priceText(p))}</small>` : ''}</span></label></li>`;
     }).join('');
     $('#rdSteps').innerHTML = (r.steps || []).map((s) => `<li>${esc(s)}</li>`).join('');
     $('#rdNote').textContent = r.source ? `Quelle: ${r.source}` : '';
@@ -353,22 +355,36 @@ const Shop = (() => {
   }
   function recipeToList() {
     const r = curRecipe; if (!r) return;
-    const picked = $$('#rdIngr input:checked').map((c) => r.ingredients[+c.dataset.i]);
+    const picked = $$('#rdIngr input:checked').map((c) => r.ingredients[+c.dataset.i].replace(/,.*$/, '').trim()); // „Tomaten, geviertelt“ → „Tomaten“
     if (!picked.length) { toast('Keine Zutat ausgewählt'); return; }
     const n = addItems(picked, r.title);
     $('#recipeDialog').close(); tab = 'list'; render(); toast(`🛒 ${picked.length} Zutaten auf der Liste${n < picked.length ? ' (teils zusammengefasst)' : ''}`);
   }
 
   /** Eingefügten/erkannten Rezepttext in Zutaten und Schritte aufteilen */
+  const QTY_COL = /^(\d+([.,/]\d+)?\s*(g|kg|ml|l|el|tl|stk|st(ü|ue)ck|prisen?|zweige?|zehen?|bund|dose|dosen|becher|pck|packung|scheiben?|tassen?)?\.?|½|¼|¾|\d+\s*(prisen?|zweige?|bund|pck|tl|el))$/i;
+  const NOT_INGR = /wie viele personen|^\W*[-–—]?\s*\d+\s*\+\s*$|^\d+\s*zutaten$|kochmodus|bestellen|bewertung|gekocht\?|^plan$/i;
   function parseRecipeText(text) {
     const lines = String(text || '').split('\n').map((l) => l.trim()).filter(Boolean);
     let title = '', ingr = [], steps = [], mode = '';
+    // Titel: erste Zeile, die wie eine Überschrift aussieht (keine Uhrzeit, kein Wochentag, überwiegend Buchstaben)
+    const titleOk = (l) => l.length >= 6 && l.length <= 70 && !/\d{1,2}:\d{2}|montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag|zutaten/i.test(l) && (l.match(/[a-zäöüß]/gi) || []).length / l.length > 0.7 && /[a-zäöü]{3,}\s+[a-zäöü]{2,}/i.test(l);
     for (const l of lines) {
-      if (/^zutaten\b/i.test(l)) { mode = 'i'; continue; }
-      if (/^(zubereitung|so geht'?s|anleitung|schritte)\b/i.test(l)) { mode = 's'; continue; }
-      if (!title && !mode && l.length < 70 && !QTY_RE.test(l)) { title = l; continue; }
-      if (mode === 'i' || (!mode && QTY_RE.test(l))) ingr.push(l.replace(/^[-•*·]\s*/, ''));
-      else steps.push(l.replace(/^(\d+[.)]|[-•*·])\s*/, ''));
+      if (/^\W{0,3}zutaten\b/i.test(l) && !/bestellen/i.test(l)) { mode = 'i'; continue; }
+      if (/^\W{0,3}(zubereitung|so geht'?s|anleitung|schritte)\b/i.test(l)) { mode = 's'; continue; }
+      if (mode === 'i' && /^\W{0,3}(außerdem|ausserdem|kochmodus|zutaten bestellen|nährwerte|tipp)\b/i.test(l)) { mode = 'x'; continue; }
+      if (!title && !mode && titleOk(l)) { title = l; continue; }
+      if (mode === 'i') {
+        if (NOT_INGR.test(l)) continue;
+        // Spalten (Menge | Zutat) – Störzeichen vorne/hinten weglassen
+        const cols = l.split(/\s{3,}|\s*\|\s*/).map((c) => c.trim()).filter(Boolean);
+        let nameIdx = -1; cols.forEach((c, k) => { if (/[a-zäöüß]{3,}/i.test(c) && !QTY_COL.test(c)) nameIdx = k; }); // letzte Text-Spalte = Zutat (Störzeichen davor fallen weg)
+        if (nameIdx < 0) continue;
+        const qty = cols.slice(0, nameIdx).reverse().find((c) => QTY_COL.test(c)) || '';
+        const name = cols[nameIdx].replace(/^[-•*·]\s*/, '');
+        ingr.push((qty ? qty + ' ' : '') + name);
+      } else if (mode === 's') steps.push(l.replace(/^(\d+[.)]|[-•*·])\s*/, ''));
+      else if (!mode && QTY_RE.test(l)) ingr.push(l.replace(/^[-•*·]\s*/, ''));
     }
     return { title, ingr, steps };
   }
@@ -396,9 +412,11 @@ const Shop = (() => {
       source: f.source.value.trim().slice(0, 120),
     };
     if (!data.ingredients.length) { toast('Bitte mindestens eine Zutat eintragen'); return; }
+    let id = editRecipeId;
     if (editRecipeId) Object.assign(state.recipes.find((x) => x.id === editRecipeId), data);
-    else state.recipes.push({ id: uid(), ...data, by: state.settings.me });
+    else { id = uid(); state.recipes.push({ id, ...data, by: state.settings.me }); }
     save(); $('#recipeEditDialog').close(); tab = 'recipes'; render(); toast('📖 Rezept gespeichert');
+    showRecipe(id); // gleich zeigen: was fehlt noch auf der Einkaufsliste?
   }
 
   // ---------- Kalender (.ics) ----------
@@ -540,13 +558,13 @@ const Shop = (() => {
       const tmp = document.createElement('textarea'); tmp.id = 'ocrTmp';
       const st = $('#ocrStatus2'); st.hidden = false; st.textContent = 'Lese Rezept …';
       try {
-        const text = await Receipt.ocrFile(f, (p, t) => { st.textContent = t || `Lese Rezept … ${Math.round(p * 100)} %`; });
+        const text = await Receipt.ocrFile(f, (p, t) => { st.textContent = t || `Lese Rezept … ${Math.round(p * 100)} %`; }, { plain: true, psm: '6' });
         const p = parseRecipeText(text);
         const rf = $('#recipeForm');
         if (!rf.title.value.trim()) rf.title.value = p.title;
         rf.ingr.value = (rf.ingr.value ? rf.ingr.value + '\n' : '') + p.ingr.join('\n');
         rf.steps.value = (rf.steps.value ? rf.steps.value + '\n' : '') + p.steps.join('\n');
-        st.textContent = p.ingr.length ? 'Erkannt – bitte kurz prüfen und korrigieren.' : 'Zutaten nicht sicher erkannt – bitte im Feld nachbessern.';
+        st.textContent = p.ingr.length ? `✓ ${p.ingr.length} Zutaten erkannt – kurz prüfen, dann „Speichern“. Danach kannst du sie auf die Einkaufsliste setzen.` : 'Zutaten nicht sicher erkannt – bitte im Feld nachbessern.';
       } catch (err) { st.textContent = '⚠️ ' + err.message; }
     });
     $('#calForm').addEventListener('submit', submitCal);
