@@ -31,23 +31,84 @@ const Catalog = (() => {
   }
 
   /** Foto zuschneiden: Bild im Quadrat verschieben (Finger) und vergrößern (Regler) → kleines Vorschaubild */
+  /** Produkt im Foto finden: Bereich, der sich deutlich vom Hintergrund (Bildrand) abhebt → Vorschlag für den Ausschnitt */
+  function findProduct(img) {
+    try {
+      const W = img.naturalWidth, H = img.naturalHeight, sc = 48 / Math.max(W, H); // grob verkleinert: feine Maserung/Adern verschwimmen
+      const w = Math.max(8, Math.round(W * sc)), h = Math.max(8, Math.round(H * sc));
+      const c = document.createElement('canvas'); c.width = w; c.height = h;
+      const x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(img, 0, 0, w, h);
+      const d = x.getImageData(0, 0, w, h).data, px = (i, j) => { const k = (j * w + i) * 4; return [d[k], d[k + 1], d[k + 2]]; };
+      // Hintergrundfarbe = Mittel der Randpixel
+      const edge = []; for (let i = 0; i < w; i++) { edge.push(px(i, 0), px(i, h - 1)); } for (let j = 0; j < h; j++) { edge.push(px(0, j), px(w - 1, j)); }
+      const bg = [0, 1, 2].map((q) => { const v = edge.map((p) => p[q]).sort((m, n) => m - n); return v[v.length >> 1]; }); // Median: Störungen am Rand zählen kaum
+      const diff = (p) => Math.abs(p[0] - bg[0]) + Math.abs(p[1] - bg[1]) + Math.abs(p[2] - bg[2]);
+      const sat = (p) => { const mx = Math.max(...p), mn = Math.min(...p); return mx ? (mx - mn) / mx : 0; };
+      // zuerst farbige Bereiche (Verpackungen sind meist farbig, Tisch/Herd/Wand meist grau), sonst alles, was sich vom Rand abhebt
+      for (const mode of ['farbe', 'kontrast']) {
+        const on = []; for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) { const q = px(i, j); on[j * w + i] = mode === 'farbe' ? diff(q) > 60 && sat(q) > 0.3 : diff(q) > 90; }
+        let bx = [0, w - 1], by = [0, h - 1], ok = true;
+        const count = () => { const rows = new Array(h).fill(0), cols = new Array(w).fill(0);
+          for (let j = by[0]; j <= by[1]; j++) for (let i = bx[0]; i <= bx[1]; i++) if (on[j * w + i]) { rows[j]++; cols[i]++; } return { rows, cols }; };
+        const run = (arr, n) => { let best = [-1, -1], st = -1, gap = 0; for (let i = 0; i <= arr.length; i++) { const hit = i < arr.length && arr[i] > n * 0.25;
+          if (hit) { if (st < 0) st = i; gap = 0; } else if (st >= 0 && (++gap > 1 || i === arr.length)) { const e = i - gap; if (e - st > best[1] - best[0]) best = [st, e]; st = -1; gap = 0; } } return best; };
+        for (let it = 0; it < 3 && ok; it++) {
+          const nx = run(count().cols, by[1] - by[0] + 1); if (nx[0] < 0) { ok = false; break; } bx = nx;
+          const ny = run(count().rows, bx[1] - bx[0] + 1); if (ny[0] < 0) { ok = false; break; } by = ny;
+        }
+        if (!ok) continue;
+        if (mode === 'farbe') { // helle/weiße Teile der Packung (z. B. unten am Milchkarton) über den Kontrast ergänzen
+          const rows = new Array(h).fill(0); for (let j = 0; j < h; j++) for (let i = bx[0]; i <= bx[1]; i++) { const q = px(i, j); if (diff(q) > 90 && q[0] + q[1] + q[2] > 480) rows[j]++; } // nur helle Packungsteile
+          const need = (bx[1] - bx[0] + 1) * 0.6; let a2 = by[0], b2 = by[1];
+          while (a2 > 0 && rows[a2 - 1] > need) a2--; while (b2 < h - 1 && rows[b2 + 1] > need) b2++;
+          by = [a2, b2];
+        }
+        const [x0, x1] = bx, [y0, y1] = by, area = ((x1 - x0 + 1) * (y1 - y0 + 1)) / (w * h);
+        if (area < 0.08 || area > 0.92) continue; // nichts Klares gefunden oder füllt eh das Bild
+        const pad = 0.04 * Math.max(w, h);
+        return { x: Math.max(0, x0 - pad) / sc, y: Math.max(0, y0 - pad) / sc, w: Math.min(w, x1 - x0 + 1 + 2 * pad) / sc, h: Math.min(h, y1 - y0 + 1 + 2 * pad) / sc };
+      }
+      return null;
+    } catch (e) { return null; }
+  }
+
+  /** Foto zuschneiden: drehen (90° und fein), vergrößern, verschieben; mit automatischem Vorschlag */
   function cropFromFile(file) {
     return new Promise((res) => {
       const u = URL.createObjectURL(file), img = new Image();
       img.onerror = () => { URL.revokeObjectURL(u); res(''); };
       img.onload = () => {
         const cv = $('#cropCv'), cx = cv.getContext('2d'), S = cv.width;
-        const W = img.naturalWidth, H = img.naturalHeight, base = Math.min(S / W, S / H); // ganzes Bild sichtbar, dann vergrößern
-        let z = 1, ox = 0, oy = 0, drag = null, done = false;
-        const fit = (o, len) => (len <= S ? (S - len) / 2 : Math.min(0, Math.max(S - len, o))); // kleiner als der Rahmen → mittig, sonst Rand nicht freilegen
-        const clamp = () => { const k = base * z; ox = fit(ox, W * k); oy = fit(oy, H * k); };
-        const draw = () => { clamp(); const k = base * z; cx.fillStyle = '#fffaf3'; cx.fillRect(0, 0, S, S); cx.drawImage(img, ox, oy, W * k, H * k); };
-        ox = (S - W * base) / 2; oy = (S - H * base) / 2; $('#cropZoom').value = '1'; draw();
+        const W = img.naturalWidth, H = img.naturalHeight;
+        let quarter = 0, tilt = 0, z = 1, px = 0, py = 0, drag = null, done = false; // px/py = Bildmitte relativ zur Rahmenmitte
+        const baseK = () => (quarter % 2 ? Math.min(S / H, S / W) : Math.min(S / W, S / H)) ; // ganzes Bild passt hinein
+        const draw = () => {
+          const k = baseK() * z;
+          const lim = S / 2 + Math.max(W, H) * k / 2; px = Math.max(-lim, Math.min(lim, px)); py = Math.max(-lim, Math.min(lim, py));
+          cx.setTransform(1, 0, 0, 1, 0, 0); cx.fillStyle = '#fffaf3'; cx.fillRect(0, 0, S, S);
+          cx.translate(S / 2 + px, S / 2 + py); cx.rotate((quarter * 90 + tilt) * Math.PI / 180);
+          cx.drawImage(img, -W * k / 2, -H * k / 2, W * k, H * k);
+          cx.setTransform(1, 0, 0, 1, 0, 0);
+        };
+        const whole = () => { quarter = 0; tilt = 0; z = 1; px = 0; py = 0; $('#cropZoom').value = '1'; $('#cropTilt').value = '0'; $('#cropMode').textContent = 'Ganzes Foto'; draw(); };
+        const suggest = () => {
+          const r = findProduct(img); if (!r) return false;
+          quarter = 0; tilt = 0; const k0 = baseK();
+          z = Math.max(1, Math.min(8, (S * 0.96) / (Math.max(r.w, r.h) * k0)));
+          const k = k0 * z; px = (W / 2 - (r.x + r.w / 2)) * k; py = (H / 2 - (r.y + r.h / 2)) * k;
+          $('#cropZoom').value = String(z); $('#cropTilt').value = '0'; $('#cropMode').textContent = '✨ Vorschlag – passt es so? Sonst anpassen.'; draw(); return true;
+        };
+        if (!suggest()) whole();
         const scale = () => cv.width / cv.getBoundingClientRect().width;
-        cv.onpointerdown = (e) => { drag = { x: e.clientX, y: e.clientY, ox, oy }; cv.setPointerCapture(e.pointerId); };
-        cv.onpointermove = (e) => { if (!drag) return; const f = scale(); ox = drag.ox + (e.clientX - drag.x) * f; oy = drag.oy + (e.clientY - drag.y) * f; draw(); };
+        cv.onpointerdown = (e) => { drag = { x: e.clientX, y: e.clientY, px, py }; cv.setPointerCapture(e.pointerId); };
+        cv.onpointermove = (e) => { if (!drag) return; const f = scale(); px = drag.px + (e.clientX - drag.x) * f; py = drag.py + (e.clientY - drag.y) * f; draw(); };
         cv.onpointerup = cv.onpointercancel = () => { drag = null; };
-        $('#cropZoom').oninput = (e) => { const nz = +e.target.value, c = S / 2; ox = c - (c - ox) * nz / z; oy = c - (c - oy) * nz / z; z = nz; draw(); };
+        $('#cropZoom').oninput = (e) => { const nz = +e.target.value; px = px * nz / z; py = py * nz / z; z = nz; draw(); };
+        $('#cropTilt').oninput = (e) => { tilt = +e.target.value; draw(); };
+        $('#cropLeft').onclick = () => { quarter = (quarter + 3) % 4; draw(); };
+        $('#cropRight').onclick = () => { quarter = (quarter + 1) % 4; draw(); };
+        $('#cropWhole').onclick = whole;
+        $('#cropSuggest').onclick = () => { if (!suggest()) toast('Kein Produkt sicher erkannt – bitte von Hand zuschneiden'); };
         const finish = (ok) => {
           if (done) return; done = true; URL.revokeObjectURL(u);
           let out = '';
@@ -484,5 +545,5 @@ const Catalog = (() => {
     };
   }
 
-  return { recrop, setLabel, readLabels, nutText, nameFits, setImgIfEmpty, fromLink, cropFromFile, bestPrice, pickById, openNew, imgForItem, photoForItem, render, fromBon, upsertScan, setPrice, pricesFor, packFor, setPack, byEan, imgFor, setImg, thumb, thumbFromFile };
+  return { _findProduct: findProduct, recrop, setLabel, readLabels, nutText, nameFits, setImgIfEmpty, fromLink, cropFromFile, bestPrice, pickById, openNew, imgForItem, photoForItem, render, fromBon, upsertScan, setPrice, pricesFor, packFor, setPack, byEan, imgFor, setImg, thumb, thumbFromFile };
 })();

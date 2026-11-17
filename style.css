@@ -1279,3 +1279,8 @@ body[data-view="overview"] .mode-line { display: none; }
 .sh-swap { font-size: .9rem; }
 .st-pick { display: flex; align-items: center; gap: 10px; justify-content: flex-start; }
 .st-pick[aria-pressed="true"] { outline: 3px solid var(--accent); }
+
+.crop-tools { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 8px 0; }
+.crop-tools .btn { margin: 0; padding: 8px 4px; font-size: .85rem; }
+.crop-mode { font-weight: 700; color: var(--text); min-height: 1.4em; }
+#cropDialog .field { margin: 4px 0; }
