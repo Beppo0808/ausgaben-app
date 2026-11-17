@@ -109,17 +109,22 @@ const Catalog = (() => {
     return { nut, ingr };
   }
   /** Mehrere Fotos (Nährwerttabelle, Zutatenliste) lesen und zusammenführen */
+  const eanValid = (c) => { const d = c.split('').map(Number); const s = d.slice(0, 12).reduce((a, x, i) => a + x * (i % 2 ? 3 : 1), 0); return (10 - (s % 10)) % 10 === d[12]; };
   async function readLabels(files, onStatus = () => {}) {
-    const nut = {}; let ingr = '';
+    const nut = {}; let ingr = '', ean = '', qty = '';
     for (let i = 0; i < files.length; i++) {
       onStatus(`📄 Lese Foto ${i + 1} von ${files.length} …`);
-      const text = await Receipt.ocrFile(files[i], () => {}, { plain: true, psm: '6' });
+      // Verpackungsfotos: freie Texterkennung; Nährwerttabellen: zeilenweise
+      let text = await Receipt.ocrFile(files[i], () => {}, { plain: true, psm: '3' });
+      if (/n(ä|ae)hrwert|brennwert|energie|kohlenhydrat/i.test(text)) text += '\n' + await Receipt.ocrFile(files[i], () => {}, { plain: true, psm: '6' });
       const r = parseLabel(text);
       for (const [k, v] of Object.entries(r.nut)) if (nut[k] === undefined) nut[k] = v;
       if (r.ingr.length > ingr.length) ingr = r.ingr;
+      if (!ean) { const m = (text.match(/\b\d{13}\b/g) || []).find(eanValid); if (m) ean = m; } // Strichcode-Nummer steht oft klein daneben
+      if (!qty) { const q = text.match(/\b(\d{2,4}(?:[.,]\d)?)\s?(g|kg|ml|l)\b(?!\s*\/)/i); if (q && +q[1].replace(',', '.') >= (/k|^l$/i.test(q[2]) ? 0.1 : 50)) qty = `${q[1]} ${q[2]}`; }
     }
     onStatus('');
-    return { nut, ingr };
+    return { nut, ingr, ean, qty };
   }
   const NUT_LABEL = { 'energy-kcal': ['Energie', 'kcal'], fat: ['Fett', 'g'], 'saturated-fat': ['ges. Fettsäuren', 'g'], carbohydrates: ['Kohlenhydrate', 'g'], sugars: ['Zucker', 'g'], fiber: ['Ballaststoffe', 'g'], proteins: ['Eiweiß', 'g'], salt: ['Salz', 'g'] };
   const nutText = (nut) => Object.entries(NUT_LABEL).filter(([k]) => nut && nut[k] !== undefined).map(([k, [l, u]]) => `${l} ${String(nut[k]).replace('.', ',')} ${u}`).join(' · ');
@@ -433,9 +438,22 @@ const Catalog = (() => {
       const files = [...e.target.files].slice(0, 6); e.target.value = ''; if (!files.length) return;
       const r = await readLabels(files, (t) => { $('#ceNutText').textContent = t || $('#ceNutText').textContent; });
       labelNut = { ...(labelNut || {}), ...r.nut };
+      if (r.qty && !$('#ceQty').value.trim()) $('#ceQty').value = r.qty;
+      if (r.ean && editing && !editing.ean) { // Strichcode gefunden → Name/Marke aus der freien Datenbank ergänzen
+        editing.linkEan = r.ean;
+        try { const j = await (await fetch(`https://world.openfoodfacts.org/api/v2/product/${r.ean}.json?fields=product_name,product_name_de,brands`)).json();
+          const pr = j && j.status === 1 ? j.product : null;
+          if (pr && !$('#ceName').value.trim()) $('#ceName').value = (pr.product_name_de || pr.product_name || '').slice(0, 80);
+          if (pr && !$('#ceBrand').value.trim()) $('#ceBrand').value = String(pr.brands || '').split(',')[0].trim().slice(0, 40);
+        } catch (err) { /* offline */ }
+        $('#ceNut').hidden = false;
+      }
       if (r.ingr && !$('#ceIngr').value.trim()) $('#ceIngr').value = r.ingr;
       $('#ceNutText').textContent = Object.keys(labelNut).length ? nutText(labelNut) + ' (je 100 g) – bitte kurz prüfen' : 'Keine Nährwerte erkannt – Foto der Tabelle gerade und nah aufnehmen';
-      $('#ceInfo').open = true; toast(r.ingr || Object.keys(r.nut).length ? '📄 Gelesen – die Fotos werden nicht gespeichert' : 'Nichts erkannt');
+      $('#ceInfo').open = true;
+      const found = [r.ean ? 'Strichcode ' + r.ean : '', r.qty ? 'Menge ' + r.qty : '', Object.keys(r.nut).length ? 'Nährwerte' : '', r.ingr ? 'Zutaten' : ''].filter(Boolean);
+      toast(found.length ? `📄 Gefunden: ${found.join(', ')} – die Fotos werden nicht gespeichert` : 'Nichts erkannt');
+      if (!Object.keys(labelNut).length) $('#ceNutText').textContent = r.ean ? 'Keine Nährwerttabelle auf den Fotos – Daten kommen über den Strichcode' : 'Keine Nährwerte erkannt – Foto der Tabelle gerade und nah aufnehmen';
     });
     $('#ceLinkBtn').onclick = async () => {
       const d = await fromLink($('#ceLink').value); if (!d) return;
