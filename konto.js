@@ -1264,6 +1264,7 @@ const Konto = (() => {
   function txForExpense(expId) { return data.tx.find((t) => t.linked === expId || (t.splitExp || []).includes(expId)) || null; }
 
   /** Letzte 4 Ziffern der auf DIESEM Gerät verbundenen Konten (eigene Karte/Konto erkennen) */
+  const balances = () => connections().flatMap((c) => (c.accounts || []).filter((a) => typeof a.balance === 'number').map((a) => ({ name: a.name, amount: a.balance, date: a.balanceDate })));
   const ownLast4 = () => connections().flatMap((c) => (c.accounts || []).map((a) => String(a.iban || '').slice(-4))).filter(Boolean);
-  return { ownLast4, txForExpense, openTx, cashForMonth, matchReceipts, reminder, render, parseStatement, detect, monthSummary, handleCallback, autoRefresh, refresh, setBankToken, bankToken: () => bankCfg().token || '', _data: () => data };
+  return { balances, ownLast4, txForExpense, openTx, cashForMonth, matchReceipts, reminder, render, parseStatement, detect, monthSummary, handleCallback, autoRefresh, refresh, setBankToken, bankToken: () => bankCfg().token || '', _data: () => data };
 })();

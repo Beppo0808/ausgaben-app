@@ -34,8 +34,22 @@
   <main>
     <div class="sync-banner" id="syncBanner" hidden><span id="syncBannerText"></span><button class="btn btn-sm" id="syncBannerBtn"></button></div>
     <div class="mode-line"><div class="mode-banner" id="modeBanner"></div><button class="me-chip" id="meChip" type="button" aria-label="Mein Name"></button></div>
-    <!-- Übersicht -->
-    <section id="view-overview" class="view active" aria-label="Übersicht">
+    <!-- Start: das Wichtigste für unterwegs -->
+    <section id="view-home" class="view active" aria-label="Start">
+      <div class="home-head"><h1 id="homeHello">Hallo 👋</h1><div class="muted" id="homeMonth"></div></div>
+      <div class="home-grid">
+        <button type="button" class="tile tile-stand" data-go="overview">
+          <span class="tile-title">💶 Stand</span>
+          <span class="tile-konto" id="homeKonto"></span>
+          <span class="tile-big" id="homeSpent">–</span>
+          <span class="tile-sub" id="homeSpentSub"></span>
+          <span class="tile-bar"><i id="homeBar"></i></span>
+        </button>
+        <button type="button" class="tile" data-go="shop"><span class="tile-ic">🛒</span><span class="tile-title">Einkaufsliste</span><span class="tile-sub" id="homeShop"></span></button>
+        <button type="button" class="tile" data-go="prods"><span class="tile-ic">⭐</span><span class="tile-title">Produkte</span><span class="tile-sub" id="homeProds"></span></button>
+        <button type="button" class="tile tile-wide" data-go="add"><span class="tile-ic">➕</span><span><span class="tile-title">Ausgabe erfassen</span><span class="tile-sub">Betrag eintippen oder Bon fotografieren</span></span></button>
+      </div>
+      <div id="homeNotes">
       <div class="bank-reminder" id="bankReminder" hidden><span id="bankReminderText"></span><button class="btn btn-sm" id="bankReminderBtn">🏦 Jetzt abrufen</button></div>
       <div class="card name-prompt" id="namePrompt" hidden>
         <b>👋 Wie heißt du?</b>
@@ -48,6 +62,12 @@
         <div><b>🔐 Dieses Gerät schützen</b><div class="hint">Mit eigener PIN und Face ID – wie bei der Gesundheitsakte.</div></div>
         <button class="btn btn-primary" id="lockPromptBtn">Einrichten</button>
       </div>
+      </div>
+    </section>
+
+    <!-- Stand (bisher Übersicht) -->
+    <section id="view-overview" class="view" aria-label="Stand">
+      <div class="card stand-konto" id="standKonto" hidden></div>
       <div class="kpis">
         <div class="kpi kpi-hero"><span class="kpi-label" id="kpiLabel1">Ausgaben gesamt</span><span class="kpi-value" id="kpiTotal">–</span><span class="kpi-sub" id="kpiTotalSub"></span></div>
         <div class="kpi"><span class="kpi-label" id="kpiLabel2">Fixkosten</span><span class="kpi-value" id="kpiA">–</span><span class="kpi-sub" id="kpiASub"></span></div>
@@ -238,7 +258,7 @@
 
       <div id="shopPane">
         <div class="card">
-          <div class="card-head"><h2>🛒 Einkaufsliste</h2><span class="muted" id="shopCount"></span></div>
+          <div class="card-head"><h2>🛒 Einkaufsliste</h2><span class="muted" id="shopCount"></span><button type="button" class="dots-btn" id="shopMenuBtn" aria-label="Weitere Möglichkeiten">⋯</button></div>
           <form id="shopForm" class="shop-add" autocomplete="off">
             <input type="text" id="shopInput" list="shopSuggest" placeholder="z. B. Milch, 2 Butter, Eier" aria-label="Artikel hinzufügen" enterkeyhint="done">
             <button type="submit" class="btn btn-primary" aria-label="Hinzufügen">＋</button>
@@ -246,17 +266,7 @@
           <datalist id="shopSuggest"></datalist>
           <div class="store-row" id="shopStores"></div>
           <p class="hint store-hint" id="shopStoreHint"></p>
-          <div class="btn-row shop-tools">
-            <button type="button" class="btn" id="shopVoice">🎤 Sprechen</button>
-            <label class="btn btn-file">📷 Gedruckter Zettel<input type="file" id="shopPhoto" accept="image/*,application/pdf"></label>
-            <button type="button" class="btn" id="shopPasteBtn">✍️ Handzettel einfügen</button>
-            <button type="button" class="btn" id="prodScanBtn">🔍 Produkt scannen</button>
-            <button type="button" class="btn" id="prodSeriesBtn">⚡ Mehrere Produkte scannen</button>
-            <button type="button" class="btn btn-ghost" id="shopCal">📅 Erinnerung</button>
-            <button type="button" class="btn" id="shopShare">📤 Senden</button>
-            <button type="button" class="btn" id="shopPrint">🖨️ Drucken</button>
-          </div>
-          <p class="hint">Gemeinsam: Was einer hinzufügt oder abhakt, sieht der andere sofort. 💶 Preise stammen aus euren eigenen Kassenbons.</p>
+          <button type="button" class="cart-scan" id="shopCartScan">📷 Artikel scannen → in den Wagen</button>
         </div>
         <div id="shopList"></div>
       </div>
@@ -271,8 +281,8 @@
           </div>
           <input type="search" id="catSearch" placeholder="Suchen, z. B. Butter" autocomplete="off" aria-label="Produkte suchen">
           <button type="button" class="btn btn-sm" id="catNetBtn" hidden></button>
-          <div class="chips" id="catGroups"></div>
-          <div class="chips subs" id="catSubs" hidden></div>
+          <div class="cat-chips" id="catGroups"></div>
+          <div class="cat-chips subs" id="catSubs" hidden></div>
           <p class="hint">Bild antippen = auf die Liste · ⓘ = Foto, Name, Preise</p>
         </div>
         <div class="cat-grid" id="catGrid"></div>
@@ -291,6 +301,27 @@
     </section>
 
     <!-- Einstellungen -->
+    <!-- Mehr: alles für zu Hause -->
+    <section id="view-more" class="view" aria-label="Mehr">
+      <div class="home-head"><h1>Mehr</h1><div class="muted">Für zu Hause – in Ruhe</div></div>
+      <div class="more-lbl">Erfassen</div>
+      <div class="more-list">
+        <button type="button" data-go="scan"><i>🧾</i>Bon scannen<em>›</em></button>
+        <button type="button" data-go="bonfile"><i>📄</i>Bon als Bild / PDF<em>›</em></button>
+        <button type="button" data-go="list"><i>📋</i>Alle Ausgaben<em>›</em></button>
+        <button type="button" data-go="konto"><i>🏦</i>Mein Konto & Kontobewegungen<em>›</em></button>
+      </div>
+      <div class="more-lbl">Planen</div>
+      <div class="more-list">
+        <button type="button" data-go="subs"><i>🏠</i>Fixkosten & Abos<em>›</em></button>
+        <button type="button" data-go="recipes"><i>📖</i>Rezepte<em>›</em></button>
+      </div>
+      <div class="more-lbl">Einstellungen</div>
+      <div class="more-list">
+        <button type="button" data-go="settings"><i>⚙️</i>Einstellungen, Haushalt & Abgleich<em>›</em></button>
+      </div>
+    </section>
+
     <section id="view-settings" class="view" aria-label="Einstellungen">
       <div class="card" id="nameCard">
         <h2>👤 Das bin ich</h2>
@@ -471,12 +502,10 @@
   <button class="fab" id="fab" aria-label="Ausgabe hinzufügen">+</button>
 
   <nav class="tabbar" aria-label="Navigation">
-    <button data-view="overview" class="active"><span>📊</span>Übersicht</button>
-    <button data-view="list"><span>🧾</span>Ausgaben</button>
+    <button data-view="home" class="active"><span>🏠</span>Start</button>
     <button data-view="shop"><span>🛒</span>Einkauf</button>
-    <button data-view="subs" class="only-shared"><span>🏠</span>Fixkosten</button>
-    <button data-view="konto" class="only-personal"><span>🏦</span>Mein Konto</button>
-    <button data-view="settings"><span>⚙️</span>Einstellungen</button>
+    <button data-view="overview"><span>💶</span>Stand</button>
+    <button data-view="more"><span>☰</span>Mehr</button>
   </nav>
 
   <!-- Dialog: Ausgabe -->
@@ -648,6 +677,24 @@
         <button type="button" class="btn" id="prodRescan">🔄 Nächstes</button>
         <button type="button" class="btn btn-primary" id="prodSave" hidden>⭐ Speichern</button>
         <button type="button" class="btn" id="prodAdd" hidden>🛒 Auf die Liste …</button></div>
+    </div>
+  </dialog>
+
+  <!-- Dialog: Einkaufsliste – weitere Möglichkeiten -->
+  <dialog id="shopMenuDialog">
+    <div>
+      <h2>🛒 Einkaufsliste</h2>
+      <div class="menu-list">
+        <button type="button" class="btn" id="shopVoice">🎤 Sprechen</button>
+        <label class="btn btn-file">📷 Gedruckten Zettel fotografieren<input type="file" id="shopPhoto" accept="image/*,application/pdf"></label>
+        <button type="button" class="btn" id="shopPasteBtn">✍️ Handzettel einfügen</button>
+        <button type="button" class="btn" id="prodScanBtn">🔍 Produkt ansehen (Nährwerte, Preise)</button>
+        <button type="button" class="btn" id="shopShare">📤 Liste senden</button>
+        <button type="button" class="btn" id="shopPrint">🖨️ Liste drucken</button>
+        <button type="button" class="btn" id="shopCal">📅 Erinnerung im Kalender</button>
+      </div>
+      <p class="hint">Was einer hinzufügt oder abhakt, sieht der andere sofort.</p>
+      <div class="dialog-actions"><span class="spacer"></span><button type="button" class="btn btn-ghost" id="shopMenuClose">Schließen</button></div>
     </div>
   </dialog>
 

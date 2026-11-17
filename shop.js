@@ -177,16 +177,17 @@ const Shop = (() => {
     if (shopStore && !storeList().includes(shopStore)) { shopStore = ''; try { localStorage.setItem('shop-store', ''); } catch (e) { /* egal */ } } // gewählter Laden gibt es nicht mehr (z. B. nach dem Zusammenführen) → „Alle“
     renderStoreRow();
     const inStore = (x) => !shopStore || !x.store || x.store === shopStore;
-    const open = state.shopping.filter((x) => !x.done && inStore(x));
+    const open = state.shopping.filter((x) => !x.done && !x.cart && inStore(x));
+    const cart = state.shopping.filter((x) => !x.done && x.cart && inStore(x));
     const done = state.shopping.filter((x) => x.done && inStore(x)).sort((a, b) => (b.doneAt || '').localeCompare(a.doneAt || ''));
-    $('#shopCount').textContent = open.length ? `${open.length} offen` : 'alles erledigt';
+    $('#shopCount').textContent = open.length || cart.length ? `${open.length} offen${cart.length ? ` · ${cart.length} im Wagen` : ''}` : 'alles erledigt';
     const groups = new Map();
     open.forEach((x) => { const g = itemGroup(x.name); if (!groups.has(g)) groups.set(g, []); groups.get(g).push(x); });
     const order = GROUP_ORDER;
     const item = (x) => {
       const p = priceInfo(x.name, shopStore || x.store);
-      return `<li class="sh-item ${x.done ? 'done' : ''}" data-id="${esc(x.id)}">
-        <button class="sh-check" data-act="toggle" aria-label="${x.done ? 'wieder offen' : 'erledigt'}">${x.done ? '✓' : ''}</button>
+      return `<li class="sh-item ${x.done ? 'done' : ''} ${x.cart && !x.done ? 'in-cart' : ''}" data-id="${esc(x.id)}">
+        <button class="sh-check" data-act="toggle" aria-label="${x.done ? 'wieder offen' : x.cart ? 'aus dem Wagen nehmen' : 'in den Wagen'}">${x.done || x.cart ? '✓' : ''}</button>
         ${(() => { const im = typeof Catalog !== 'undefined' ? Catalog.imgForItem(x) : ''; return `<label class="sh-pic${im ? '' : ' empty'}" aria-label="Produktfoto">${im ? `<img src="${esc(im)}" alt="">` : '📷'}<input type="file" class="sh-photo" accept="image/*" capture="environment"></label>`; })()}
         <span class="sh-main" data-act="edit"><span class="sh-name">${esc(x.name)}${x.qty ? ` <span class="sh-qty">${esc(x.qty)}</span>` : ''}${x.store && !shopStore ? ' ' + storeBadge(x.store) : ''}${!x.store && shopStore ? ' <span class="sh-any">egal wo</span>' : ''}</span>
           ${x.done ? `<span class="sh-sub">${x.doneBy ? 'gekauft von ' + esc(x.doneBy) : 'gekauft'}</span>`
@@ -195,8 +196,10 @@ const Shop = (() => {
         <button class="sh-del" data-act="del" aria-label="Entfernen">✕</button></li>`;
     };
     let html = '';
-    if (!open.length) html += '<div class="empty-state">Die Liste ist leer.<br>Oben eintippen, diktieren 🎤 oder einen Zettel fotografieren 📷.</div>';
+    if (!open.length && !cart.length) html += '<div class="empty-state">Die Liste ist leer.<br>Oben eintippen – weitere Wege (Sprechen, Zettel) unter ⋯</div>';
     for (const g of order) if (groups.has(g)) html += `<div class="sh-group">${esc(GROUP_LABEL[g])}</div><ul class="sh-list">${groups.get(g).map(item).join('')}</ul>`;
+    if (cart.length) html += `<div class="sh-group">🛒 Im Wagen (${cart.length})</div><ul class="sh-list">${cart.map(item).join('')}</ul>
+      <button class="btn btn-primary cart-done" id="shCartDone">✓ Einkauf fertig – alles im Wagen gekauft</button>`;
     if (done.length) html += `<details class="sh-done"><summary>✓ Erledigt (${done.length})</summary><ul class="sh-list">${done.map(item).join('')}</ul>
       <button class="btn btn-ghost btn-sm" id="shClearDone">Erledigte löschen</button></details>`;
     $('#shopList').innerHTML = html;
@@ -208,6 +211,11 @@ const Shop = (() => {
   }
 
   function onListClick(e) {
+    if (e.target.id === 'shCartDone') { // alles im Wagen ist gekauft
+      const now = new Date().toISOString();
+      state.shopping.forEach((x) => { if (x.cart && !x.done) { x.done = true; x.cart = false; x.doneBy = state.settings.me; x.doneAt = now; } });
+      save(); render(); toast('✓ Einkauf erledigt'); return;
+    }
     if (e.target.id === 'shClearDone') {
       if (!confirm('Alle erledigten Einträge löschen?')) return;
       state.shopping = state.shopping.filter((x) => !x.done); save(); render(); return;
@@ -215,7 +223,8 @@ const Shop = (() => {
     const b = e.target.closest('[data-act]'); if (!b) return;
     const li = b.closest('[data-id]'); const x = state.shopping.find((s) => s.id === li.dataset.id); if (!x) return;
     if (b.dataset.act === 'toggle') {
-      x.done = !x.done; x.doneBy = x.done ? state.settings.me : ''; x.doneAt = x.done ? new Date().toISOString() : '';
+      if (x.done) { x.done = false; x.doneBy = ''; x.doneAt = ''; x.cart = false; } // aus „Erledigt“ zurück auf die Liste
+      else { x.cart = !x.cart; x.cartBy = x.cart ? state.settings.me : ''; x.cartAt = x.cart ? new Date().toISOString() : ''; } // in den Wagen / wieder raus
       save(); render();
     } else if (b.dataset.act === 'del') {
       state.shopping = state.shopping.filter((s) => s.id !== x.id); save(); render();
@@ -463,7 +472,6 @@ const Shop = (() => {
     $('#catSeries').onclick = () => Product.startSeries();
     $('#catSingle').onclick = () => Product.startLive();
     $('#catNew').onclick = () => Catalog.openNew();
-    $('#prodSeriesBtn').onclick = () => Product.startSeries();
     $('#storeDlgList').addEventListener('change', (e) => { const i = e.target.closest('[data-logo]'); if (i && i.files[0]) setLogo(i.dataset.logo, i.files[0]); });
     $('#storeDlgList').addEventListener('click', (e) => {
       const nl = e.target.closest('[data-nologo]'), rm = e.target.closest('[data-rm]');
@@ -476,6 +484,10 @@ const Shop = (() => {
       state.settings.shopStores = list; save(); render(); openStoreDialog();
     };
     $('#storeDlgClose').onclick = () => $('#storeDlg').close();
+    $('#shopMenuBtn').onclick = () => $('#shopMenuDialog').showModal();
+    $('#shopMenuClose').onclick = () => $('#shopMenuDialog').close();
+    $('#shopMenuDialog').addEventListener('click', (e) => { if (e.target.closest('.menu-list .btn')) setTimeout(() => $('#shopMenuDialog').close(), 60); });
+    $('#shopCartScan').onclick = () => Product.startCart();
     $('#shopShare').onclick = shareList;
     $('#shopPrint').onclick = printList;
     $('#shEditForm').addEventListener('submit', saveShEdit);
@@ -544,5 +556,15 @@ const Shop = (() => {
   /** Preis-Text aus den eigenen Bons (für den Produkt-Scanner) */
   function priceFor(name) { const p = priceInfo(name); return p ? priceText(p) : ''; }
 
-  return { priceFor, stores: storeList, render, calendar, askCalendar, addItems, _parseRecipeText: parseRecipeText, _splitInput: splitInput, _splitQty: splitQty };
+  function setTab(t) { tab = t; render(); }
+  /** Gescannter Artikel → passenden Eintrag in den Wagen legen (oder neu hinzufügen) */
+  function cartFromScan({ pid, name, brand }) {
+    const openItems = state.shopping.filter((x) => !x.done && !x.cart);
+    const hit = openItems.find((x) => pid && x.pid === pid) || openItems.find((x) => Catalog.nameFits(x.name, name, brand));
+    const now = new Date().toISOString();
+    if (hit) { hit.cart = true; hit.cartBy = state.settings.me; hit.cartAt = now; if (pid && !hit.pid) hit.pid = pid; save(); render(); return { name: hit.name, added: false }; }
+    state.shopping.push({ id: uid(), name: String(name || 'Artikel').slice(0, 80), qty: '', note: 'nicht auf der Liste', store: shopStore || '', ...(pid ? { pid } : {}), done: false, cart: true, cartBy: state.settings.me, cartAt: now, by: state.settings.me, at: now });
+    save(); render(); return { name, added: true };
+  }
+  return { cartFromScan, setTab, priceFor, stores: storeList, render, calendar, askCalendar, addItems, _parseRecipeText: parseRecipeText, _splitInput: splitInput, _splitQty: splitQty };
 })();

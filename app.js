@@ -249,6 +249,7 @@ function expensesForMonth(y, m, withSubs = true) {
 function render() {
   $('#monthLabel').textContent = new Date(viewY, viewM, 1).toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
   renderOverview();
+  renderHome();
   renderList();
   renderSubs();
   renderSettings();
@@ -323,7 +324,7 @@ function setMode(m, silent) {
   $$('.mode-switch button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.mode === mode)));
   const active = $('.view.active');
   const v = active ? active.id.replace('view-', '') : 'overview';
-  if ((v === 'subs' && isPersonal()) || (v === 'konto' && !isPersonal())) showView('overview');
+  if ((v === 'subs' && isPersonal()) || (v === 'konto' && !isPersonal())) showView('more');
   $('#filterPerson').value = '';
   if (!silent) { render(); if (navigator.vibrate) navigator.vibrate(8); }
 }
@@ -1059,17 +1060,50 @@ function shortcutUrl() {
 }
 
 // ---------- Views ----------
+const TAB_OF = { home: 'home', shop: 'shop', overview: 'overview', list: 'more', subs: 'more', konto: 'more', settings: 'more', more: 'more' };
 function showView(name) {
+  if (!document.getElementById('view-' + name)) name = 'home';
   storeFilter = '';
+  document.body.dataset.view = name;
   $$('.view').forEach((v) => v.classList.toggle('active', v.id === 'view-' + name));
-  $$('.tabbar button').forEach((b) => b.classList.toggle('active', b.dataset.view === name));
-  $('#fab').hidden = name === 'settings' || name === 'konto' || name === 'shop';
+  $$('.tabbar button').forEach((b) => b.classList.toggle('active', b.dataset.view === TAB_OF[name]));
+  $('#fab').hidden = name !== 'list'; // „Ausgabe erfassen“ gibt es auf dem Start als Kachel
+  if (name === 'home') renderHome();
   if (name === 'shop' && typeof Shop !== 'undefined') Shop.render();
   if (name === 'settings') renderSync();
   if (name === 'overview') renderOverview(); // Diagramm an sichtbare Breite anpassen
   if (name === 'konto' && typeof Konto !== 'undefined') { Konto.render(); Konto.autoRefresh(); }
   window.scrollTo({ top: 0 });
   try { sessionStorage.setItem('ausgaben-view', name); } catch (e) { /* egal */ }
+}
+
+// ---------- Start: das Wichtigste auf einen Blick ----------
+function renderHome() {
+  if (!document.getElementById('view-home')) return;
+  const me = state.settings.me && !DEFAULT_NAMES.includes(state.settings.me) ? state.settings.me : '';
+  const h = new Date().getHours();
+  $('#homeHello').textContent = `${h < 11 ? 'Guten Morgen' : h < 18 ? 'Hallo' : 'Guten Abend'}${me ? ' ' + me : ''} 👋`;
+  const now = new Date();
+  $('#homeMonth').textContent = now.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
+  // Ausgaben dieses Monats (Ansicht wie unter „Stand“)
+  const exps = expensesForMonth(now.getFullYear(), now.getMonth()).filter((e) => (isPersonal() ? isMine(e) : !e.private));
+  const spent = exps.reduce((a, e) => a + (+e.amount || 0), 0);
+  const budget = +state.settings.budget || 0;
+  $('#homeSpent').textContent = fmt(spent);
+  $('#homeSpentSub').textContent = `${isPersonal() ? 'Meine' : 'Gemeinsame'} Ausgaben im ${now.toLocaleDateString('de-DE', { month: 'long' })}${budget > 0 ? ` · Budget ${fmt0(budget)}` : ''}`;
+  $('#homeBar').style.width = budget > 0 ? Math.min(100, (spent / budget) * 100) + '%' : '0%';
+  $('#homeBar').parentElement.hidden = !(budget > 0);
+  // Kontostand (nur eigene, auf diesem Gerät verbundene Konten)
+  const bal = typeof Konto !== 'undefined' && Konto.balances ? Konto.balances() : [];
+  const sum = bal.reduce((a, b) => a + b.amount, 0);
+  $('#homeKonto').textContent = bal.length ? `Mein Konto: ${fmt(sum)}` : '';
+  $('#homeKonto').hidden = !bal.length;
+  const sk = $('#standKonto'); sk.hidden = !bal.length; sk.dataset.go = 'konto';
+  if (bal.length) sk.innerHTML = `<span>🏦 Mein Konto<br><small class="muted">${bal[0].date ? 'Stand ' + esc(String(bal[0].date).split('-').reverse().join('.')) : ''}</small></span><b>${fmt(sum)}</b>`;
+  const open = (state.shopping || []).filter((x) => !x.done);
+  const cart = open.filter((x) => x.cart).length;
+  $('#homeShop').textContent = open.length ? `${open.length - cart} offen${cart ? ` · ${cart} im Wagen` : ''}` : 'alles erledigt';
+  $('#homeProds').textContent = `${(state.products || []).length} gespeichert`;
 }
 
 // ---------- Expense dialog ----------
@@ -1608,9 +1642,22 @@ setMode(mode, true);
 handleIncomingUrl();
 handleInviteHash();
 window.addEventListener('hashchange', handleInviteHash);
-let startView = 'overview';
-try { startView = sessionStorage.getItem('ausgaben-view') || 'overview'; } catch (e) { /* egal */ }
-if ((startView === 'subs' && isPersonal()) || (startView === 'konto' && !isPersonal())) startView = 'overview';
+let startView = 'home';
+try { startView = sessionStorage.getItem('ausgaben-view') || 'home'; } catch (e) { /* egal */ }
+if ((startView === 'subs' && isPersonal()) || (startView === 'konto' && !isPersonal())) startView = 'home';
+// Kacheln (Start) und Liste (Mehr)
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-go]'); if (!b) return;
+  const g = b.dataset.go;
+  if (g === 'add') openExpenseDialog(null);
+  else if (g === 'scan') Receipt.startScan();
+  else if (g === 'bonfile') { showView('list'); setTimeout(() => $('#bonFileBtn').click(), 50); }
+  else if (g === 'prods' || g === 'recipes') { showView('shop'); Shop.setTab(g); }
+  else if (g === 'shop') { showView('shop'); Shop.setTab('list'); }
+  else if (g === 'konto') { if (!isPersonal()) setMode('personal', true); showView('konto'); render(); }
+  else if (g === 'subs') { if (isPersonal()) setMode('shared', true); showView('subs'); render(); }
+  else showView(g);
+});
 showView(startView);
 render();
 $('#avEmojiBtn').onclick = openEmojiPicker;

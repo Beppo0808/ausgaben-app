@@ -291,6 +291,14 @@ const Catalog = (() => {
     return norm(name).split(' ').filter((w) => w.length >= 3 && !/^\d/.test(w) && !skip.has(w) && !/^(ltr|liter|gramm|stk|stueck|pack|bio|ja|gut|guenstig|und|mit)$/.test(w));
   };
 
+  /** Passt ein Listeneintrag („Butter“) zu einem Produkt („Kerrygold Irische Butter“)? */
+  function nameFits(itemName, prodName, brand) {
+    const ws = sigWords(itemName); if (!ws.length) return false;
+    const pw = norm(`${brand || ''} ${prodName || ''}`).split(' ');
+    const hw = ws[ws.length - 1];
+    return pw.some((x) => wordHit(hw, x)) && (ws.length < 2 || ws.filter((w) => pw.some((x) => wordHit(w, x))).length >= 2);
+  }
+
   /** Nach dem Bon-Scan: passende offene Einträge abhaken, Produkt-Preise ergänzen. Liefert die Zahl der abgehakten Einträge. */
   /** Passt ein Bon-Artikel zu diesem Produkt? (Strichcode, gemerkter Bon-Name, oder Marke + Produktwort) */
   function itemFits(p, it) {
@@ -334,12 +342,22 @@ const Catalog = (() => {
       const hit = bonItems.find((b) => !b.used && ((prod && (prod.aliases || []).includes(b.k)) || (x.bk && x.bk === b.k))) || bonItems.find((b) => !b.used && fits(b));
       if (!hit) continue;
       hit.used = true; n++;
-      x.done = true; x.doneBy = state.settings.me; x.doneAt = new Date().toISOString(); x.note = `laut Bon${st ? ' · ' + st : ''}`;
+      x.done = true; x.cart = false; x.doneBy = state.settings.me; x.doneAt = new Date().toISOString(); x.note = `laut Bon${st ? ' · ' + st : ''}`;
       if (prod) { // Bon-Name merken: nächstes Mal sicher erkannt, Preis landet beim Produkt
         if (!(prod.aliases || []).includes(hit.k)) prod.aliases = [...(prod.aliases || []), hit.k].slice(-12);
       }
     }
-    if (n) save();
+    // Lag im Wagen, steht aber nicht auf dem Bon (gleiche Person, passender Laden, gleicher Tag) → wohl nicht gekauft: zurück auf die Liste
+    let back = 0;
+    const bonDay = exp.date || today();
+    for (const x of state.shopping.filter((s) => !s.done && s.cart)) {
+      if (x.cartBy && exp.person && x.cartBy !== exp.person) continue;
+      if (x.store && st && niceStore(x.store) !== st) continue;
+      if (x.cartAt && Math.abs(new Date(x.cartAt.slice(0, 10)) - new Date(bonDay)) > 864e5) continue;
+      x.cart = false; x.note = 'nicht auf dem Bon'; back++;
+    }
+    if (back) setTimeout(() => toast(`↩️ ${back} Artikel aus dem Wagen standen nicht auf dem Bon – wieder auf der Liste`), 2500);
+    if (n || back) save();
     return n;
   }
 
@@ -375,5 +393,5 @@ const Catalog = (() => {
     };
   }
 
-  return { setImgIfEmpty, fromLink, cropFromFile, bestPrice, pickById, openNew, imgForItem, photoForItem, render, fromBon, upsertScan, setPrice, pricesFor, packFor, setPack, byEan, imgFor, setImg, thumb, thumbFromFile };
+  return { nameFits, setImgIfEmpty, fromLink, cropFromFile, bestPrice, pickById, openNew, imgForItem, photoForItem, render, fromBon, upsertScan, setPrice, pricesFor, packFor, setPack, byEan, imgFor, setImg, thumb, thumbFromFile };
 })();

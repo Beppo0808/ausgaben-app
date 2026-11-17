@@ -217,7 +217,8 @@ const Product = (() => {
   }
   /** Eigene Kamera-Schleife: alle 0,2 s den mittleren Bildausschnitt nach einem Strichcode absuchen */
   async function startLive(keepSeries) {
-    if (keepSeries !== true) series = false;
+    if (keepSeries !== true) { series = false; cartMode = false; }
+    $('#camMode').hidden = cartMode;
     bind(); stopLive();
     current = null; lastP = null; shot = '';
     $('#prodResult').innerHTML = ''; $('#prodPrices').innerHTML = ''; $('#prodTagForm').hidden = true; $('#prodAdd').hidden = true; $('#prodSave').hidden = true; $('#prodSaved').hidden = true; $('#prodEan').value = '';
@@ -251,13 +252,13 @@ const Product = (() => {
           x.drawImage(v, sx, sy, cw, ch, 0, 0, c.width, c.height);
           let t = '';
           try { t = reader.decode(new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(new ZXing.HTMLCanvasElementLuminanceSource(c)))).getText(); } catch (e) { /* noch nichts */ }
-          if (t && eanOk(t) && !(series && t === lastSeries)) {
+          if (t && eanOk(t) && !((series || cartMode) && t === lastSeries)) {
             count = t === seen ? count + 1 : 1; seen = t;
             if (count >= 2) { // zweimal gleich gelesen = sicher
               if (navigator.vibrate) navigator.vibrate(60);
               try { shot = Catalog.thumb(v, vw, vh); } catch (e) { shot = ''; }
               stopLive();
-              if (series) { $('#prodEan').value = t; seriesHit(t); } else show(t);
+              if (cartMode) { $('#prodEan').value = t; cartHit(t); } else if (series) { $('#prodEan').value = t; seriesHit(t); } else show(t);
             }
           }
         } finally { busy = false; }
@@ -387,7 +388,7 @@ const Product = (() => {
     remember(ean);
   }
   // ---------- Serien-Scan: Vorrat in einem Rutsch erfassen ----------
-  let series = false, seriesN = 0, lastSeries = '';
+  let series = false, seriesN = 0, lastSeries = '', cartMode = false;
   async function seriesHit(ean) {
     lastSeries = ean;
     let p = null; try { p = await lookup(ean); } catch (e) { /* offline */ }
@@ -395,14 +396,30 @@ const Product = (() => {
     else toast(`❔ ${ean} nicht in der Datenbank – später einzeln scannen`);
     setTimeout(() => { if (series && $('#prodDialog').open) startLive(true); }, 1200);
   }
-  const camHint = () => { $('#prodCamHint').textContent = series ? `⚡ Mehrere: ein Produkt nach dem anderen ins Bild halten${seriesN ? ' · ' + seriesN + ' gemerkt' : ''}` : 'Strichcode ins Bild halten – wird automatisch erkannt'; };
+  const camHint = () => { $('#prodCamHint').textContent = cartMode ? `🛒 Artikel scannen – landet im Wagen${seriesN ? ' · ' + seriesN + ' im Wagen' : ''}` : series ? `⚡ Mehrere: ein Produkt nach dem anderen ins Bild halten${seriesN ? ' · ' + seriesN + ' gemerkt' : ''}` : 'Strichcode ins Bild halten – wird automatisch erkannt'; };
   const markMode = () => $$('#camMode button').forEach((b) => b.setAttribute('aria-pressed', String((b.dataset.m === 'series') === series)));
+  /** Im Laden: Artikel scannen → kommt in den Wagen */
+  async function cartHit(ean) {
+    lastSeries = ean;
+    let p = null; try { p = await lookup(ean); } catch (e) { /* offline */ }
+    const own = Catalog.byEan(ean);
+    const name = (own && own.name) || (p && (p.product_name_de || p.product_name || p.generic_name_de)) || '';
+    const brand = (own && own.brand) || (p ? String(p.brands || '').split(',')[0].trim() : '');
+    if (!name) toast(`❔ ${ean} unbekannt – bitte von Hand abhaken`);
+    else {
+      const pid = own ? own.id : (p ? Catalog.upsertScan({ ean, name: name.slice(0, 80), brand, qty: p.quantity || '', img: '' }) : '');
+      const r = Shop.cartFromScan({ pid, name, brand });
+      seriesN++; toast(r.added ? `🛒 ${r.name} – stand nicht auf der Liste, in den Wagen gelegt` : `🛒 ${r.name} ist im Wagen`);
+    }
+    setTimeout(() => { if (cartMode && $('#prodDialog').open) startLive(true); }, 1200);
+  }
+  function startCart() { cartMode = true; series = false; seriesN = 0; lastSeries = ''; startLive(true); }
   function startSeries() { series = true; seriesN = 0; lastSeries = ''; startLive(true); }
 
   function bind() {
     if (bound) return; bound = true;
     $('#prodClose').onclick = () => $('#prodDialog').close();
-    $('#prodDialog').addEventListener('close', () => { if (typeof Catalog !== 'undefined' && !$('#catPane').hidden) Catalog.render(); stopLive(); if (series && seriesN) toast(`⭐ ${seriesN} Produkte unter „Produkte“ gemerkt`); series = false; });
+    $('#prodDialog').addEventListener('close', () => { cartMode = false; if (typeof Catalog !== 'undefined' && !$('#catPane').hidden) Catalog.render(); stopLive(); if (series && seriesN) toast(`⭐ ${seriesN} Produkte unter „Produkte“ gemerkt`); series = false; });
     $('#prodRescan').onclick = () => startLive(series);
     $('#camMode').onclick = (e) => { const b = e.target.closest('[data-m]'); if (!b) return; series = b.dataset.m === 'series'; lastSeries = ''; markMode(); camHint(); };
     $('#camStop').onclick = () => $('#prodDialog').close();
@@ -457,5 +474,5 @@ const Product = (() => {
     $('#prodEanBtn').onclick = () => { const v = $('#prodEan').value.replace(/\D/g, ''); if (v.length >= 8) show(v); else toast('Bitte die Ziffern unter dem Strichcode eintippen'); };
   }
   const showEan = (ean) => { bind(); shot = ''; $('#prodCam').hidden = true; if (!$('#prodDialog').open) $('#prodDialog').showModal(); show(ean); };
-  return { handleFile, bind, openPrefs, startLive, startSeries, showEan };
+  return { handleFile, bind, openPrefs, startLive, startSeries, startCart, showEan };
 })();
