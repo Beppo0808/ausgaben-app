@@ -237,7 +237,13 @@ const Shop = (() => {
     } else if (b.dataset.act === 'edit') {
       shEditing = x;
       const f = $('#shEditForm');
-      f.text.value = (x.qty ? x.qty + ' ' : '') + x.name;
+      f.text.value = x.name;
+      // Anzahl zum Auswählen (iPhone zeigt ein Drehrad); vorhandene Angaben wie „150 g“ bleiben wählbar
+      const q = String(x.qty || '').replace(/\s*[x×]\s*$/i, '').trim();
+      const opts = ['', ...Array.from({ length: 30 }, (_, i) => String(i + 1)), '250 g', '500 g', '1 kg', '1 l', '1 Packung', '1 Bund'];
+      if (q && !opts.includes(q)) opts.splice(1, 0, q);
+      f.qty.innerHTML = opts.map((o) => `<option value="${esc(o)}">${o ? esc(o) : '— keine Angabe —'}</option>`).join('');
+      f.qty.value = q;
       f.group.innerHTML = GROUP_ORDER.map((g) => `<option value="${g}">${esc(GROUP_LABEL[g])}</option>`).join('');
       f.group.value = itemGroup(x.name);
       const sl = storeList().concat(x.store && !storeList().includes(x.store) ? [x.store] : []); // eigener Laden des Eintrags immer wählbar (sonst würde er beim Speichern geändert)
@@ -257,7 +263,7 @@ const Shop = (() => {
     const v = f.text.value.trim();
     if (!v) state.shopping = state.shopping.filter((s) => s.id !== x.id);
     else {
-      const sp = splitQty(v); x.name = sp.name.slice(0, 80); x.qty = sp.qty.slice(0, 30); x.store = f.store.value;
+      const sp = splitQty(v); x.name = sp.name.slice(0, 80); x.qty = (sp.qty || f.qty.value).slice(0, 30); x.store = f.store.value; // Menge im Text geht vor, sonst Auswahl
       if (f.group.value !== itemGroup(x.name)) state.rules['grp:' + normItem(x.name)] = f.group.value; // gemerkt – auch für Artikel & Preise
     }
     save(); $('#shEditDialog').close(); shEditing = null; render(); toast('Gespeichert ✓');
