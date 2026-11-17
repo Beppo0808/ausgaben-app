@@ -419,8 +419,9 @@ const Product = (() => {
     if (!name) toast(`❔ ${ean} unbekannt – bitte von Hand abhaken`);
     else {
       const pid = own ? own.id : (p ? Catalog.upsertScan({ ean, name: name.slice(0, 80), brand, qty: p.quantity || '', img: '' }) : '');
-      const r = Shop.cartFromScan({ pid, name, brand });
-      seriesN++; toast(r.added ? `🛒 ${r.name} – stand nicht auf der Liste, in den Wagen gelegt` : `🛒 ${r.name} ist im Wagen`);
+      const cats = p ? String(p.categories || '').split(',').map((c) => c.replace(/^\s*\w\w:/, '').trim()) : [];
+      const r = Shop.cartFromScan({ pid, name, brand, cats });
+      seriesN++; toast(r.added ? `🛒 ${r.name} in den Wagen gelegt` : `🛒 ${r.name} ist im Wagen`);
     }
     setTimeout(() => { if (cartMode && $('#prodDialog').open) startLive(true); }, 1200);
   }

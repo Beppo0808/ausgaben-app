@@ -6,7 +6,7 @@
 const Catalog = (() => {
   let labelNut = null;
   let bound = false, q = '', editing = null, picking = null, grp = '', sub = '', net = null, netQ = '';
-  const norm = (s) => String(s || '').toLowerCase().replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss')
+  const norm = (s) => String(s || '').toLowerCase().replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
   const list = () => (Array.isArray(state.products) ? state.products : (state.products = []));
   const today = () => new Date().toISOString().slice(0, 10);
@@ -350,9 +350,13 @@ const Catalog = (() => {
   };
 
   /** Passt ein Listeneintrag („Butter“) zu einem Produkt („Kerrygold Irische Butter“)? */
-  function nameFits(itemName, prodName, brand) {
+  // gleiche Sache, andere Wörter („Kaffee“ = „Caffè Crema“)
+  const SYN = { kaffee: ['caffe', 'coffee', 'espresso', 'kaffe', 'crema', 'roestkaffee'], tee: ['tea', 'tees'], milch: ['milk', 'vollmilch', 'h milch'], nudeln: ['pasta', 'spaghetti', 'penne', 'fusilli', 'tagliatelle', 'farfalle'],
+    joghurt: ['yogurt', 'yoghurt', 'jogurt'], saft: ['juice', 'nektar'], eier: ['eggs', 'ei'], kaese: ['cheese', 'gouda', 'emmentaler'], brot: ['toast', 'brot'], wasser: ['water', 'mineralwasser', 'sprudel'], schokolade: ['chocolate', 'schoko'] };
+  function nameFits(itemName, prodName, brand, cats) {
     const ws = sigWords(itemName); if (!ws.length) return false;
-    const pw = norm(`${brand || ''} ${prodName || ''}`).split(' ');
+    const pw = norm(`${brand || ''} ${prodName || ''} ${(cats || []).join(' ')}`).split(' ');
+    const syn = SYN[ws[ws.length - 1]]; if (syn && pw.some((x) => syn.some((sy) => wordHit(sy, x)))) return true;
     const hw = ws[ws.length - 1];
     return pw.some((x) => wordHit(hw, x)) && (ws.length < 2 || ws.filter((w) => pw.some((x) => wordHit(w, x))).length >= 2);
   }

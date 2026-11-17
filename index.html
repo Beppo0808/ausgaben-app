@@ -260,13 +260,15 @@
         <div class="card">
           <div class="card-head"><h2>🛒 Einkaufsliste</h2><span class="muted" id="shopCount"></span><button type="button" class="dots-btn" id="shopMenuBtn" aria-label="Weitere Möglichkeiten">⋯</button></div>
           <form id="shopForm" class="shop-add" autocomplete="off">
-            <input type="text" id="shopInput" list="shopSuggest" placeholder="z. B. Milch, 2 Butter, Eier" aria-label="Artikel hinzufügen" enterkeyhint="done">
+            <input type="text" id="shopInput" list="shopSuggest" placeholder="z. B. Milch, Butter" aria-label="Artikel hinzufügen" enterkeyhint="done">
+            <select id="shopQty" aria-label="Menge"><option value="">Menge</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option><option>10</option><option>11</option><option>12</option><option>13</option><option>14</option><option>15</option><option>16</option><option>17</option><option>18</option><option>19</option><option>20</option><option>250 g</option><option>500 g</option><option>1 kg</option><option>1 l</option></select>
             <button type="submit" class="btn btn-primary" aria-label="Hinzufügen">＋</button>
           </form>
           <datalist id="shopSuggest"></datalist>
           <div class="store-row" id="shopStores"></div>
           <p class="hint store-hint" id="shopStoreHint"></p>
-          <button type="button" class="cart-scan" id="shopCartScan">📷 Artikel scannen → in den Wagen</button>
+          <div class="cart-row"><button type="button" class="cart-scan" id="shopCartScan">📷 Artikel scannen</button>
+            <label class="cart-scan">📸 Wagen fotografieren<input type="file" id="shopCartPhoto" accept="image/*" capture="environment" hidden></label></div>
         </div>
         <div id="shopList"></div>
       </div>
