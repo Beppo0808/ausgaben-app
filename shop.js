@@ -476,8 +476,23 @@ const Shop = (() => {
   }
 
   // ---------- Darstellung ----------
+  /** „Aldi“ ohne Himmelsrichtung in „ALDI SÜD“ aufgehen lassen (Läden, Logo, Einträge, Preise) – einmalig */
+  function mergePlainAldi() {
+    const list = Array.isArray(state.settings.shopStores) ? state.settings.shopStores : null;
+    const plain = list && list.find((x) => norm(x) === 'aldi'); if (!plain) return;
+    const target = list.find((x) => norm(x) === 'aldi sued') || 'ALDI SÜD';
+    state.settings.shopStores = list.includes(target) ? list.filter((x) => x !== plain) : list.map((x) => (x === plain ? target : x));
+    const logos = { ...(state.settings.storeLogos || {}) };
+    if (logos[plain]) { if (!logos[target]) logos[target] = logos[plain]; delete logos[plain]; state.settings.storeLogos = logos; }
+    (state.shopping || []).forEach((x) => { if (x.store === plain) x.store = target; });
+    (state.products || []).forEach((pr) => { if (pr.stores && pr.stores[plain]) { const a = pr.stores[plain], b = pr.stores[target]; if (!b || (a.d || '') > (b.d || '')) pr.stores[target] = a; delete pr.stores[plain]; } });
+    if (shopStore === plain) setShopStore(target);
+    save();
+  }
+
   function render() {
     if (!document.getElementById('view-shop')) return;
+    mergePlainAldi();
     bind();
     if (!Array.isArray(state.shopping)) state.shopping = [];
     if (!Array.isArray(state.recipes)) state.recipes = [];
