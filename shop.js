@@ -62,14 +62,14 @@ const Shop = (() => {
     'Penny': ['#cd1414', '#ffffff'], 'Kaufland': ['#e10915', '#ffffff'], 'Mix Markt': ['#e30613', '#ffffff'], 'dm': ['#ffffff', '#1e3d8f', '#f7c600'],
     'Rossmann': ['#c70f2e', '#ffffff'], 'Trinkgut': ['#0a7a3a', '#ffffff'], 'Fressnapf': ['#2a8c3c', '#ffffff'],
   };
-  const DEFAULT_STORES = ['ALDI SÜD', 'ALDI Nord', 'LIDL', 'REWE', 'EDEKA', 'Marktkauf', 'Netto', 'Penny', 'Kaufland', 'dm', 'Rossmann'];
-  const sameStore = (a, b) => { const x = norm(a), y = norm(b); return x === y || (!!x && x.split(' ')[0] === y.split(' ')[0]); }; // „ALDI SÜD“ = „Aldi“
+  const DEFAULT_STORES = ['ALDI SÜD', 'LIDL', 'REWE', 'EDEKA', 'Marktkauf', 'Netto', 'Penny', 'Kaufland', 'dm', 'Rossmann'];
+  const sameStore = (a, b) => { const x = norm(a), y = norm(b); if (!x || !y) return false; if (x === y) return true; const [x0, ...xr] = x.split(' '), [y0, ...yr] = y.split(' '); return x0 === y0 && (!xr.length || !yr.length); }; // „Aldi“ = „ALDI SÜD“, aber nicht „ALDI Nord“
   const storeList = () => (Array.isArray(state.settings.shopStores) && state.settings.shopStores.length ? state.settings.shopStores : DEFAULT_STORES);
   const logoOk = (l) => l && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(l) ? l : '';
   const logoOf = (name) => {
     const all = state.settings.storeLogos || {}; if (logoOk(all[name])) return all[name];
     const n = norm(name), first = n.split(' ')[0];
-    const k = Object.keys(all).find((x) => norm(x) === n) || Object.keys(all).find((x) => first.length >= 2 && norm(x).split(' ')[0] === first);
+    const k = Object.keys(all).find((x) => norm(x) === n) || Object.keys(all).find((x) => first.length >= 2 && sameStore(x, name));
     return k ? logoOk(all[k]) : '';
   };
   function storeBadge(name, big) {
@@ -499,7 +499,9 @@ const Shop = (() => {
   /** „Aldi“ ohne Himmelsrichtung in „ALDI SÜD“ aufgehen lassen (Läden, Logo, Einträge, Preise) – einmalig */
   function mergePlainAldi() {
     const list = Array.isArray(state.settings.shopStores) ? state.settings.shopStores : null;
-    const plain = list && list.find((x) => norm(x) === 'aldi'); if (!plain) return;
+    const plain = list && (list.find((x) => norm(x) === 'aldi') || (!state.settings.aldiNordWeg && list.find((x) => norm(x) === 'aldi nord')));
+    if (!plain) { if ((state.shopping || []).some((x) => norm(x.store) === 'aldi nord') && !state.settings.aldiNordWeg) { state.shopping.forEach((x) => { if (norm(x.store) === 'aldi nord') x.store = 'ALDI SÜD'; }); state.settings.aldiNordWeg = true; save(); } return; }
+    if (norm(plain) === 'aldi nord') state.settings.aldiNordWeg = true; // ihr kauft bei ALDI SÜD – Nord einmalig zusammenführen
     const target = list.find((x) => norm(x) === 'aldi sued') || 'ALDI SÜD';
     state.settings.shopStores = list.includes(target) ? list.filter((x) => x !== plain) : list.map((x) => (x === plain ? target : x));
     const logos = { ...(state.settings.storeLogos || {}) };

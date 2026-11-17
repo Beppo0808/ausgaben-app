@@ -136,7 +136,7 @@ const Catalog = (() => {
   }
 
   /** Ladenname wie in der Ladenleiste schreiben („EDEKA“ → „Edeka“) */
-  const niceStore = (st) => { const n = norm(st); if (!n) return ''; return Shop.stores().find((s) => { const k = norm(s); return k === n || k.split(' ')[0] === n.split(' ')[0]; }) || st; };
+  const niceStore = (st) => { const n = norm(st); if (!n) return ''; const same = (a, b) => { const x = norm(a), y = norm(b); if (!x || !y) return false; if (x === y) return true; const [x0, ...xr] = x.split(' '), [y0, ...yr] = y.split(' '); return x0 === y0 && (!xr.length || !yr.length); }; return Shop.stores().find((s) => norm(s) === n) || Shop.stores().find((s) => same(s, st)) || st; };
 
   // ---------- Einträge aus Bons (ohne Speichern – werden jedes Mal aus den Bons berechnet) ----------
   function fromBons() {
