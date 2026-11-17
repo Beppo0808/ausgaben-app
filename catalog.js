@@ -37,10 +37,11 @@ const Catalog = (() => {
       img.onerror = () => { URL.revokeObjectURL(u); res(''); };
       img.onload = () => {
         const cv = $('#cropCv'), cx = cv.getContext('2d'), S = cv.width;
-        const W = img.naturalWidth, H = img.naturalHeight, base = Math.max(S / W, S / H);
+        const W = img.naturalWidth, H = img.naturalHeight, base = Math.min(S / W, S / H); // ganzes Bild sichtbar, dann vergrößern
         let z = 1, ox = 0, oy = 0, drag = null, done = false;
-        const clamp = () => { const k = base * z; ox = Math.min(0, Math.max(S - W * k, ox)); oy = Math.min(0, Math.max(S - H * k, oy)); };
-        const draw = () => { clamp(); const k = base * z; cx.fillStyle = '#fff'; cx.fillRect(0, 0, S, S); cx.drawImage(img, ox, oy, W * k, H * k); };
+        const fit = (o, len) => (len <= S ? (S - len) / 2 : Math.min(0, Math.max(S - len, o))); // kleiner als der Rahmen → mittig, sonst Rand nicht freilegen
+        const clamp = () => { const k = base * z; ox = fit(ox, W * k); oy = fit(oy, H * k); };
+        const draw = () => { clamp(); const k = base * z; cx.fillStyle = '#fffaf3'; cx.fillRect(0, 0, S, S); cx.drawImage(img, ox, oy, W * k, H * k); };
         ox = (S - W * base) / 2; oy = (S - H * base) / 2; $('#cropZoom').value = '1'; draw();
         const scale = () => cv.width / cv.getBoundingClientRect().width;
         cv.onpointerdown = (e) => { drag = { x: e.clientX, y: e.clientY, ox, oy }; cv.setPointerCapture(e.pointerId); };
