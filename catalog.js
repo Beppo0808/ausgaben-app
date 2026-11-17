@@ -217,7 +217,7 @@ const Catalog = (() => {
         <button type="button" class="cat-pic" data-act="add" aria-label="${esc(x.name)} auf die Einkaufsliste">${x.img ? `<img src="${esc(x.img)}" alt="" loading="lazy">` : `<span>${emojiOf(x.name)}</span>`}</button>
         <button type="button" class="cat-info" data-act="edit" aria-label="Details">ⓘ</button>
         <div class="cat-name">${x.brand ? `<small>${esc(x.brand)}</small>` : ''}${esc(x.name)}${x.qty ? ` <small>${esc(x.qty)}</small>` : ''}</div>
-        <div class="cat-price">${b.length ? `${fmt(b[0].p)} · ${esc(b[0].st)}${b.length > 1 ? ` <small>+${b.length - 1}</small>` : ''}` : '<small>noch kein Preis</small>'}</div>
+        <div class="cat-price">${b.length ? `${Shop.badge(niceStore(b[0].st))} ${fmt(b[0].p)}${b.length > 1 ? ` <small>+${b.length - 1}</small>` : ''}` : '<small>noch kein Preis</small>'}</div>
       </div>`;
     }).join('') : '<div class="empty-state">Noch keine Produkte.<br>Sie entstehen automatisch aus euren Bons und aus gescannten Produkten.</div>';
     current = shown;

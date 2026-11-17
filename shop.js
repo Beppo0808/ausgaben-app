@@ -63,6 +63,7 @@ const Shop = (() => {
     'Rossmann': ['#c70f2e', '#ffffff'], 'Trinkgut': ['#0a7a3a', '#ffffff'], 'Fressnapf': ['#2a8c3c', '#ffffff'],
   };
   const DEFAULT_STORES = ['ALDI SÜD', 'ALDI Nord', 'LIDL', 'REWE', 'EDEKA', 'Marktkauf', 'Netto', 'Penny', 'Kaufland', 'dm', 'Rossmann'];
+  const sameStore = (a, b) => { const x = norm(a), y = norm(b); return x === y || (!!x && x.split(' ')[0] === y.split(' ')[0]); }; // „ALDI SÜD“ = „Aldi“
   const storeList = () => (Array.isArray(state.settings.shopStores) && state.settings.shopStores.length ? state.settings.shopStores : DEFAULT_STORES);
   const logoOk = (l) => l && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(l) ? l : '';
   const logoOf = (name) => {
@@ -86,7 +87,7 @@ const Shop = (() => {
   function setShopStore(v) { shopStore = v; try { localStorage.setItem('shop-store', v); } catch (e) { /* egal */ } render(); }
   function renderStoreRow() {
     const open = state.shopping.filter((x) => !x.done);
-    const cnt = (st) => open.filter((x) => x.store === st).length;
+    const cnt = (st) => open.filter((x) => x.store && sameStore(x.store, st)).length;
     $('#shopStores').innerHTML = `<button type="button" class="store-pick ${!shopStore ? 'on' : ''}" data-st=""><span class="store-badge" style="background:#f6efe4;color:#4a3a2c">🛒 Alle</span>${open.length ? `<b>${open.length}</b>` : ''}</button>`
       // Läden mit offenen Einträgen zuerst (meiste oben), danach alle anderen alphabetisch
       + [...storeList()].sort((a, b) => (cnt(b) > 0) - (cnt(a) > 0) || cnt(b) - cnt(a) || a.localeCompare(b, 'de', { sensitivity: 'base' })).map((st) => `<button type="button" class="store-pick ${shopStore === st ? 'on' : ''}" data-st="${esc(st)}">${storeBadge(st)}${cnt(st) ? `<b>${cnt(st)}</b>` : ''}</button>`).join('')
@@ -128,7 +129,7 @@ const Shop = (() => {
 
   // ---------- Senden & Drucken (aktueller Laden oder alles, nach Laden und Gruppe sortiert) ----------
   function exportGroups() {
-    const open = state.shopping.filter((x) => !x.done && (!shopStore || !x.store || x.store === shopStore));
+    const open = state.shopping.filter((x) => !x.done && (!shopStore || !x.store || sameStore(x.store, shopStore)));
     const byStore = new Map();
     const stores = shopStore ? [shopStore] : [...new Set(open.map((x) => x.store || ''))].sort((a, b) => (a === '') - (b === '') || a.localeCompare(b, 'de'));
     stores.forEach((st) => byStore.set(st, open.filter((x) => (shopStore ? true : (x.store || '') === st))));
@@ -182,7 +183,7 @@ const Shop = (() => {
   function renderList() {
     if (shopStore && !storeList().includes(shopStore)) { shopStore = ''; try { localStorage.setItem('shop-store', ''); } catch (e) { /* egal */ } } // gewählter Laden gibt es nicht mehr (z. B. nach dem Zusammenführen) → „Alle“
     renderStoreRow();
-    const inStore = (x) => !shopStore || !x.store || x.store === shopStore;
+    const inStore = (x) => !shopStore || !x.store || sameStore(x.store, shopStore);
     const open = state.shopping.filter((x) => !x.done && inStore(x)).sort((a, b) => !!a.cart - !!b.cart); // im Wagen: durchgestrichen, unten in der Gruppe
     const cart = open.filter((x) => x.cart);
     const done = state.shopping.filter((x) => x.done && inStore(x)).sort((a, b) => (b.doneAt || '').localeCompare(a.doneAt || ''));
@@ -195,7 +196,7 @@ const Shop = (() => {
       return `<li class="sh-item ${x.done ? 'done' : ''} ${x.cart && !x.done ? 'in-cart' : ''}" data-id="${esc(x.id)}">
         <button class="sh-check" data-act="toggle" aria-label="${x.done ? 'wieder offen' : x.cart ? 'aus dem Wagen nehmen' : 'in den Wagen'}">${x.done || x.cart ? '✓' : ''}</button>
         ${(() => { const im = typeof Catalog !== 'undefined' ? Catalog.imgForItem(x) : ''; return `<label class="sh-pic${im ? '' : ' empty'}" aria-label="Produktfoto">${im ? `<img src="${esc(im)}" alt="">` : '📷'}<input type="file" class="sh-photo" accept="image/*" capture="environment"></label>`; })()}
-        <span class="sh-main" data-act="edit"><span class="sh-name">${esc(x.name)}${x.qty ? ` <span class="sh-qty">${esc(x.qty)}</span>` : ''}${x.store && !shopStore ? ' ' + storeBadge(x.store) : ''}${!x.store && shopStore ? ' <span class="sh-any">egal wo</span>' : ''}</span>
+        <span class="sh-main" data-act="edit"><span class="sh-name">${esc(x.name)}${x.qty ? ` <span class="sh-qty">${esc(x.qty)}</span>` : ''}${x.store ? ' ' + storeBadge(x.store) : ''}${!x.store && shopStore ? ' <span class="sh-any">egal wo</span>' : ''}</span>
           ${x.done ? `<span class="sh-sub">${x.doneBy ? 'gekauft von ' + esc(x.doneBy) : 'gekauft'}</span>`
             : `${p ? `<span class="sh-price">💶 ${esc(priceText(p))}</span>` : ''}${x.note || (x.by && x.by !== state.settings.me) ? `<span class="sh-sub">${[x.note, x.by && x.by !== state.settings.me ? 'von ' + x.by : ''].filter(Boolean).map(esc).join(' · ')}</span>` : ''}`}
         </span>
@@ -622,5 +623,5 @@ const Shop = (() => {
     state.shopping.push({ id: uid(), name: String(name || 'Artikel').slice(0, 80), qty: '', note: '', store: shopStore || '', ...(pid ? { pid } : {}), done: false, cart: true, cartBy: state.settings.me, cartAt: now, by: state.settings.me, at: now });
     save(); render(); return { name, added: true };
   }
-  return { cartFromScan, setTab, priceFor, stores: storeList, render, calendar, askCalendar, addItems, _parseRecipeText: parseRecipeText, _splitInput: splitInput, _splitQty: splitQty };
+  return { badge: (n) => storeBadge(n), cartFromScan, setTab, priceFor, stores: storeList, render, calendar, askCalendar, addItems, _parseRecipeText: parseRecipeText, _splitInput: splitInput, _splitQty: splitQty };
 })();
