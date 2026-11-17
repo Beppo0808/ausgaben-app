@@ -64,7 +64,13 @@ const Shop = (() => {
   };
   const DEFAULT_STORES = ['ALDI SÜD', 'ALDI Nord', 'LIDL', 'REWE', 'EDEKA', 'Marktkauf', 'Netto', 'Penny', 'Kaufland', 'dm', 'Rossmann'];
   const storeList = () => (Array.isArray(state.settings.shopStores) && state.settings.shopStores.length ? state.settings.shopStores : DEFAULT_STORES);
-  const logoOf = (name) => { const l = state.settings.storeLogos && state.settings.storeLogos[name]; return l && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(l) ? l : ''; };
+  const logoOk = (l) => l && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(l) ? l : '';
+  const logoOf = (name) => {
+    const all = state.settings.storeLogos || {}; if (logoOk(all[name])) return all[name];
+    const n = norm(name), first = n.split(' ')[0];
+    const k = Object.keys(all).find((x) => norm(x) === n) || Object.keys(all).find((x) => first.length >= 2 && norm(x).split(' ')[0] === first);
+    return k ? logoOk(all[k]) : '';
+  };
   function storeBadge(name, big) {
     if (!name) return '';
     const logo = logoOf(name);
@@ -161,7 +167,7 @@ const Shop = (() => {
     let n = 0;
     for (const raw of texts) {
       const sp = splitQty(raw), qty = sp.qty;
-      const name = sp.name.replace(/\bfür mich\b/i, `für ${state.settings.me || 'mich'}`); // „für mich“ → „für Ute“, damit der andere weiß, für wen
+      const name = sp.name.replace(/\bfür mich\b/i, `für ${state.settings.me || 'mich'}`).replace(/\s+(beutel|packung|stück|stk)?\s*\d+[.,]\d{2}\s?€.*$/i, '').trim(); // Preisangaben aus geteilten Listen weg // „für mich“ → „für Ute“, damit der andere weiß, für wen
       if (!name) continue;
       const k = norm(name);
       const same = state.shopping.find((x) => !x.done && norm(x.name) === k && (x.store || '') === where);
@@ -237,6 +243,8 @@ const Shop = (() => {
       const sl = storeList().concat(x.store && !storeList().includes(x.store) ? [x.store] : []); // eigener Laden des Eintrags immer wählbar (sonst würde er beim Speichern geändert)
       f.store.innerHTML = '<option value="">— egal wo —</option>' + sl.map((st) => `<option>${esc(st)}</option>`).join('');
       f.store.value = x.store || '';
+      const im = Catalog.imgForItem(x);
+      $('#shEditPic').innerHTML = im ? `<img src="${esc(im)}" alt="">` : '<span>📷</span>';
       $('#shEditDialog').showModal();
     }
   }
@@ -475,6 +483,11 @@ const Shop = (() => {
 
   function bind() {
     if (bound) return; bound = true;
+    $('#shEditPhoto').addEventListener('change', async (e) => {
+      const f = e.target.files[0]; e.target.value = ''; const x = shEditing; if (!f || !x) return;
+      const t = await Catalog.cropFromFile(f);
+      if (t && Catalog.photoForItem(x, t)) { $('#shEditPic').innerHTML = `<img src="${t}" alt="">`; save(); render(); toast('📷 Foto gespeichert'); }
+    });
     $('#shopList').addEventListener('change', async (e) => {
       if (!e.target.matches('.sh-photo')) return;
       const f = e.target.files[0]; e.target.value = ''; if (!f) return;
