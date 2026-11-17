@@ -129,6 +129,12 @@ const Catalog = (() => {
   const NUT_LABEL = { 'energy-kcal': ['Energie', 'kcal'], fat: ['Fett', 'g'], 'saturated-fat': ['ges. Fettsäuren', 'g'], carbohydrates: ['Kohlenhydrate', 'g'], sugars: ['Zucker', 'g'], fiber: ['Ballaststoffe', 'g'], proteins: ['Eiweiß', 'g'], salt: ['Salz', 'g'] };
   const nutText = (nut) => Object.entries(NUT_LABEL).filter(([k]) => nut && nut[k] !== undefined).map(([k, [l, u]]) => `${l} ${String(nut[k]).replace('.', ',')} ${u}`).join(' · ');
 
+  /** Vorhandenes Bild erneut zuschneiden */
+  async function recrop(src) {
+    if (!imgOk(src)) return '';
+    try { const blob = await (await fetch(src)).blob(); return await cropFromFile(blob); } catch (e) { toast('Bild konnte nicht geöffnet werden'); return ''; }
+  }
+
   /** Ladenname wie in der Ladenleiste schreiben („EDEKA“ → „Edeka“) */
   const niceStore = (st) => { const n = norm(st); if (!n) return ''; return Shop.stores().find((s) => { const k = norm(s); return k === n || k.split(' ')[0] === n.split(' ')[0]; }) || st; };
 
@@ -438,6 +444,7 @@ const Catalog = (() => {
     $('#catPickCancel').onclick = () => $('#catPickDialog').close();
     $('#cePhoto').addEventListener('change', async (e) => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; const t = await cropFromFile(f); if (t) { $('#cePic').dataset.img = t; $('#cePic').innerHTML = `<img src="${t}" alt="">`; } });
     $('#ceSave').onclick = saveEdit;
+    $('#cePic').addEventListener('click', async () => { const t = await recrop($('#cePic').dataset.img); if (t) { $('#cePic').dataset.img = t; $('#cePic').innerHTML = `<img src="${t}" alt="">`; } });
     $('#ceLabel').addEventListener('change', async (e) => {
       const files = [...e.target.files].slice(0, 6); e.target.value = ''; if (!files.length) return;
       const r = await readLabels(files, (t) => { $('#ceNutText').textContent = t || $('#ceNutText').textContent; });
@@ -476,5 +483,5 @@ const Catalog = (() => {
     };
   }
 
-  return { setLabel, readLabels, nutText, nameFits, setImgIfEmpty, fromLink, cropFromFile, bestPrice, pickById, openNew, imgForItem, photoForItem, render, fromBon, upsertScan, setPrice, pricesFor, packFor, setPack, byEan, imgFor, setImg, thumb, thumbFromFile };
+  return { recrop, setLabel, readLabels, nutText, nameFits, setImgIfEmpty, fromLink, cropFromFile, bestPrice, pickById, openNew, imgForItem, photoForItem, render, fromBon, upsertScan, setPrice, pricesFor, packFor, setPack, byEan, imgFor, setImg, thumb, thumbFromFile };
 })();

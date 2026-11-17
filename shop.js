@@ -490,6 +490,10 @@ const Shop = (() => {
 
   function bind() {
     if (bound) return; bound = true;
+    $('#shEditPic').addEventListener('click', async () => {
+      const x = shEditing; const im = x && Catalog.imgForItem(x); if (!im) return;
+      const t = await Catalog.recrop(im); if (t && Catalog.photoForItem(x, t)) { $('#shEditPic').innerHTML = `<img src="${t}" alt="">`; save(); render(); }
+    });
     $('#shEditPhoto').addEventListener('change', async (e) => {
       const f = e.target.files[0]; e.target.value = ''; const x = shEditing; if (!f || !x) return;
       const t = await Catalog.cropFromFile(f);

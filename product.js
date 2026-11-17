@@ -443,6 +443,11 @@ const Product = (() => {
       const pid = Catalog.setImg(meta(ean), t); toast('📷 Foto gespeichert'); savedMsg(pid);
       const head = $('#prodResult .prod-head img'); if (head) head.src = t; else if ($('#prodResult .prod-head')) $('#prodResult .prod-head').insertAdjacentHTML('beforeend', `<img src="${t}" alt="">`); else $('#prodResult').insertAdjacentHTML('afterbegin', `<div class="prod-head"><img src="${t}" alt=""></div>`);
     };
+    $('#prodResult').addEventListener('click', async (e) => { // Produktbild antippen → neu zuschneiden
+      const img = e.target.closest('.prod-head img'); const ean = $('#prodEan').value.replace(/\D/g, ''); if (!img || ean.length < 8) return;
+      const t = await Catalog.recrop(img.getAttribute('src')); if (!t) return;
+      const pid = Catalog.setImg(meta(ean), t); img.src = t; savedMsg(pid); toast('✂️ Bild zugeschnitten');
+    });
     $('#prodResult').addEventListener('change', (e) => {
       if (e.target.matches('.prod-own-photo')) ownPhoto(e);
       if (e.target.matches('.prod-pack-in')) { const q = parseFloat(e.target.value.replace(',', '.')); const ean = $('#prodEan').value.replace(/\D/g, ''); if (q > 0 && q < 20000 && ean) { Catalog.setPack(meta(ean), q); if (lastP) render(lastEan, lastP); } }
