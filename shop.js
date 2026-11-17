@@ -196,7 +196,8 @@ const Shop = (() => {
       return `<li class="sh-item ${x.done ? 'done' : ''} ${x.cart && !x.done ? 'in-cart' : ''}" data-id="${esc(x.id)}">
         <button class="sh-check" data-act="toggle" aria-label="${x.done ? 'wieder offen' : x.cart ? 'aus dem Wagen nehmen' : 'in den Wagen'}">${x.done || x.cart ? '✓' : ''}</button>
         ${(() => { const im = typeof Catalog !== 'undefined' ? Catalog.imgForItem(x) : ''; return `<label class="sh-pic${im ? '' : ' empty'}" aria-label="Produktfoto">${im ? `<img src="${esc(im)}" alt="">` : '📷'}<input type="file" class="sh-photo" accept="image/*" capture="environment"></label>`; })()}
-        <span class="sh-main" data-act="edit"><span class="sh-name">${esc(x.name)}${x.qty ? ` <span class="sh-qty">${esc(x.qty)}</span>` : ''}${x.store ? ' ' + storeBadge(x.store) : ''}${!x.store && shopStore ? ' <span class="sh-any">egal wo</span>' : ''}</span>
+        <span class="sh-main" data-act="edit"><span class="sh-name">${esc(x.name)}${x.qty ? ` <span class="sh-qty">${esc(x.qty)}</span>` : ''}</span>
+          ${x.done ? '' : `<button type="button" class="sh-store-btn" data-act="store" aria-label="Laden ändern">${x.store ? storeBadge(x.store) : '<span class="sh-any">egal wo</span>'} <span class="sh-swap">⇄</span></button>`}
           ${x.done ? `<span class="sh-sub">${x.doneBy ? 'gekauft von ' + esc(x.doneBy) : 'gekauft'}</span>`
             : `${p ? `<span class="sh-price">💶 ${esc(priceText(p))}</span>` : ''}${x.note || (x.by && x.by !== state.settings.me) ? `<span class="sh-sub">${[x.note, x.by && x.by !== state.settings.me ? 'von ' + x.by : ''].filter(Boolean).map(esc).join(' · ')}</span>` : ''}`}
         </span>
@@ -204,7 +205,19 @@ const Shop = (() => {
     };
     let html = '';
     if (!open.length && !cart.length) html += '<div class="empty-state">Die Liste ist leer.<br>Oben eintippen – weitere Wege (Sprechen, Zettel) unter ⋯</div>';
-    for (const g of order) if (groups.has(g)) html += `<div class="sh-group">${esc(GROUP_LABEL[g])}</div><ul class="sh-list">${groups.get(g).map(item).join('')}</ul>`;
+    const groupHtml = (arr) => { const gm = new Map(); arr.forEach((x) => { const g = itemGroup(x.name); if (!gm.has(g)) gm.set(g, []); gm.get(g).push(x); });
+      return order.filter((g) => gm.has(g)).map((g) => `<div class="sh-group">${esc(GROUP_LABEL[g])}</div><ul class="sh-list">${gm.get(g).map(item).join('')}</ul>`).join(''); };
+    const storesUsed = [...new Set(open.map((x) => x.store || ''))];
+    if (!shopStore && storesUsed.length > 1) {
+      // Reihenfolge wie in der Laden-Leiste, „egal wo“ zuletzt
+      const rank = (st) => { if (!st) return 999; const i = storeList().findIndex((s) => sameStore(s, st)); return i < 0 ? 500 : i; };
+      storesUsed.sort((a, b) => rank(a) - rank(b));
+      html += `<div class="sh-stores-sum">${storesUsed.filter(Boolean).map((st) => storeBadge(st)).join('')}</div>`;
+      for (const st of storesUsed) {
+        const arr = open.filter((x) => (x.store || '') === st);
+        html += `<div class="sh-store-head">${st ? storeBadge(st, true) : '🛒'} <b>${esc(st || 'Egal wo')}</b> <span class="muted">${arr.filter((x) => !x.cart).length} offen</span></div>${groupHtml(arr)}`;
+      }
+    } else html += groupHtml(open);
     if (cart.length) html += `<button class="btn btn-primary cart-done" id="shCartDone">✓ Einkauf fertig – ${cart.length} ${cart.length === 1 ? 'Artikel' : 'Artikel'} im Wagen gekauft</button>`;
     if (done.length) html += `<details class="sh-done"><summary>✓ Erledigt (${done.length})</summary><ul class="sh-list">${done.map(item).join('')}</ul>
       <button class="btn btn-ghost btn-sm" id="shClearDone">Erledigte löschen</button></details>`;
@@ -228,6 +241,13 @@ const Shop = (() => {
     }
     const b = e.target.closest('[data-act]'); if (!b) return;
     const li = b.closest('[data-id]'); const x = state.shopping.find((s) => s.id === li.dataset.id); if (!x) return;
+    if (b.dataset.act === 'store') { // Laden schnell wechseln
+      storePicking = x;
+      $('#stPickTitle').textContent = x.name;
+      $('#stPickList').innerHTML = storeList().map((st) => `<button type="button" class="btn st-pick" data-st="${esc(st)}" aria-pressed="${!!x.store && sameStore(x.store, st)}">${storeBadge(st)} ${esc(st)}</button>`).join('')
+        + `<button type="button" class="btn btn-ghost st-pick" data-st="" aria-pressed="${!x.store}">🛒 Egal wo</button>`;
+      $('#stPickDialog').showModal(); return;
+    }
     if (b.dataset.act === 'toggle') {
       if (x.done) { x.done = false; x.doneBy = ''; x.doneAt = ''; x.cart = false; } // aus „Erledigt“ zurück auf die Liste
       else { x.cart = !x.cart; x.cartBy = x.cart ? state.settings.me : ''; x.cartAt = x.cart ? new Date().toISOString() : ''; } // in den Wagen / wieder raus
@@ -255,7 +275,7 @@ const Shop = (() => {
     }
   }
 
-  let shEditing = null;
+  let shEditing = null, storePicking = null;
   function saveShEdit(ev) {
     ev.preventDefault();
     const x = shEditing; if (!x) return;
@@ -542,6 +562,12 @@ const Shop = (() => {
       state.settings.shopStores = list; save(); render(); openStoreDialog();
     };
     $('#storeDlgClose').onclick = () => $('#storeDlg').close();
+    $('#stPickList').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-st]'); if (!b || !storePicking) return;
+      storePicking.store = b.dataset.st; save(); $('#stPickDialog').close(); render();
+      toast(b.dataset.st ? `🏪 ${storePicking.name} → ${b.dataset.st}` : `🛒 ${storePicking.name}: egal wo`); storePicking = null;
+    });
+    $('#stPickCancel').onclick = () => $('#stPickDialog').close();
     $('#shopMenuBtn').onclick = () => $('#shopMenuDialog').showModal();
     $('#shopMenuClose').onclick = () => $('#shopMenuDialog').close();
     $('#shopMenuDialog').addEventListener('click', (e) => { if (e.target.closest('.menu-list .btn')) setTimeout(() => $('#shopMenuDialog').close(), 60); });
