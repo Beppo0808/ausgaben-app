@@ -128,7 +128,18 @@ const Product = (() => {
 
   const num = (v) => (Number.isFinite(+v) ? (+v).toLocaleString('de-DE', { maximumFractionDigits: 1 }) : '–');
   let lastP = null, lastEan = '';
+  /** Eigene Angaben (aus Etikett-Fotos) als Produktdaten */
+  const fromOwn = (own) => ({ product_name: own.name, brands: own.brand || '', quantity: own.qty || '', image_front_small_url: '', own: true,
+    nutriments: Object.fromEntries(Object.entries(own.nut || {}).map(([k, v]) => [k + '_100g', v])), ingredients_text_de: own.ingr || '' });
   function render(ean, p) {
+    const own = ean ? Catalog.byEan(ean) : null;
+    if (own && (own.nut || own.ingr)) {
+      if (!p) p = fromOwn(own);
+      else {
+        if (!p.nutriments || !Object.keys(p.nutriments).some((k) => /_100g$/.test(k))) p = { ...p, nutriments: fromOwn(own).nutriments };
+        if (!p.ingredients_text_de && !p.ingredients_text && own.ingr) p = { ...p, ingredients_text_de: own.ingr };
+      }
+    }
     lastP = p; lastEan = ean;
     const box = $('#prodResult');
     if (!p) {
@@ -457,6 +468,16 @@ const Product = (() => {
       if (current.unknown) { const v = ($('#prodOwnName') || {}).value || ''; if (!v.trim()) { toast('Bitte einen Produktnamen eintragen'); return ''; } current.name = current.pname = v.trim().slice(0, 80); }
       const id = Catalog.upsertScan(meta(current.ean)); savedMsg(id); return id;
     };
+    $('#prodLabel').addEventListener('change', async (e) => {
+      const files = [...e.target.files].slice(0, 6); e.target.value = ''; const ean = $('#prodEan').value.replace(/\D/g, '');
+      if (!files.length) return; if (ean.length < 8) { toast('Erst Strichcode scannen oder eintippen'); return; }
+      if (current && current.unknown) { const v = ($('#prodOwnName') || {}).value || ''; if (!v.trim()) { toast('Bitte zuerst den Produktnamen eintragen'); return; } current.name = current.pname = v.trim().slice(0, 80); }
+      const r = await Catalog.readLabels(files, (t) => { if (t) toast(t); });
+      if (!r.ingr && !Object.keys(r.nut).length) { toast('Nichts erkannt – Tabelle bzw. Zutaten gerade und nah fotografieren'); return; }
+      const id = Catalog.upsertScan(meta(ean)); Catalog.setLabel(id, r);
+      toast('📄 Gelesen und gespeichert – die Fotos werden nicht aufbewahrt'); savedMsg(id);
+      render(ean, lastP && !lastP.own ? lastP : null);
+    });
     $('#prodLinkBtn').onclick = async () => {
       const ean = $('#prodEan').value.replace(/\D/g, '');
       if (ean.length < 8) { toast('Erst Strichcode scannen oder eintippen'); return; }
@@ -473,6 +494,13 @@ const Product = (() => {
     $('#prodAdd').onclick = () => { const id = $('#prodAdd').dataset.pid || saveUnknown(); if (id) Catalog.pickById(id); };
     $('#prodEanBtn').onclick = () => { const v = $('#prodEan').value.replace(/\D/g, ''); if (v.length >= 8) show(v); else toast('Bitte die Ziffern unter dem Strichcode eintippen'); };
   }
+  /** Produkt ohne Strichcode mit eigenen Angaben anzeigen */
+  function showOwn(x) {
+    bind(); shot = ''; stopLive(); $('#prodCam').hidden = true; $('#prodSaved').hidden = true; $('#prodSave').hidden = true; $('#prodAdd').hidden = true;
+    $('#prodPrices').innerHTML = ''; $('#prodEan').value = '';
+    if (!$('#prodDialog').open) $('#prodDialog').showModal();
+    render('', fromOwn(x));
+  }
   const showEan = (ean) => { bind(); shot = ''; $('#prodCam').hidden = true; if (!$('#prodDialog').open) $('#prodDialog').showModal(); show(ean); };
-  return { handleFile, bind, openPrefs, startLive, startSeries, startCart, showEan };
+  return { handleFile, bind, openPrefs, startLive, startSeries, startCart, showEan, showOwn };
 })();

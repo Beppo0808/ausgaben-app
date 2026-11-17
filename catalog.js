@@ -4,6 +4,7 @@
  * Ein gescannter Bon hakt passende Einträge auf der Liste automatisch ab – auch bei anderer Marke oder anderem Laden.
  */
 const Catalog = (() => {
+  let labelNut = null;
   let bound = false, q = '', editing = null, picking = null, grp = '', sub = '', net = null, netQ = '';
   const norm = (s) => String(s || '').toLowerCase().replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss')
     .replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
@@ -77,6 +78,52 @@ const Catalog = (() => {
     return { name: d.name || '', brand: d.brand || '', ean: d.ean || '', img };
   }
 
+  // ---------- Etikett-Fotos auslesen: Nährwerte (je 100 g) und Zutaten – die Fotos selbst werden nicht gespeichert ----------
+  const NUT_RX = [
+    ['energy-kcal', /(energie|brennwert)/i], ['saturated-fat', /ges(ä|ae)ttigt|fetts(ä|ae)uren/i], ['fat', /^\W*fett\b/i],
+    ['sugars', /zucker/i], ['carbohydrates', /kohlenhydrat/i], ['fiber', /ballast/i], ['proteins', /eiwei(ß|ss)|protein/i], ['salt', /\bsalz\b/i],
+  ];
+  function parseLabel(text) {
+    const nut = {}; let ingr = '';
+    const lines = String(text || '').split(/\r?\n/).map((l) => l.replace(/\s+/g, ' ').trim()).filter(Boolean);
+    for (const l of lines) {
+      const k = NUT_RX.find(([key, re]) => re.test(l) && !(key === 'fat' && /ges(ä|ae)ttigt|fetts/i.test(l)));
+      if (!k || nut[k[0]] !== undefined) continue;
+      let v;
+      if (k[0] === 'energy-kcal') { const m = l.match(/(\d+[.,]?\d*)\s*kcal/i); if (m) v = +m[1].replace(',', '.'); else { const kj = l.match(/(\d+[.,]?\d*)\s*kj/i); if (kj) v = Math.round(+kj[1].replace(',', '.') / 4.184); } }
+      else {
+        const m = l.replace(/^[^\d<]*/, '').match(/<?\s*(\d+[.,]?\d*)\s*(mg|g)?/i);
+        if (m) {
+          let num = m[1]; const unit = (m[2] || '').toLowerCase();
+          // Texterkennung liest das „g“ oft als „9“: „12 g“ → „129g“, „9,5 g“ → „9,59“
+          if (!unit && /[.,]\d9$/.test(num)) num = num.slice(0, -1);
+          if (unit === 'g' && /\d9$/.test(num) && parseFloat(num.replace(',', '.')) > 100) num = num.slice(0, -1);
+          v = +num.replace(',', '.') / (unit === 'mg' ? 1000 : 1);
+        }
+      }
+      if (Number.isFinite(v) && v >= 0 && v < (k[0] === 'energy-kcal' ? 1000 : 101)) nut[k[0]] = Math.round(v * 100) / 100;
+    }
+    const all = lines.join(' ');
+    const m = all.match(/zutaten\s*[:：]?\s*(.+?)(?=(kann spuren|enth(ä|ae)lt|allergen|n(ä|ae)hrwert|durchschnittliche|mindestens haltbar|zu verbrauchen|kühl|gekühlt|lagern|hergestellt)|$)/i);
+    if (m) ingr = m[1].replace(/\s+/g, ' ').trim().replace(/[.,;\s]+$/, '').slice(0, 900);
+    return { nut, ingr };
+  }
+  /** Mehrere Fotos (Nährwerttabelle, Zutatenliste) lesen und zusammenführen */
+  async function readLabels(files, onStatus = () => {}) {
+    const nut = {}; let ingr = '';
+    for (let i = 0; i < files.length; i++) {
+      onStatus(`📄 Lese Foto ${i + 1} von ${files.length} …`);
+      const text = await Receipt.ocrFile(files[i], () => {}, { plain: true, psm: '6' });
+      const r = parseLabel(text);
+      for (const [k, v] of Object.entries(r.nut)) if (nut[k] === undefined) nut[k] = v;
+      if (r.ingr.length > ingr.length) ingr = r.ingr;
+    }
+    onStatus('');
+    return { nut, ingr };
+  }
+  const NUT_LABEL = { 'energy-kcal': ['Energie', 'kcal'], fat: ['Fett', 'g'], 'saturated-fat': ['ges. Fettsäuren', 'g'], carbohydrates: ['Kohlenhydrate', 'g'], sugars: ['Zucker', 'g'], fiber: ['Ballaststoffe', 'g'], proteins: ['Eiweiß', 'g'], salt: ['Salz', 'g'] };
+  const nutText = (nut) => Object.entries(NUT_LABEL).filter(([k]) => nut && nut[k] !== undefined).map(([k, [l, u]]) => `${l} ${String(nut[k]).replace('.', ',')} ${u}`).join(' · ');
+
   /** Ladenname wie in der Ladenleiste schreiben („EDEKA“ → „Edeka“) */
   const niceStore = (st) => { const n = norm(st); if (!n) return ''; return Shop.stores().find((s) => { const k = norm(s); return k === n || k.split(' ')[0] === n.split(' ')[0]; }) || st; };
 
@@ -106,7 +153,7 @@ const Catalog = (() => {
         for (const [st, v] of Object.entries(b.stores)) if (!stores[st] || v.d >= (stores[st].d || '')) stores[st] = v;
         bons.delete(a);
       }
-      out.push({ id: p.id, name: p.name, brand: p.brand || '', qty: p.qty || '', img: imgOk(p.img) ? p.img : '', ean: p.ean || '', cats: p.cats || [], stores, saved: true, at: p.at || '' });
+      out.push({ id: p.id, name: p.name, brand: p.brand || '', qty: p.qty || '', img: imgOk(p.img) ? p.img : '', ean: p.ean || '', cats: p.cats || [], nut: p.nut || null, ingr: p.ingr || '', stores, saved: true, at: p.at || '' });
     }
     const rest = [...bons.values()].sort((a, b) => b.n - a.n || b.last.localeCompare(a.last))
       .map((b) => ({ key: b.key, name: b.name, stores: b.stores, saved: false, at: b.last }));
@@ -222,7 +269,10 @@ const Catalog = (() => {
     $('#cePic').innerHTML = x.img ? `<img src="${esc(x.img)}" alt="">` : `<span>${emojiOf(x.name)}</span>`;
     $('#cePic').dataset.img = x.img || '';
     $('#cePrices').innerHTML = best(x.stores).map((v) => `<li><b>${esc(v.st)}</b><span>${fmt(v.p)}</span><small>${esc(dshort(v.d))}</small></li>`).join('') || '<li><small>noch kein Preis</small></li>';
-    $('#ceNut').hidden = !x.ean; $('#ceDel').hidden = !x.saved;
+    $('#ceNut').hidden = !x.ean && !(x.nut && Object.keys(x.nut).length); $('#ceDel').hidden = !x.saved;
+    labelNut = x.nut || null; $('#ceIngr').value = x.ingr || '';
+    $('#ceNutText').textContent = labelNut && Object.keys(labelNut).length ? nutText(labelNut) + ' (je 100 g)' : 'noch keine eigenen Angaben';
+    $('#ceInfo').open = !!(x.ingr || (labelNut && Object.keys(labelNut).length));
     $('#catEditDialog').showModal();
   }
   /** Neues Produkt ohne Strichcode (z. B. Obst, Fleisch von der Theke) */
@@ -235,6 +285,8 @@ const Catalog = (() => {
     if (!p) { p = { id: uid(), aliases: x.key ? [x.key] : [], stores: {}, at: new Date().toISOString() }; list().push(p); }
     Object.assign(p, { name, brand: $('#ceBrand').value.trim().slice(0, 40), qty: $('#ceQty').value.trim().slice(0, 20), img: imgOk(img) ? img : '' });
     if (x.linkEan && !p.ean && !list().some((y) => y.ean === x.linkEan)) p.ean = x.linkEan;
+    if (labelNut && Object.keys(labelNut).length) p.nut = labelNut;
+    p.ingr = $('#ceIngr').value.trim().slice(0, 900);
     save(); $('#catEditDialog').close(); render(); toast('Gespeichert ✓');
   }
 
@@ -273,6 +325,7 @@ const Catalog = (() => {
     p.img = img; x.pid = p.id; save();
     return p.id;
   }
+  function setLabel(id, r) { const p = list().find((y) => y.id === id); if (!p) return; p.nut = { ...(p.nut || {}), ...(r.nut || {}) }; if (r.ingr) p.ingr = r.ingr.slice(0, 900); save(); }
   function setImgIfEmpty(id, img) { const p = list().find((y) => y.id === id); if (p && !p.img && imgOk(img)) { p.img = img; save(); if (!$('#catPane').hidden) render(); } }
   const byEan = (ean) => list().find((y) => ean && y.ean === ean) || null;
   const imgFor = (ean) => { const p = byEan(ean); return p && imgOk(p.img) && p.img.startsWith('data:') ? p.img : ''; };
@@ -376,6 +429,14 @@ const Catalog = (() => {
     $('#catPickCancel').onclick = () => $('#catPickDialog').close();
     $('#cePhoto').addEventListener('change', async (e) => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; const t = await cropFromFile(f); if (t) { $('#cePic').dataset.img = t; $('#cePic').innerHTML = `<img src="${t}" alt="">`; } });
     $('#ceSave').onclick = saveEdit;
+    $('#ceLabel').addEventListener('change', async (e) => {
+      const files = [...e.target.files].slice(0, 6); e.target.value = ''; if (!files.length) return;
+      const r = await readLabels(files, (t) => { $('#ceNutText').textContent = t || $('#ceNutText').textContent; });
+      labelNut = { ...(labelNut || {}), ...r.nut };
+      if (r.ingr && !$('#ceIngr').value.trim()) $('#ceIngr').value = r.ingr;
+      $('#ceNutText').textContent = Object.keys(labelNut).length ? nutText(labelNut) + ' (je 100 g) – bitte kurz prüfen' : 'Keine Nährwerte erkannt – Foto der Tabelle gerade und nah aufnehmen';
+      $('#ceInfo').open = true; toast(r.ingr || Object.keys(r.nut).length ? '📄 Gelesen – die Fotos werden nicht gespeichert' : 'Nichts erkannt');
+    });
     $('#ceLinkBtn').onclick = async () => {
       const d = await fromLink($('#ceLink').value); if (!d) return;
       if (d.img) { $('#cePic').dataset.img = d.img; $('#cePic').innerHTML = `<img src="${d.img}" alt="">`; }
@@ -386,12 +447,12 @@ const Catalog = (() => {
     };
     $('#ceCancel').onclick = () => $('#catEditDialog').close();
     $('#ceAdd').onclick = () => { if (editing) { $('#catEditDialog').close(); addToList(editing); } };
-    $('#ceNut').onclick = () => { if (editing && editing.ean) { $('#catEditDialog').close(); Product.showEan(editing.ean); } };
+    $('#ceNut').onclick = () => { if (!editing) return; $('#catEditDialog').close(); if (editing.ean) Product.showEan(editing.ean); else Product.showOwn(editing); };
     $('#ceDel').onclick = () => {
       if (!editing || !editing.saved || !confirm('Dieses Produkt aus „Unsere Produkte“ entfernen?')) return;
       state.products = list().filter((y) => y.id !== editing.id); save(); $('#catEditDialog').close(); render();
     };
   }
 
-  return { nameFits, setImgIfEmpty, fromLink, cropFromFile, bestPrice, pickById, openNew, imgForItem, photoForItem, render, fromBon, upsertScan, setPrice, pricesFor, packFor, setPack, byEan, imgFor, setImg, thumb, thumbFromFile };
+  return { setLabel, readLabels, nutText, nameFits, setImgIfEmpty, fromLink, cropFromFile, bestPrice, pickById, openNew, imgForItem, photoForItem, render, fromBon, upsertScan, setPrice, pricesFor, packFor, setPack, byEan, imgFor, setImg, thumb, thumbFromFile };
 })();
